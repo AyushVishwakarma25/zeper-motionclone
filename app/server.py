@@ -99,16 +99,13 @@ async def local_boundary(request: Request, call_next):
     allowed={f'127.0.0.1:{PORT}',f'localhost:{PORT}','testserver'}
     if not HOSTED and host not in allowed:return JSONResponse({'detail':'Local access only.'},status_code=403)
     if request.method not in ('GET','HEAD','OPTIONS'):
+        req_token = request.headers.get('x-frameforge-token')
+        if not HOSTED and req_token != TOKEN:
+            return JSONResponse({'detail':'Refresh this page to reconnect.'},status_code=403)
         origin=request.headers.get('origin')
         allowed_origins={f'http://127.0.0.1:{PORT}',f'http://localhost:{PORT}'}
         if not HOSTED and origin and origin not in allowed_origins:
             return JSONResponse({'detail':'Cross-origin requests are blocked.'},status_code=403)
-        req_token = request.headers.get('x-frameforge-token')
-        sec_site = request.headers.get('sec-fetch-site')
-        is_same_origin = (origin in allowed_origins) or (sec_site == 'same-origin') or (not origin and host in allowed) or HOSTED
-        if not HOSTED and req_token != TOKEN and not is_same_origin:
-            logger.warning(f"TOKEN MISMATCH on {request.url.path}: received {req_token!r} != expected {TOKEN!r}")
-            return JSONResponse({'detail':'Refresh this page to reconnect.'},status_code=403)
         try:length=int(request.headers.get('content-length','0'))
         except ValueError:return JSONResponse({'detail':'Invalid request size.'},status_code=400)
         if length>MAX_BYTES+12*1024*1024:
@@ -136,10 +133,10 @@ def index(request: Request):
         page=page.replace('Saved locally.','Saved privately.').replace('Vimeo, or direct video links.','or Vimeo video links.')
         page=page.replace('250 MB','25 MB')
         return HTMLResponse(page)
-    if 'showcase' in request.query_params:
-        showcase=(ROOT/'web/showcase.html').read_text(encoding='utf-8')
-        return HTMLResponse(showcase.replace('href="./','href="/static/').replace('src="./','src="/static/'))
-    return HTMLResponse(page)
+    if 'workspace' in request.query_params or 'project' in request.query_params or 'settings' in request.query_params:
+        return HTMLResponse(page)
+    showcase=(ROOT/'web/showcase.html').read_text(encoding='utf-8')
+    return HTMLResponse(showcase.replace('href="./','href="/static/').replace('src="./','src="/static/'))
 
 
 @app.get('/master-studio')

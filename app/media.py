@@ -242,3 +242,178 @@ def contact_sheets(video, prefix, count=24, cancel=None, timestamps=None):
     cap.release()
     if not sheets:raise ValueError('Could not decode reference frames.')
     return sheets
+
+
+# ==============================================================================
+# Katana 4-Engine Media Intelligence (Librosa, Optical Flow, Canny, Face Tracker)
+# ==============================================================================
+
+def detect_beat_frames(audio_path, fps=30.0):
+    """Detects musical BPM and beat timestamps using Librosa or energy peak fallback."""
+    audio_path = Path(audio_path)
+    if not audio_path.is_file():
+        return {'bpm': 120.0, 'beat_seconds': [i * 0.5 for i in range(60)], 'beat_frames': [int(i * 0.5 * fps) for i in range(60)]}
+
+    try:
+        import librosa
+        y, sr = librosa.load(str(audio_path), sr=22050)
+        tempo, beat_frames_raw = librosa.beat.beat_track(y=y, sr=sr)
+        bpm = float(tempo[0] if hasattr(tempo, '__len__') else tempo)
+        beat_times = librosa.frames_to_time(beat_frames_raw, sr=sr).tolist()
+        return {
+            'bpm': round(bpm, 1),
+            'beat_seconds': [round(t, 3) for t in beat_times],
+            'beat_frames': [int(round(t * fps)) for t in beat_times]
+        }
+    except Exception:
+        # Robust fallback using FFmpeg raw PCM and RMS energy thresholding
+        try:
+            raw_audio = run(['ffmpeg', '-v', 'error', '-i', str(audio_path), '-ac', '1', '-ar', '16000', '-f', 'f32le', '-'], timeout=30)
+            samples = np.frombuffer(raw_audio.encode('latin1') if isinstance(raw_audio, str) else raw_audio, dtype=np.float32)
+            hop = int(16000 / fps)
+            energy = [float(np.sqrt(np.mean(samples[i:i+hop]**2))) for i in range(0, len(samples)-hop, hop)]
+            mean_e = np.mean(energy) if energy else 0.05
+            beats = [i for i, e in enumerate(energy) if e > mean_e * 1.5 and (i == 0 or e > energy[i-1])]
+            return {
+                'bpm': 120.0,
+                'beat_seconds': [round(i / fps, 3) for i in beats[:60]],
+                'beat_frames': beats[:60]
+            }
+        except Exception:
+            return {'bpm': 120.0, 'beat_seconds': [i * 0.5 for i in range(60)], 'beat_frames': [int(i * 0.5 * fps) for i in range(60)]}
+
+
+def extract_camera_motion_curve(video_path, cancel=None, sample_interval=3):
+    """Calculates optical flow camera motion trajectory (dx, dy, zoom, rotation)."""
+    cap = cv2.VideoCapture(str(video_path))
+    motions = []
+    prev_gray = None
+    frame_idx = 0
+
+    try:
+        while True:
+            if cancel and cancel.is_set():
+                raise Cancelled()
+            ok, frame = cap.read()
+            if not ok or frame_idx > 600:
+                break
+
+            if frame_idx % sample_interval == 0:
+                small = cv2.resize(frame, (320, 180))
+                gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+                if prev_gray is not None:
+                    flow = cv2.calcOpticalFlowFarneback(prev_gray, gray, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+                    dx = float(np.mean(flow[..., 0]))
+                    dy = float(np.mean(flow[..., 1]))
+                    mag = float(np.mean(np.sqrt(flow[..., 0]**2 + flow[..., 1]**2)))
+                    motions.append({'frame': frame_idx, 'dx': round(dx, 3), 'dy': round(dy, 3), 'magnitude': round(mag, 3)})
+                prev_gray = gray
+            frame_idx += 1
+    finally:
+        cap.release()
+
+    # Determine dominant DOP motion preset
+    avg_dx = np.mean([m['dx'] for m in motions]) if motions else 0
+    avg_dy = np.mean([m['dy'] for m in motions]) if motions else 0
+    avg_mag = np.mean([m['magnitude'] for m in motions]) if motions else 0
+
+    dominant = 'dolly_in'
+    if abs(avg_dx) > abs(avg_dy) and abs(avg_dx) > 0.5:
+        dominant = 'pan_right' if avg_dx < 0 else 'pan_left'
+    elif abs(avg_dy) > 0.5:
+        dominant = 'tilt_down' if avg_dy < 0 else 'tilt_up'
+    elif avg_mag > 1.2:
+        dominant = 'zoom_in'
+
+    return {
+        'dominant_motion': dominant,
+        'strength': min(3.0, max(0.5, round(avg_mag, 2))),
+        'trajectory': motions[:60]
+    }
+
+
+def extract_canny_edge_guide(image_or_path, low_threshold=50, high_threshold=150, output_path=None):
+    """Produces a Canny edge guide overlay image for split-screen wireframe comparison."""
+    if isinstance(image_or_path, (str, Path)):
+        img = cv2.imread(str(image_or_path))
+    elif isinstance(image_or_path, np.ndarray):
+        img = image_or_path
+    elif hasattr(image_or_path, 'convert'):
+        img = cv2.cvtColor(np.array(image_or_path), cv2.COLOR_RGB2BGR)
+    else:
+        raise ValueError("Unsupported image input for Canny extraction.")
+
+    if img is None:
+        raise ValueError("Could not read frame for Canny edge guide.")
+
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+    edges = cv2.Canny(blurred, low_threshold, high_threshold)
+
+    # Convert to high-contrast neon cyan edge overlay
+    color_edges = np.zeros_like(img)
+    color_edges[edges > 0] = [254, 242, 0]  # BGR neon cyan
+
+    if output_path:
+        cv2.imwrite(str(output_path), color_edges)
+        return Path(output_path)
+
+    return Image.fromarray(cv2.cvtColor(color_edges, cv2.COLOR_BGR2RGB))
+
+
+def track_active_speaker_faces(video_path, cancel=None, target_aspect='9:16'):
+    """Tracks speaker face coordinates across time for smart auto-crop to 9:16 and zoom punches."""
+    cap = cv2.VideoCapture(str(video_path))
+    meta = probe(video_path)
+    fps = meta.get('fps', 30.0) or 30.0
+    w_orig = meta.get('width', 1920)
+    h_orig = meta.get('height', 1080)
+
+    face_cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+    face_cascade = cv2.CascadeClassifier(face_cascade_path)
+
+    tracking_data = []
+    frame_idx = 0
+    smooth_cx = 0.5
+    smooth_cy = 0.4
+
+    try:
+        while True:
+            if cancel and cancel.is_set():
+                raise Cancelled()
+            ok, frame = cap.read()
+            if not ok or frame_idx > 900:
+                break
+
+            if frame_idx % 4 == 0:
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                faces = face_cascade.detectMultiScale(gray, scaleFactor=1.2, minNeighbors=4, minSize=(60, 60))
+
+                if len(faces) > 0:
+                    # Pick largest face
+                    faces = sorted(faces, key=lambda f: f[2] * f[3], reverse=True)
+                    fx, fy, fw, fh = faces[0]
+                    raw_cx = (fx + fw / 2.0) / w_orig
+                    raw_cy = (fy + fh / 2.0) / h_orig
+                    # Exponential Moving Average for jitter-free pan
+                    smooth_cx = 0.7 * smooth_cx + 0.3 * raw_cx
+                    smooth_cy = 0.7 * smooth_cy + 0.3 * raw_cy
+
+                tracking_data.append({
+                    'frame': frame_idx,
+                    'timestamp_s': round(frame_idx / fps, 3),
+                    'center_x': round(smooth_cx, 3),
+                    'center_y': round(smooth_cy, 3),
+                    'detected': len(faces) > 0
+                })
+            frame_idx += 1
+    finally:
+        cap.release()
+
+    return {
+        'total_frames_tracked': frame_idx,
+        'average_center_x': round(smooth_cx, 3),
+        'average_center_y': round(smooth_cy, 3),
+        'keyframes': tracking_data[:120]
+    }
+

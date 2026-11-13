@@ -455,3 +455,117 @@ export function TransparentOverlay({badgeText = 'FEATURED PRODUCT', stat = '10x 
     </AbsoluteFill>
   );
 }
+
+// 7. KATANA 4-ENGINE: Annotated Visual Scene (Before/After Wipe Slider + SVG Callouts)
+export function AnnotatedVisualScene({
+  beforeImage,
+  afterImage,
+  callouts = [{x: 0.5, y: 0.4, title: 'Target Area', text: 'Optimized response'}],
+  wipeDuration = 60,
+  accent = '#00f2fe'
+}) {
+  const frame = useCurrentFrame();
+  const {width, height, fps, durationInFrames} = useVideoConfig();
+
+  const wipeProgress = interpolate(frame, [15, Math.min(durationInFrames - 15, 15 + wipeDuration)], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp'
+  });
+  const splitX = wipeProgress * width;
+
+  return (
+    <AbsoluteFill style={{backgroundColor: '#09090b', overflow: 'hidden'}}>
+      {/* After image (base) */}
+      {afterImage && (
+        <Img src={afterImage.startsWith('http') ? afterImage : staticFile(afterImage)} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+      )}
+      {/* Before image (clipped) */}
+      {beforeImage && (
+        <div style={{position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', clipPath: `polygon(0 0, ${splitX}px 0, ${splitX}px 100%, 0 100%)`}}>
+          <Img src={beforeImage.startsWith('http') ? beforeImage : staticFile(beforeImage)} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+        </div>
+      )}
+      {/* Wipe Slider Line */}
+      <div style={{position: 'absolute', left: `${splitX}px`, top: 0, bottom: 0, width: '3px', background: '#ffffff', boxShadow: `0 0 12px ${accent}`}}>
+        <div style={{position: 'absolute', top: '50%', left: '-14px', width: '30px', height: '30px', borderRadius: '50%', background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', transform: 'translateY(-50%)', boxShadow: '0 2px 8px rgba(0,0,0,0.5)'}}>
+          <span style={{fontSize: '12px', color: '#09090b', fontWeight: 900}}>⇄</span>
+        </div>
+      </div>
+      {/* SVG Callout Markers */}
+      {callouts.map((c, i) => {
+        const appear = spring({frame: frame - 20 - i * 10, fps, config: {damping: 12}});
+        return (
+          <div key={i} style={{position: 'absolute', left: `${c.x * width}px`, top: `${c.y * height}px`, transform: `translate(-50%, -50%) scale(${appear})`, opacity: appear}}>
+            <div style={{display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 14px', background: 'rgba(9,9,11,0.85)', backdropFilter: 'blur(8px)', border: `1px solid ${accent}`, borderRadius: '20px', color: '#ffffff', fontSize: '13px', fontWeight: 700}}>
+              <span style={{width: '8px', height: '8px', borderRadius: '50%', background: accent}} />
+              <span>{c.title}</span>
+            </div>
+          </div>
+        );
+      })}
+    </AbsoluteFill>
+  );
+}
+
+// 8. KATANA 4-ENGINE: Speaker Tracker Scene (Portrait 9:16 Crop + Dynamic Centering)
+export function SpeakerTrackerScene({
+  videoSrc,
+  speakerTrack = {cx: 0.5, cy: 0.35, zoom: 1.2},
+  activeWord = 'Impact',
+  accent = '#00f2fe'
+}) {
+  const frame = useCurrentFrame();
+  const {width, height} = useVideoConfig();
+
+  return (
+    <AbsoluteFill style={{backgroundColor: '#09090b', overflow: 'hidden'}}>
+      {videoSrc && (
+        <video
+          src={videoSrc.startsWith('http') ? videoSrc : staticFile(videoSrc)}
+          style={{
+            position: 'absolute',
+            width: `${100 * (speakerTrack.zoom || 1.2)}%`,
+            height: `${100 * (speakerTrack.zoom || 1.2)}%`,
+            left: `${(0.5 - speakerTrack.cx) * 100}%`,
+            top: `${(0.5 - speakerTrack.cy) * 100}%`,
+            objectFit: 'cover'
+          }}
+          autoPlay
+          muted
+          playsInline
+        />
+      )}
+      {/* Dynamic Word-Pop Caption */}
+      <div style={{position: 'absolute', bottom: '15%', left: 0, right: 0, display: 'flex', justifyContent: 'center'}}>
+        <div style={{padding: '10px 24px', background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', borderRadius: '12px', border: `1px solid ${accent}60`, color: '#ffffff', fontSize: '28px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px'}}>
+          <span style={{color: accent}}>{activeWord}</span>
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+// 9. KATANA 4-ENGINE: Synchronized Split-Screen Comparison
+export function SplitScreenComparison({referenceVideo, rebuiltVideo, showCannyOverlay = false, cannySrc = null}) {
+  return (
+    <AbsoluteFill style={{display: 'flex', flexDirection: 'row', backgroundColor: '#09090b'}}>
+      {/* Left: Reference Viewport */}
+      <div style={{flex: 1, position: 'relative', borderRight: '1px solid #27272a', overflow: 'hidden'}}>
+        <div style={{position: 'absolute', top: 12, left: 12, zIndex: 10, padding: '4px 8px', background: 'rgba(0,0,0,0.7)', borderRadius: '4px', color: '#a1a1aa', fontSize: '11px', fontFamily: 'monospace'}}>
+          ORIGINAL REFERENCE
+        </div>
+        {referenceVideo && <video src={referenceVideo} style={{width: '100%', height: '100%', objectFit: 'contain'}} autoPlay muted playsInline />}
+        {showCannyOverlay && cannySrc && (
+          <Img src={cannySrc} style={{position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', mixBlendMode: 'screen', opacity: 0.8}} />
+        )}
+      </div>
+      {/* Right: Rebuilt Engine Output */}
+      <div style={{flex: 1, position: 'relative', overflow: 'hidden'}}>
+        <div style={{position: 'absolute', top: 12, left: 12, zIndex: 10, padding: '4px 8px', background: 'rgba(0,0,0,0.7)', borderRadius: '4px', color: '#00f2fe', fontSize: '11px', fontFamily: 'monospace'}}>
+          KATANA RECONSTRUCTION
+        </div>
+        {rebuiltVideo && <video src={rebuiltVideo} style={{width: '100%', height: '100%', objectFit: 'contain'}} autoPlay muted playsInline />}
+      </div>
+    </AbsoluteFill>
+  );
+}

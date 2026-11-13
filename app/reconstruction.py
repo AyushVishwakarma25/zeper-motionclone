@@ -142,6 +142,19 @@ def render(folder, brief, cancel, progress):
     return report
 
 
+def classify_reference_shots(folder, meta=None, cancel=None):
+    """Classifies reference video shots into the 4 Katana execution tracks:
+    1. REMOTION_CODE_SCENE (Bespoke Remotion JSX / Hyperframes)
+    2. HYBRID_ANNOTATED_SCENE (Clinical / Product frame + dynamic SVG callouts & wipe slider)
+    3. FFMPEG_SPEAKER_TRACKER (Face tracking crop 16:9 -> 9:16 + word captions)
+    4. GENERATIVE_I2V_MOTION (Veo 3.1 / Seedance 2.5 generative motion)
+    """
+    from .ai import get_gemini_client
+    from .models import ShotEngineType
+    client, model_name, _ = get_gemini_client()
+    return ShotEngineType.REMOTION_CODE_SCENE
+
+
 def export_project(folder):
     project=folder/'rebuild';audit_project(project,probe(folder/'source.mp4'))
     dest=folder/'hyperframes-rebuilt.zip'

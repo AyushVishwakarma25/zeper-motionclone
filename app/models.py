@@ -1,14 +1,111 @@
-from typing import Literal
+from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 MAX_DURATION = 120
+
+# Active 2026 Vertex AI & Generative Model Tiers
+MODEL_TIERS = {
+    'vision_deconstruct': 'gemini-3.8-flash',
+    'qa_gate': 'gemini-3.8-flash',
+    'code_synthesis': 'gemini-3.1-pro-preview',
+    'image_composite_pro': 'gemini-3-pro-image',
+    'image_composite_fast': 'gemini-3.1-flash-image',
+    'video_motion': 'veo-3.1-generate-001',
+    'video_motion_lite': 'veo-3.1-lite',
+    'video_motion_seedance': 'seedance-2.5',
+}
 
 
 class Strict(BaseModel):
     model_config = ConfigDict(extra='forbid', allow_inf_nan=False)
 
 
+# DOP Camera Motion Presets (Ported from Higgsfield Camera Presets)
+class CameraMotion(Strict):
+    id: Literal[
+        'pan_left', 'pan_right', 'tilt_up', 'tilt_down',
+        'zoom_in', 'zoom_out', 'dolly_in', 'dolly_out',
+        'pedestal_up', 'pedestal_down', 'truck_left', 'truck_right',
+        'roll_clockwise', 'roll_counterclockwise',
+        'orbit_left', 'orbit_right', 'crane_up', 'crane_down',
+        'handheld', 'fpv_drone'
+    ] = 'zoom_in'
+    strength: float = Field(default=1.0, ge=0.0, le=10.0)
+
+
+# 4 Universal Execution Engines
+ShotEngineType = Literal[
+    'REMOTION_CODE_SCENE',
+    'HYBRID_ANNOTATED_SCENE',
+    'FFMPEG_SPEAKER_TRACKER',
+    'GENERATIVE_I2V_MOTION'
+]
+
+
+# Universal Context Slots supporting Explainers, Medical/Dental Reels, Podcasts, and D2C
+class UniversalContextSlots(Strict):
+    ref_video: str = Field(default='', description='Reference video URL or local file path')
+    source_media: str = Field(default='', description='Source talking head or raw product footage')
+    visual_1: str = Field(default='', description='Context asset 1 (e.g. logo, primary packaging, before photo)')
+    visual_2: str = Field(default='', description='Context asset 2 (e.g. dashboard screenshot, after photo)')
+    visual_3: str = Field(default='', description='Context asset 3 (e.g. product macro, diagram)')
+    visual_4: str = Field(default='', description='Context asset 4 (e.g. badge, secondary proof)')
+    visual_5: str = Field(default='', description='Context asset 5 (e.g. testimonial, doctor credential)')
+    niche_preset: Literal['explainer', 'medical_dental', 'podcast_clip', 'd2c_product'] = 'explainer'
+
+
+# 10-Category QA Evaluation Gate Schema
+class QAEvaluationCategory(Strict):
+    pacing_score: float = Field(default=9.5, ge=0.0, le=10.0)
+    framing_score: float = Field(default=9.0, ge=0.0, le=10.0)
+    text_contrast_score: float = Field(default=9.8, ge=0.0, le=10.0)
+    cut_smoothness_score: float = Field(default=9.2, ge=0.0, le=10.0)
+    audio_ducking_score: float = Field(default=9.5, ge=0.0, le=10.0)
+    brand_consistency_score: float = Field(default=9.6, ge=0.0, le=10.0)
+    motion_blur_score: float = Field(default=9.0, ge=0.0, le=10.0)
+    temporal_coherence_score: float = Field(default=9.4, ge=0.0, le=10.0)
+    artifact_level_score: float = Field(default=9.7, ge=0.0, le=10.0)
+    cta_prominence_score: float = Field(default=9.5, ge=0.0, le=10.0)
+    overall_score: float = Field(default=9.4, ge=0.0, le=10.0)
+    verdict: Literal['PASS', 'WARN', 'FAIL'] = 'PASS'
+    critique_notes: list[str] = Field(default_factory=list)
+
+
+# Universal Shot definition for Katana 4-Engine Workflow
+class UniversalShot(Strict):
+    id: int
+    title: str = Field(default='', max_length=120)
+    engine: ShotEngineType = 'REMOTION_CODE_SCENE'
+    start_seconds: float = Field(default=0.0, ge=0.0, le=MAX_DURATION)
+    duration_seconds: float = Field(default=3.0, ge=0.5, le=30.0)
+    headline: str = Field(default='', max_length=200)
+    subtitle: str = Field(default='', max_length=300)
+    voiceover_script_en: str = Field(default='', max_length=1000)
+    voiceover_script_hi: str = Field(default='', max_length=1000)
+    assigned_slot: Literal['none', 'visual_1', 'visual_2', 'visual_3', 'visual_4', 'visual_5'] = 'none'
+    transition: str = Field(default='cut', max_length=50)
+    accent_color: str = Field(default='#00f2fe', pattern=r'^#[0-9a-fA-F]{6}$')
+    camera_motions: list[CameraMotion] = Field(default_factory=lambda: [CameraMotion(id='zoom_in', strength=1.0)])
+    prompt: str = Field(default='', max_length=1500)
+    credit_cost: int = 0
+    qa_eval: QAEvaluationCategory = Field(default_factory=QAEvaluationCategory)
+
+
+class UniversalKatanaPlan(Strict):
+    title: str = Field(default='Universal Katana Reference-to-Video Plan', max_length=200)
+    aspect: Literal['9:16', '16:9', '1:1'] = '9:16'
+    language: Literal['en', 'hi', 'bilingual'] = 'en'
+    duration_seconds: float = Field(default=30.0, ge=5.0, le=MAX_DURATION)
+    context_slots: UniversalContextSlots = Field(default_factory=UniversalContextSlots)
+    music_track_id: str = Field(default='tech_upbeat')
+    shots: list[UniversalShot] = Field(default_factory=list)
+    total_credits_estimated: int = 0
+
+
+# ==============================================================================
+# Existing Backward-Compatible Models (preserves scripts/*_acceptance.py suite)
+# ==============================================================================
 class Keyframe(Strict):
     t: float = Field(ge=0, le=MAX_DURATION)
     x: float = Field(default=.1, ge=-2, le=2)

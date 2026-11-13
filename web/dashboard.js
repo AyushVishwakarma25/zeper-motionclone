@@ -754,3 +754,4 @@
     appendChatBubble('agent', '👋 Welcome to MotionClone: Reference-to-Video Explainer Studio! I am your AI Creative Director. Upload a reference video and tell me about your product to build an original 30-second 60 FPS motion graphics explainer.');
   });
 })();
+

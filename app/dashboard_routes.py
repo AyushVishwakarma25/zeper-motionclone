@@ -47,8 +47,38 @@ class ScenePlanGenerateRequest(BaseModel):
     music_track_id: str = "tech_upbeat"
 
 
+class PreflightEstimateRequest(BaseModel):
+    engine_type: str = "REMOTION_CODE_SCENE"
+    resolution: str = "1080p"
+    duration_sec: float = 5.0
+    quality_preset: str = "standard"
+
+
+class PreflightEstimateResponse(BaseModel):
+    engine_type: str
+    credits_required: int
+    is_free: bool
+    description: str
+
+
 def install(app, server):
     DATA: Path = server.DATA
+
+    @app.post('/api/dashboard/preflight-estimate')
+    def api_preflight_estimate(req: PreflightEstimateRequest):
+        from .preflight import estimate_cost
+        cost = estimate_cost(
+            engine_type=req.engine_type,
+            resolution=req.resolution,
+            duration_sec=req.duration_sec,
+            quality_preset=req.quality_preset
+        )
+        return {
+            "engine_type": req.engine_type,
+            "credits_required": cost,
+            "is_free": cost == 0,
+            "description": "Zero credit execution" if cost == 0 else f"{cost} credits required for high-fidelity generation"
+        }
 
     @app.get('/api/dashboard/music-library')
     def get_music_library():
@@ -296,3 +326,4 @@ def install(app, server):
             "url": f"/media/{id}/assets/{safe_name}",
             "name": f"User Upload: {Path(file.filename or 'audio').stem}"
         }
+

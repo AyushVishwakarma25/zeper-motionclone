@@ -32,7 +32,7 @@ class Edit(Strict):
     instructions: str = Field(default='', max_length=2500)
     format: Literal['landscape','portrait','square'] = 'landscape'
     keep_audio: bool = True
-    segments: list[Segment] = Field(default_factory=list)
+    segments: list[Segment] = Field(default_factory=list, max_length=12)
 
     @model_validator(mode='after')
     def duration(self):
