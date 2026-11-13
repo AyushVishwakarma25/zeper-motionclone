@@ -587,6 +587,7 @@ def install(app, server):
                 'status': 'draft',
                 'stage': 'Reference loaded',
                 'progress': 100,
+                'cancel': threading.Event(),
                 'brief': {'brand': name, 'instructions': '', 'mode': 'rebuild', 'accent': '#00f2fe'},
                 'url': clean_ref_url,
                 'events': [],

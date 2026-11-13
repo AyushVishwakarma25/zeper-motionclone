@@ -794,6 +794,11 @@ def trigger_remotion_render(id: str, format: str = 'mp4', composition: str = 'Mo
     from .remotion import render as remotion_render
     from .models import Brief, Plan, Track, Keyframe
 
+    cancel_event = job.get('cancel')
+    if cancel_event is None:
+        cancel_event = threading.Event()
+        job['cancel'] = cancel_event
+
     with server.LOCK:
         if server.ACTIVE['id']:
             raise HTTPException(409, 'Another video is currently processing. Please wait.')
@@ -815,7 +820,7 @@ def trigger_remotion_render(id: str, format: str = 'mp4', composition: str = 'Mo
                 )
             brief = Brief.model_validate(job.get('brief', {'brand': '', 'instructions': ''}))
             remotion_render(
-                folder, plan_data, brief, job['cancel'],
+                folder, plan_data, brief, cancel_event,
                 lambda msg, pct: job.update(stage=msg, progress=pct),
                 format=format,
                 composition=composition
