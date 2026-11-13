@@ -32,7 +32,7 @@ def codex_command():
 
 def get_model_for_tier(tier: str) -> str:
     """Returns the official active 2026 model ID mapped to the given task tier."""
-    return MODEL_TIERS.get(tier, 'gemini-3.8-flash')
+    return MODEL_TIERS.get(tier, 'gemini-2.5-flash')
 
 
 def get_gemini_config() -> dict:
