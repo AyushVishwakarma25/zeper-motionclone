@@ -383,13 +383,38 @@
     const s = scenes[activeSceneIndex];
     const badge = $('inspector-badge');
     const heading = $('inspector-heading');
+    const emptyHint = $('inspector-empty-state');
 
     if (!s) {
       if (heading) heading.textContent = 'Scene Inspector';
       if (badge) badge.textContent = 'No Scene';
+      if (emptyHint) emptyHint.style.display = 'block';
+
+      // Check if blueprint shots can be inspected instead
+      const bp = projectState?.blueprint;
+      if (bp && bp.shots && bp.shots[activeSceneIndex]) {
+        const shot = bp.shots[activeSceneIndex];
+        if (emptyHint) emptyHint.style.display = 'none';
+        if (heading) heading.textContent = `Shot ${activeSceneIndex + 1}: ${shot.shot_type || 'Shot'}`;
+        if (badge) badge.textContent = `Shot ${activeSceneIndex + 1} of ${bp.shots.length}`;
+        if ($('scene-template-select')) $('scene-template-select').value = 'kinetic_text';
+        if ($('scene-headline-input')) $('scene-headline-input').value = shot.visual_purpose || '';
+        if ($('scene-subtitle-input')) $('scene-subtitle-input').value = `Camera: ${shot.camera_motion || 'push-in'}`;
+        if ($('scene-duration-input')) $('scene-duration-input').value = ((shot.t_end - shot.t_start) || 3.0).toFixed(1);
+        if ($('scene-transition-select')) $('scene-transition-select').value = shot.transition || 'cut';
+      }
+
+      // Populate bound asset dropdown
+      const assetSelect = $('scene-asset-select');
+      if (assetSelect) {
+        const assets = projectState?.assets || [];
+        assetSelect.innerHTML = `<option value="">(None - Generative Motion Graphics)</option>` +
+          assets.map(a => `<option value="${a.name}">${escapeHtml(a.name)}</option>`).join('');
+      }
       return;
     }
 
+    if (emptyHint) emptyHint.style.display = 'none';
     if (heading) heading.textContent = `Scene ${activeSceneIndex + 1}: ${s.template.replace(/_/g, ' ')}`;
     if (badge) badge.textContent = `Scene ${activeSceneIndex + 1} of ${scenes.length}`;
 
@@ -414,10 +439,28 @@
   function renderAssetChips() {
     const container = $('asset-chips-list');
     const countTag = $('asset-count-tag');
-    if (!container) return;
+    const refCard = $('active-reference-card');
+    const refFilename = $('active-ref-filename');
 
     const assets = projectState?.assets || [];
-    if (countTag) countTag.textContent = `${assets.length} assets`;
+    if (countTag) countTag.textContent = `${assets.length}`;
+
+    // Update active reference card
+    if (refCard && refFilename) {
+      if (projectState?.has_reference || projectState?.source_url) {
+        refCard.style.display = 'flex';
+        refFilename.textContent = projectState.reference_filename || projectState.reference_url || 'source.mp4';
+      } else {
+        refCard.style.display = 'none';
+      }
+    }
+
+    if (!container) return;
+
+    if (assets.length === 0) {
+      container.innerHTML = `<span style="font-size:11px; color:var(--muted);">No uploaded screenshots or logos yet.</span>`;
+      return;
+    }
 
     container.innerHTML = assets.map(a => `
       <span class="asset-chip" title="${escapeHtml(a.name)}">
@@ -426,33 +469,43 @@
     `).join('');
   }
 
-  // Render Blueprint Summary Box
+  // Render Blueprint Summary Box & Center Blueprint Deck
   function renderBlueprintSummary() {
     const bp = projectState?.blueprint;
     const rulesList = $('blueprint-rules-list');
     const statusBadge = $('blueprint-status-badge');
+    const deck = $('stage-blueprint-view');
+    const grid = $('blueprint-cards-grid');
 
     if (statusBadge) {
       statusBadge.textContent = bp ? 'Approved' : 'Pending';
-      statusBadge.className = bp ? 'badge-approved' : 'badge-fps-pill';
+      statusBadge.className = bp ? 'badge-rules-status' : 'status-pill-draft';
     }
 
     if (rulesList && bp && bp.rules) {
       rulesList.innerHTML = bp.rules.map(r => `<li>${escapeHtml(r)}</li>`).join('');
     }
 
-    // Populate Inspector with Blueprint Shot Breakdown if no scene plan exists yet
-    if (bp && bp.shots && (!projectState?.scene_plan?.scenes || projectState.scene_plan.scenes.length === 0)) {
-      const heading = $('inspector-heading');
-      const badge = $('inspector-badge');
-      if (heading) heading.textContent = `Blueprint Structure (${bp.shots.length} Shots)`;
-      if (badge) badge.textContent = `Pacing: ~${(bp.target_duration_seconds / Math.max(1, bp.shots.length)).toFixed(1)}s/shot`;
+    // Populate Center Stage Blueprint Deck Cards
+    if (grid && bp && bp.shots) {
+      grid.innerHTML = bp.shots.map((shot, idx) => `
+        <div class="blueprint-shot-card ${idx === activeSceneIndex ? 'active' : ''}" data-index="${idx}">
+          <div class="shot-card-title">Shot ${idx + 1}: ${escapeHtml(shot.shot_type)}</div>
+          <p style="font-size:11px; margin:2px 0 6px; color:var(--ink-secondary); line-height:1.4;">${escapeHtml(shot.visual_purpose || '')}</p>
+          <div class="shot-card-meta">
+            <span>⏱️ ${((shot.t_end - shot.t_start) || 3).toFixed(1)}s</span>
+            <span>🎬 ${escapeHtml(shot.camera_motion || 'push-in')}</span>
+          </div>
+        </div>
+      `).join('');
 
-      const firstShot = bp.shots[0];
-      if ($('scene-template-select')) $('scene-template-select').value = 'kinetic_text';
-      if ($('scene-headline-input')) $('scene-headline-input').value = firstShot.visual_intent || '';
-      if ($('scene-subtitle-input')) $('scene-subtitle-input').value = `Camera: ${firstShot.camera_motion || 'zoom_in'} · Transition: ${firstShot.transition || 'cut'}`;
-      if ($('scene-duration-input')) $('scene-duration-input').value = firstShot.duration_seconds || 3.0;
+      grid.querySelectorAll('.blueprint-shot-card').forEach(card => {
+        card.onclick = () => {
+          activeSceneIndex = parseInt(card.dataset.index, 10);
+          renderBlueprintSummary();
+          renderSceneInspector();
+        };
+      });
     }
   }
 
@@ -775,13 +828,64 @@
       handleDeconstructReference();
     });
 
+    // Left Sidebar Navigation Tabs
+    $('tab-btn-chat')?.addEventListener('click', () => {
+      $('tab-btn-chat').classList.add('active');
+      $('tab-btn-assets')?.classList.remove('active');
+      const pChat = $('panel-ai-director');
+      const pAssets = $('panel-assets');
+      if (pChat) pChat.style.display = 'flex';
+      if (pAssets) pAssets.style.display = 'none';
+    });
+
+    $('tab-btn-assets')?.addEventListener('click', () => {
+      $('tab-btn-assets').classList.add('active');
+      $('tab-btn-chat')?.classList.remove('active');
+      const pChat = $('panel-ai-director');
+      const pAssets = $('panel-assets');
+      if (pChat) pChat.style.display = 'none';
+      if (pAssets) pAssets.style.display = 'flex';
+    });
+
+    // Sidebar Collapsible Toggles
+    $('btn-collapse-left')?.addEventListener('click', () => {
+      $('sidebar-left')?.classList.add('collapsed');
+      const btnExp = $('btn-expand-left');
+      if (btnExp) btnExp.style.display = 'flex';
+    });
+
+    $('btn-expand-left')?.addEventListener('click', () => {
+      $('sidebar-left')?.classList.remove('collapsed');
+      const btnExp = $('btn-expand-left');
+      if (btnExp) btnExp.style.display = 'none';
+    });
+
+    $('btn-collapse-right')?.addEventListener('click', () => {
+      $('sidebar-right')?.classList.add('collapsed');
+      const btnExp = $('btn-expand-right');
+      if (btnExp) btnExp.style.display = 'flex';
+    });
+
+    $('btn-expand-right')?.addEventListener('click', () => {
+      $('sidebar-right')?.classList.remove('collapsed');
+      const btnExp = $('btn-expand-right');
+      if (btnExp) btnExp.style.display = 'none';
+    });
+
+    $('btn-replace-ref')?.addEventListener('click', () => {
+      $('ref-file-input')?.click();
+    });
+
     // Viewport Mode Pills
     $('btn-view-rebuilt')?.addEventListener('click', () => {
       $('btn-view-rebuilt').classList.add('active');
       $('btn-view-source')?.classList.remove('active');
       $('btn-view-blueprint')?.classList.remove('active');
+      const deck = $('stage-blueprint-view');
+      if (deck) deck.style.display = 'none';
       const player = $('dashboard-video-player');
       if (player && activeJobId) {
+        player.style.display = 'block';
         player.src = `/media/${activeJobId}/output.mp4?v=${videoCacheKey}`;
         player.load();
       }
@@ -791,8 +895,11 @@
       $('btn-view-source').classList.add('active');
       $('btn-view-rebuilt')?.classList.remove('active');
       $('btn-view-blueprint')?.classList.remove('active');
+      const deck = $('stage-blueprint-view');
+      if (deck) deck.style.display = 'none';
       const player = $('dashboard-video-player');
       if (player && activeJobId) {
+        player.style.display = 'block';
         player.src = `/media/${activeJobId}/source.mp4`;
         player.load();
       }
@@ -802,6 +909,12 @@
       $('btn-view-blueprint').classList.add('active');
       $('btn-view-source')?.classList.remove('active');
       $('btn-view-rebuilt')?.classList.remove('active');
+      const player = $('dashboard-video-player');
+      const emptyState = $('stage-empty-state');
+      const deck = $('stage-blueprint-view');
+      if (player) player.style.display = 'none';
+      if (emptyState) emptyState.style.display = 'none';
+      if (deck) deck.style.display = 'flex';
       renderBlueprintSummary();
     });
 

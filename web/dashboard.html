@@ -3,351 +3,495 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MotionClone Studio · AI Explainer Video Agent</title>
+  <title>MotionClone Studio · Reference-to-Video AI Studio</title>
   <meta name="description" content="Reference-to-Video AI Explainer Studio powered by Google Gemini, Vertex AI, and Remotion.">
   <link rel="icon" href="/static/assets/motionclone-icon-color.svg">
-  <link rel="stylesheet" href="/static/editor.css?v=1">
-  <link rel="stylesheet" href="/static/dashboard.css?v=1">
-  <script src="/static/ui.js?v=1" defer></script>
-  <script src="/static/dashboard.js?v=1" defer></script>
+  <link rel="stylesheet" href="/static/dashboard.css?v=2">
+  <script src="/static/ui.js?v=2" defer></script>
+  <script src="/static/dashboard.js?v=2" defer></script>
 </head>
 <body class="dashboard-body">
-  <!-- Top Navigation Header -->
-  <header class="dashboard-header">
+
+  <!-- =========================================================================
+       1. TOP NAVIGATION HEADER (56px)
+       ========================================================================= -->
+  <header class="app-header">
+    <!-- Header Left: Wordmark, Project Selector, New Project, Status -->
     <div class="header-left">
-      <a class="wordmark" href="/">MotionClone<span>.</span></a>
-      <span class="product-badge">AI Explainer Agent</span>
-      <nav class="main-nav" aria-label="Main Navigation">
-        <a href="/?workspace=1">Studio</a>
-        <a href="/editor">Editor</a>
-        <a href="/master-studio">Master Studio</a>
-        <a href="/dashboard" aria-current="page" class="nav-active">Dashboard Pro</a>
-      </nav>
+      <a class="brand-wordmark" href="/" title="MotionClone Home">
+        <span class="brand-text">MotionClone</span><span class="brand-dot">.</span>
+      </a>
+      <div class="project-pill-wrap">
+        <label for="dashboard-project-select" class="sr-only">Active Project</label>
+        <select id="dashboard-project-select" class="project-dropdown" aria-label="Select Active Explainer Project">
+          <option value="">Loading projects…</option>
+        </select>
+        <button id="btn-new-explainer" class="btn-new-project" title="Create New Explainer Project">+ New</button>
+      </div>
+      <span class="status-pill-draft" id="project-status-pill">Draft</span>
     </div>
 
-    <div class="header-center">
-      <!-- Project Selector -->
-      <label for="dashboard-project-select" class="sr-only">Active Project</label>
-      <select id="dashboard-project-select" class="project-dropdown">
-        <option value="">Loading projects…</option>
-      </select>
-      <button id="btn-new-explainer" class="btn-top-new" title="Create New Explainer Project">+ New Project</button>
-    </div>
+    <!-- Header Center: Core Studio Navigation -->
+    <nav class="header-center-nav" aria-label="Main Navigation">
+      <a href="/?workspace=1" class="nav-item">Studio</a>
+      <a href="/editor" class="nav-item">Editor</a>
+      <a href="/master-studio" class="nav-item">Master Studio</a>
+      <a href="/dashboard" class="nav-item active" aria-current="page">Dashboard Pro</a>
+    </nav>
 
+    <!-- Header Right: Aspect Ratio, Language, Gemini Status, Settings -->
     <div class="header-right">
-      <!-- Aspect Ratio Pills -->
-      <div class="aspect-selector" title="Select Video Aspect Ratio">
-        <button type="button" class="aspect-pill active" data-aspect="9:16">📱 9:16 Reel</button>
-        <button type="button" class="aspect-pill" data-aspect="16:9">🖥️ 16:9 Video</button>
-        <button type="button" class="aspect-pill" data-aspect="1:1">⬛ 1:1 Square</button>
+      <!-- Aspect Ratio Switcher -->
+      <div class="segmented-control" role="group" aria-label="Video Aspect Ratio">
+        <button type="button" class="aspect-pill active" data-aspect="9:16" title="9:16 Vertical Reel (1080x1920)">9:16 Reel</button>
+        <button type="button" class="aspect-pill" data-aspect="16:9" title="16:9 Landscape (1920x1080)">16:9 Landscape</button>
+        <button type="button" class="aspect-pill" data-aspect="1:1" title="1:1 Square (1080x1080)">1:1 Square</button>
       </div>
 
-      <!-- Language Switcher -->
-      <div class="lang-selector" title="Script & Voiceover Language">
-        <button type="button" class="lang-pill active" data-lang="en">English</button>
-        <button type="button" class="lang-pill" data-lang="hi">हिन्दी</button>
-        <button type="button" class="lang-pill" data-lang="en_hi">EN + HI</button>
+      <!-- Language Selector -->
+      <div class="segmented-control" role="group" aria-label="Script & Voiceover Language">
+        <button type="button" class="lang-pill active" data-lang="en" title="English Voiceover & Headlines">English</button>
+        <button type="button" class="lang-pill" data-lang="hi" title="हिन्दी (Hindi) Voiceover & Headlines">हिन्दी</button>
+        <button type="button" class="lang-pill" data-lang="en_hi" title="Bilingual English + Hindi">EN + HI</button>
       </div>
 
-      <!-- AI Status Badge -->
-      <div class="status-badge" id="ai-status-badge">
+      <!-- Live Gemini AI Connection Badge -->
+      <div class="gemini-status-badge" id="ai-status-badge" title="AI Engine Status">
         <span class="status-dot connected" id="ai-status-dot"></span>
         <span id="ai-status-text">Google Gemini 3.8 / 3.1 Ready</span>
       </div>
 
-      <a class="settings-link" href="/?workspace=1&settings=1" target="_blank" title="Configure Gemini API or Vertex AI">⚙</a>
+      <!-- Settings Icon Link -->
+      <a class="btn-icon-settings" href="/?workspace=1&settings=1" target="_blank" title="Settings & API Keys">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </a>
     </div>
   </header>
 
-  <!-- Main 3-Column Layout -->
-  <div class="dashboard-grid">
-    <!-- COLUMN 1: CHAT SIDEBAR & ASSET TRAY -->
-    <aside class="sidebar-chat-panel">
-      <!-- Chat Header -->
-      <div class="chat-header">
-        <div class="agent-avatar">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-          </svg>
+  <!-- =========================================================================
+       2. WORKSPACE CONTAINER (3 PANELS: LEFT SIDEBAR · CENTER STAGE · RIGHT INSPECTOR)
+       ========================================================================= -->
+  <div class="workspace-layout">
+
+    <!-- -----------------------------------------------------------------------
+         PANEL 1: LEFT SIDEBAR (AI DIRECTOR + ASSETS MANAGER)
+         ----------------------------------------------------------------------- -->
+    <aside class="sidebar-left" id="sidebar-left">
+      <!-- Sidebar Navigation Tabs -->
+      <div class="sidebar-tab-header">
+        <div class="tab-toggle-group">
+          <button type="button" class="sidebar-tab-btn active" id="tab-btn-chat">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            <span>AI Director</span>
+          </button>
+          <button type="button" class="sidebar-tab-btn" id="tab-btn-assets">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span>Assets</span>
+            <span class="count-tag" id="asset-count-tag">0</span>
+          </button>
         </div>
-        <div class="agent-meta">
-          <h3>Creative Director Agent</h3>
-          <p>Powered by Google Gemini + Remotion</p>
-        </div>
-        <span class="badge-agent-mode">Reference → Video</span>
-      </div>
-
-      <!-- Quick Suggestion Pills -->
-      <div class="suggestion-pills">
-        <button type="button" class="pill-chip" id="quick-pill-deconstruct">⚡ Deconstruct Reference</button>
-        <button type="button" class="pill-chip" id="quick-pill-script">📝 Generate Script & Plan</button>
-        <button type="button" class="pill-chip" id="quick-pill-pacing">⏱️ Match Pacing</button>
-        <button type="button" class="pill-chip" data-prompt="Make scene 2 faster and highlight the key metrics in bold">⚡ Fast Scene 2</button>
-        <button type="button" class="pill-chip" data-prompt="Translate voice-over and headlines into modern conversational Hindi">🇮🇳 Hindi Script</button>
-      </div>
-
-      <!-- Chat Messages Scroll Area -->
-      <div class="chat-messages" id="chat-messages-container">
-        <!-- Messages appended dynamically -->
-      </div>
-
-      <!-- Chat Prompt Bar Input -->
-      <form class="chat-prompt-bar" id="chat-prompt-form">
-        <textarea id="chat-input" class="chat-textarea" placeholder="Describe changes, prompt the director, or ask to re-time scenes… (e.g. 'Make scene 3 a dashboard screenshot with cursor click')" rows="1"></textarea>
-        <button type="submit" id="btn-send-chat" class="btn-send" title="Send (Enter)">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-            <line x1="22" y1="2" x2="11" y2="13"/>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        <button type="button" class="btn-collapse-panel" id="btn-collapse-left" title="Collapse Sidebar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 18 9 12 15 6"/>
           </svg>
         </button>
-      </form>
+      </div>
 
-      <!-- Collapsible Asset & Audio Tray -->
-      <div class="asset-tray-section">
-        <details class="tray-disclosure" open>
-          <summary>
-            <span>📁 Reference & Brand Assets</span>
-            <span class="count-tag" id="asset-count-tag">0 assets</span>
-          </summary>
-          <div class="tray-body">
-            <!-- Reference Input -->
-            <div class="tray-row">
-              <label class="tray-label">Reference Video</label>
-              <div class="reference-input-wrap">
-                <input type="text" id="ref-url-input" class="tray-input" placeholder="Paste X / YouTube / Vimeo URL or drop file">
-                <button type="button" id="btn-browse-ref" class="btn-tray-action">Import</button>
-                <button type="button" id="btn-upload-mp4-direct" class="btn-tray-action" title="Upload local MP4 directly">Upload MP4</button>
+      <!-- TAB VIEW 1: AI DIRECTOR CONVERSATION -->
+      <div class="tab-content-panel active" id="panel-ai-director">
+        <!-- Compact 3-Action Quick Toolbar (Wrapping, No Clipping!) -->
+        <div class="action-quick-bar">
+          <button type="button" class="btn-quick-pill" id="quick-pill-deconstruct" title="Deconstruct reference video pacing & structure">
+            ⚡ Deconstruct Reference
+          </button>
+          <button type="button" class="btn-quick-pill" id="quick-pill-script" title="Generate bilingual script & Remotion scene plan">
+            📝 Generate Script
+          </button>
+          <button type="button" class="btn-quick-pill" id="quick-pill-pacing" title="Match reference cuts & pacing">
+            ⏱️ Match Pacing
+          </button>
+        </div>
+
+        <!-- Chat Conversation Messages History -->
+        <div class="chat-messages-scroll" id="chat-messages-container">
+          <!-- Dynamic chat bubbles -->
+        </div>
+
+        <!-- Fixed Bottom Message Composer -->
+        <form class="chat-composer-bar" id="chat-prompt-form">
+          <textarea id="chat-input" class="chat-textarea" placeholder="Prompt AI Director (e.g. 'Make scene 2 faster and bolder')…" rows="1"></textarea>
+          <button type="submit" id="btn-send-chat" class="btn-composer-send" title="Send (Enter)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <line x1="22" y1="2" x2="11" y2="13"/>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </form>
+      </div>
+
+      <!-- TAB VIEW 2: CATEGORIZED ASSET MANAGER -->
+      <div class="tab-content-panel" id="panel-assets" style="display:none;">
+        <div class="assets-scroll-container">
+          <!-- Category A: Reference Video -->
+          <div class="asset-category-box">
+            <div class="category-header">
+              <span class="category-title">📹 Reference Video</span>
+            </div>
+            
+            <div class="reference-input-row">
+              <input type="text" id="ref-url-input" class="text-input-compact" placeholder="Paste video URL (YouTube / Vimeo / X)">
+              <div class="reference-buttons-group">
+                <button type="button" id="btn-browse-ref" class="btn-compact-secondary">Import Link</button>
+                <button type="button" id="btn-upload-mp4-direct" class="btn-compact-primary" title="Upload local MP4 file directly">Upload MP4</button>
               </div>
               <input type="file" id="ref-file-input" accept="video/mp4,video/quicktime,video/webm" style="display:none;">
             </div>
 
-            <!-- Upload User Assets (Logo, Screenshots, Product) -->
-            <div class="tray-row">
-              <label class="tray-label">Upload Assets (Screenshots, Logo, Product)</label>
-              <div class="asset-dropzone" id="user-asset-dropzone">
-                <input type="file" id="user-asset-input" multiple accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display:none;">
-                <p><strong>Click or Drag files</strong> to upload</p>
-                <span>PNG, JPG, SVG for UI demos & screenshot animations</span>
+            <div class="active-reference-card" id="active-reference-card" style="display:none;">
+              <div class="card-ref-info">
+                <span class="ref-badge">ACTIVE</span>
+                <span class="ref-filename" id="active-ref-filename">source.mp4</span>
               </div>
-              <div class="asset-chips-list" id="asset-chips-list"></div>
-            </div>
-
-            <!-- Music Selector (Royalty-Free + Custom) -->
-            <div class="tray-row">
-              <label class="tray-label">Soundtrack & Music</label>
-              <select id="music-track-select" class="tray-input">
-                <option value="tech_upbeat">🎵 Upbeat Tech Innovation (Royalty-Free)</option>
-                <option value="chill_lofi">🎵 Minimal Lo-Fi Pulse (Royalty-Free)</option>
-                <option value="cinematic_inspiring">🎵 Cinematic Future Horizon (Royalty-Free)</option>
-                <option value="electronic_drive">🎵 Cyber Dynamic Energy (Royalty-Free)</option>
-              </select>
-              <div class="custom-music-row">
-                <button type="button" id="btn-upload-music" class="btn-quiet">Upload Custom Audio</button>
-                <input type="file" id="custom-music-input" accept="audio/mp3,audio/wav,audio/m4a,audio/aac" style="display:none;">
-                <span id="custom-music-label" class="music-active-label">Using: Upbeat Tech</span>
-              </div>
+              <button type="button" class="btn-link-action" id="btn-replace-ref">Replace</button>
             </div>
           </div>
-        </details>
+
+          <!-- Category B: Screenshots & Brand Assets -->
+          <div class="asset-category-box">
+            <div class="category-header">
+              <span class="category-title">🖼️ Screenshots & Brand Assets</span>
+            </div>
+
+            <div class="compact-dropzone" id="user-asset-dropzone">
+              <input type="file" id="user-asset-input" multiple accept="image/png,image/jpeg,image/webp,image/svg+xml,video/mp4,video/quicktime,video/webm" style="display:none;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <div class="dropzone-text">
+                <strong>Click or Drop Files</strong>
+                <span>PNG, JPG, SVG for 3D UI animations</span>
+              </div>
+            </div>
+
+            <!-- Uploaded Asset Chips / Items -->
+            <div class="asset-chips-container" id="asset-chips-list">
+              <!-- Dynamically populated chips -->
+            </div>
+          </div>
+
+          <!-- Category C: Soundtrack & Audio -->
+          <div class="asset-category-box">
+            <div class="category-header">
+              <span class="category-title">🎵 Soundtrack & Music</span>
+            </div>
+
+            <select id="music-track-select" class="select-compact">
+              <option value="tech_upbeat">🎵 Upbeat Tech Innovation (120 BPM)</option>
+              <option value="chill_lofi">🎵 Minimal Lo-Fi Pulse (85 BPM)</option>
+              <option value="cinematic_inspiring">🎵 Cinematic Future Horizon (110 BPM)</option>
+              <option value="electronic_drive">🎵 Cyber Dynamic Energy (128 BPM)</option>
+            </select>
+
+            <div class="custom-audio-uploader">
+              <button type="button" id="btn-upload-music" class="btn-compact-secondary">Upload Custom Audio</button>
+              <input type="file" id="custom-music-input" accept="audio/mp3,audio/wav,audio/m4a,audio/aac" style="display:none;">
+              <span id="custom-music-label" class="audio-track-label">Using: Upbeat Tech</span>
+            </div>
+          </div>
+        </div>
       </div>
     </aside>
 
-    <!-- COLUMN 2: CENTER STAGE & TIMELINE -->
-    <main class="center-stage-panel">
-      <!-- 5-Step Pipeline Breadcrumb -->
-      <div class="pipeline-breadcrumb">
-        <div class="step-node active" id="step-node-1" data-step="1">
-          <span class="step-num">1</span>
-          <span class="step-label">Reference</span>
-        </div>
-        <div class="step-connector"></div>
-        <div class="step-node" id="step-node-2" data-step="2">
-          <span class="step-num">2</span>
-          <span class="step-label">AI Blueprint</span>
-        </div>
-        <div class="step-connector"></div>
-        <div class="step-node" id="step-node-3" data-step="3">
-          <span class="step-num">3</span>
-          <span class="step-label">Script & Plan</span>
-        </div>
-        <div class="step-connector"></div>
-        <div class="step-node" id="step-node-4" data-step="4">
-          <span class="step-num">4</span>
-          <span class="step-label">Preview Stills</span>
-        </div>
-        <div class="step-connector"></div>
-        <div class="step-node" id="step-node-5" data-step="5">
-          <span class="step-num">5</span>
-          <span class="step-label">Final 60 FPS</span>
+    <!-- Expand Button for Left Sidebar (When Collapsed) -->
+    <button type="button" class="btn-dock-expand left" id="btn-expand-left" title="Expand AI Director & Assets" style="display:none;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="9 18 15 12 9 6"/>
+      </svg>
+    </button>
+
+    <!-- -----------------------------------------------------------------------
+         PANEL 2: CENTER WORKSPACE (VIDEO PRIMARY FOCUS · WORKSPACE TABS · TIMELINE)
+         ----------------------------------------------------------------------- -->
+    <main class="center-workspace" id="center-workspace">
+
+      <!-- Center Top Toolbar: Stepper + View Tabs + Specs -->
+      <div class="workspace-header-bar">
+        <!-- 5-Step Progress Stepper -->
+        <nav class="workflow-stepper" aria-label="Explainer Production Workflow">
+          <button type="button" class="step-item active" id="step-node-1" data-step="1">
+            <span class="step-num">1</span>
+            <span class="step-title">Reference</span>
+          </button>
+          <div class="step-line"></div>
+          <button type="button" class="step-item" id="step-node-2" data-step="2">
+            <span class="step-num">2</span>
+            <span class="step-title">AI Blueprint</span>
+          </button>
+          <div class="step-line"></div>
+          <button type="button" class="step-item" id="step-node-3" data-step="3">
+            <span class="step-num">3</span>
+            <span class="step-title">Script & Plan</span>
+          </button>
+          <div class="step-line"></div>
+          <button type="button" class="step-item" id="step-node-4" data-step="4">
+            <span class="step-num">4</span>
+            <span class="step-title">Preview</span>
+          </button>
+          <div class="step-line"></div>
+          <button type="button" class="step-item" id="step-node-5" data-step="5">
+            <span class="step-num">5</span>
+            <span class="step-title">Final Render</span>
+          </button>
+        </nav>
+
+        <!-- Right Side: View Tabs & Badges -->
+        <div class="stage-view-controls">
+          <div class="stage-tabs-pillgroup">
+            <button type="button" class="stage-tab-btn active" id="btn-view-source">📹 Reference</button>
+            <button type="button" class="stage-tab-btn" id="btn-view-blueprint">📐 Blueprint</button>
+            <button type="button" class="stage-tab-btn" id="btn-view-rebuilt">🎬 Preview</button>
+          </div>
+
+          <div class="stage-meta-badges">
+            <span class="meta-pill-fps">⚡ 60 FPS</span>
+            <span class="meta-pill" id="badge-active-ratio">9:16 Reel</span>
+            <span class="meta-pill" id="badge-active-duration">30.0s</span>
+          </div>
         </div>
       </div>
 
-      <!-- Viewport Header Toolbar -->
-      <div class="stage-toolbar">
-        <div class="stage-pills">
-          <button type="button" class="stage-pill active" id="btn-view-rebuilt">🎬 Rebuilt Result</button>
-          <button type="button" class="stage-pill" id="btn-view-source">📹 Reference Video</button>
-          <button type="button" class="stage-pill" id="btn-view-blueprint">📐 Blueprint Structure</button>
-        </div>
-
-        <div class="stage-specs">
-          <span class="badge-fps-pill">⚡ 60 FPS Remotion</span>
-          <span class="badge-ratio-pill" id="badge-active-ratio">9:16 Vertical Reel</span>
-          <span class="badge-duration-pill" id="badge-active-duration">30.0s</span>
-        </div>
-      </div>
-
-      <!-- Viewport Stage -->
-      <div class="stage-viewport-outer">
-        <div class="stage-viewport-inner aspect-9-16" id="stage-viewport-container">
+      <!-- Center Video Stage Viewport Container -->
+      <div class="stage-viewport-area">
+        <div class="stage-player-wrap aspect-9-16" id="stage-viewport-container">
+          <!-- Video Element (Autoscaled with Aspect Ratio & Max Constraints) -->
           <video id="dashboard-video-player" controls playsinline preload="auto"></video>
-          
-          <!-- Empty State Screen -->
+
+          <!-- Dedicated Blueprint View Deck (Displayed when Blueprint tab is active) -->
+          <div class="blueprint-deck-overlay" id="stage-blueprint-view" style="display:none;">
+            <div class="blueprint-deck-header">
+              <h3>📐 AI Deconstruction Blueprint Shots</h3>
+              <p>Structure and pacing extracted from reference video</p>
+            </div>
+            <div class="blueprint-cards-grid" id="blueprint-cards-grid">
+              <!-- Populated dynamically with shot cards -->
+            </div>
+          </div>
+
+          <!-- Empty State Screen (Appears ONLY when no reference or preview exists) -->
           <div class="stage-empty-state" id="stage-empty-state">
-            <div class="empty-icon-wrap">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <div class="empty-icon-circle">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                 <rect x="2" y="2" width="20" height="20" rx="4"/>
                 <polygon points="10 8 16 12 10 16 10 8"/>
               </svg>
             </div>
             <h3>Ready to Rebuild Video</h3>
-            <p>Upload a reference video or ask the AI Director in chat to begin.</p>
+            <p>Upload a reference video or paste a link in the Assets panel to begin.</p>
             <button type="button" class="btn-primary-action" id="btn-quickstart-blueprint">⚡ Deconstruct Reference Video</button>
           </div>
 
-          <!-- Loading & Render Overlay -->
+          <!-- Processing & Render Overlay -->
           <div class="stage-render-overlay" id="stage-render-overlay" hidden>
-            <div class="spinner-neon"></div>
+            <div class="neon-spinner"></div>
             <strong id="stage-overlay-title">Processing Video…</strong>
-            <p id="stage-overlay-desc">Gemini is deconstructing motion keyframes</p>
+            <p id="stage-overlay-desc">Analyzing motion keyframes & structure</p>
           </div>
         </div>
       </div>
 
-      <!-- Interactive Scene Sequence Timeline -->
-      <div class="timeline-container">
-        <div class="timeline-meta-bar">
-          <div class="timeline-title">
-            <span class="timeline-tag">TIMELINE</span>
-            <strong>Scene Sequence (30.0s Total)</strong>
-            <span class="timeline-hint">Click any scene to inspect or modify</span>
+      <!-- Scene Sequence Timeline (Directly Below Preview Stage) -->
+      <section class="timeline-section" aria-label="Scene Sequence Timeline">
+        <div class="timeline-header-row">
+          <div class="timeline-title-meta">
+            <span class="timeline-chip">TIMELINE</span>
+            <strong class="timeline-heading">Scene Sequence</strong>
+            <span class="timeline-duration-label" id="timeline-duration-label">30.0s Total</span>
           </div>
-          <div class="timeline-actions">
-            <button type="button" class="btn-timeline-action" id="btn-add-scene">+ Add Scene</button>
-            <button type="button" class="btn-timeline-action primary" id="btn-preview-render">⚡ Render Preview</button>
+          <div class="timeline-actions-group">
+            <button type="button" class="btn-timeline-secondary" id="btn-add-scene">+ Add Scene</button>
+            <button type="button" class="btn-timeline-primary" id="btn-preview-render">⚡ Render Preview</button>
           </div>
         </div>
 
-        <!-- Horizontal Scene Blocks Track -->
+        <!-- Horizontal Scrollable Scene Cards Track -->
         <div class="scenes-track-scroll" id="scenes-track-container">
-          <!-- Populated dynamically with scene cards -->
+          <!-- Dynamic scene cards -->
         </div>
-      </div>
+      </section>
+
     </main>
 
-    <!-- COLUMN 3: SCENE & BLUEPRINT INSPECTOR -->
-    <aside class="sidebar-inspector-panel">
+    <!-- Expand Button for Right Inspector (When Collapsed) -->
+    <button type="button" class="btn-dock-expand right" id="btn-expand-right" title="Expand Scene Inspector" style="display:none;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+    </button>
+
+    <!-- -----------------------------------------------------------------------
+         PANEL 3: RIGHT SIDEBAR (CONTEXTUAL SCENE INSPECTOR)
+         ----------------------------------------------------------------------- -->
+    <aside class="sidebar-inspector" id="sidebar-right">
       <!-- Inspector Header -->
       <div class="inspector-header">
-        <h3 id="inspector-heading">Scene Inspector</h3>
-        <span class="inspector-badge" id="inspector-badge">Scene 1</span>
+        <div class="inspector-title-wrap">
+          <h3 id="inspector-heading">Scene Inspector</h3>
+          <span class="inspector-badge" id="inspector-badge">Scene 1</span>
+        </div>
+        <button type="button" class="btn-collapse-panel" id="btn-collapse-right" title="Collapse Inspector">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </button>
       </div>
 
-      <div class="inspector-body" id="inspector-body-content">
-        <!-- Selected Scene Properties Form -->
-        <div class="inspector-box">
-          <label class="inspector-label">Scene Template</label>
-          <select id="scene-template-select" class="inspector-select">
-            <option value="kinetic_text">⚡ Kinetic Typography (Hero / Punchy Hook)</option>
-            <option value="dashboard_3d_float">🌟 Dashboard 3D Float (Product Screenshot)</option>
-            <option value="interactive_cursor_click">🖱️ Cursor Click & Ripple (Interactive Demo)</option>
-            <option value="fact_card">📊 Fact Card (Key Metric / Proof Point)</option>
-            <option value="title_card">🏷️ Title Card (Section Divider)</option>
-            <option value="lower_third">💬 Lower Third (Subtitle & Callout)</option>
-            <option value="transparent_callout">✨ Transparent Callout (Alpha Overlay)</option>
-          </select>
+      <!-- Inspector Body: Collapsible Sections -->
+      <div class="inspector-body-scroll" id="inspector-body-content">
+
+        <!-- Informative Empty State (When no scene exists yet) -->
+        <div class="inspector-empty-hint" id="inspector-empty-state" style="display:none;">
+          <p>No scene selected. Click <strong>⚡ Deconstruct Reference</strong> or select a scene in the timeline to inspect and edit properties.</p>
         </div>
 
-        <div class="inspector-box">
-          <label class="inspector-label">Headline Copy</label>
-          <input type="text" id="scene-headline-input" class="inspector-input" placeholder="e.g. Next-Gen Product Analytics">
-        </div>
+        <!-- Section A: Content -->
+        <details class="inspector-accordion" open>
+          <summary class="accordion-header">
+            <span>A. CONTENT & TEMPLATE</span>
+          </summary>
+          <div class="accordion-body">
+            <div class="form-field">
+              <label class="field-label" for="scene-template-select">Scene Template</label>
+              <select id="scene-template-select" class="form-select">
+                <option value="kinetic_text">⚡ Kinetic Typography (Hero / Punchy Hook)</option>
+                <option value="dashboard_3d_float">🌟 Dashboard 3D Float (Product Screenshot)</option>
+                <option value="interactive_cursor_click">🖱️ Cursor Click & Ripple (Interactive Demo)</option>
+                <option value="fact_card">📊 Fact Card (Key Metric / Proof Point)</option>
+                <option value="title_card">🏷️ Title Card (Section Divider)</option>
+                <option value="lower_third">💬 Lower Third (Subtitle & Callout)</option>
+                <option value="transparent_callout">✨ Transparent Callout (Alpha Overlay)</option>
+              </select>
+            </div>
 
-        <div class="inspector-box">
-          <label class="inspector-label">Subtitle / Eyebrow</label>
-          <input type="text" id="scene-subtitle-input" class="inspector-input" placeholder="e.g. Built for high-growth tech teams">
-        </div>
+            <div class="form-field">
+              <label class="field-label" for="scene-headline-input">Headline Copy</label>
+              <input type="text" id="scene-headline-input" class="form-input" placeholder="e.g. Next-Gen Product Analytics">
+            </div>
 
-        <!-- Bilingual Voice-Over Scripts -->
-        <div class="inspector-box">
-          <div class="tab-script-labels">
-            <label class="inspector-label">Voice-Over Script (English)</label>
+            <div class="form-field">
+              <label class="field-label" for="scene-subtitle-input">Subtitle / Eyebrow</label>
+              <input type="text" id="scene-subtitle-input" class="form-input" placeholder="e.g. Built for high-growth tech teams">
+            </div>
           </div>
-          <textarea id="scene-vo-en-input" class="inspector-textarea" rows="2" placeholder="English narration script…"></textarea>
-        </div>
+        </details>
 
-        <div class="inspector-box">
-          <div class="tab-script-labels">
-            <label class="inspector-label">Voice-Over Script (हिन्दी / Hindi)</label>
+        <!-- Section B: Voiceover -->
+        <details class="inspector-accordion" open>
+          <summary class="accordion-header">
+            <span>B. VOICEOVER NARRATION</span>
+          </summary>
+          <div class="accordion-body">
+            <div class="form-field">
+              <label class="field-label" for="scene-vo-en-input">English Narration</label>
+              <textarea id="scene-vo-en-input" class="form-textarea" rows="2" placeholder="English narration script…"></textarea>
+            </div>
+
+            <div class="form-field">
+              <label class="field-label" for="scene-vo-hi-input">हिन्दी (Hindi) Narration</label>
+              <textarea id="scene-vo-hi-input" class="form-textarea" rows="2" placeholder="हिन्दी में वॉयस-ओवर स्क्रिप्ट…"></textarea>
+            </div>
           </div>
-          <textarea id="scene-vo-hi-input" class="inspector-textarea" rows="2" placeholder="हिन्दी में वॉयस-ओवर स्क्रिप्ट…"></textarea>
-        </div>
+        </details>
 
-        <div class="inspector-row-2col">
-          <div class="inspector-box">
-            <label class="inspector-label">Duration (sec)</label>
-            <input type="number" id="scene-duration-input" class="inspector-input" min="1.0" max="15.0" step="0.5" value="3.0">
+        <!-- Section C: Timing & Transitions -->
+        <details class="inspector-accordion" open>
+          <summary class="accordion-header">
+            <span>C. TIMING & TRANSITION</span>
+          </summary>
+          <div class="accordion-body">
+            <div class="form-row-2col">
+              <div class="form-field">
+                <label class="field-label" for="scene-duration-input">Duration (sec)</label>
+                <input type="number" id="scene-duration-input" class="form-input" min="1.0" max="15.0" step="0.5" value="3.0">
+              </div>
+              <div class="form-field">
+                <label class="field-label" for="scene-transition-select">Transition</label>
+                <select id="scene-transition-select" class="form-select">
+                  <option value="cut">Hard Cut</option>
+                  <option value="smooth">Smooth Fade</option>
+                  <option value="wipe">Wipe</option>
+                  <option value="zoom">Zoom Punch</option>
+                </select>
+              </div>
+            </div>
           </div>
-          <div class="inspector-box">
-            <label class="inspector-label">Transition</label>
-            <select id="scene-transition-select" class="inspector-select">
-              <option value="cut">Hard Cut</option>
-              <option value="smooth">Smooth Fade</option>
-              <option value="wipe">Wipe</option>
-              <option value="zoom">Zoom Punch</option>
-            </select>
+        </details>
+
+        <!-- Section D: Visuals & Asset Binding -->
+        <details class="inspector-accordion" open>
+          <summary class="accordion-header">
+            <span>D. VISUALS & BOUND ASSET</span>
+          </summary>
+          <div class="accordion-body">
+            <div class="form-field">
+              <label class="field-label" for="scene-asset-select">Bound Screenshot / Logo</label>
+              <select id="scene-asset-select" class="form-select">
+                <option value="">(None - Generative Motion Graphics)</option>
+              </select>
+            </div>
           </div>
-        </div>
+        </details>
 
-        <div class="inspector-box">
-          <label class="inspector-label">Bound Screenshot / Logo</label>
-          <select id="scene-asset-select" class="inspector-select">
-            <option value="">(None - Generative Motion Graphics)</option>
-          </select>
-        </div>
-
-        <button type="button" id="btn-save-scene-edits" class="btn-apply-edits">💾 Save Scene Edits</button>
-
-        <!-- Blueprint Rules Summary Box -->
-        <div class="blueprint-summary-box">
-          <div class="blueprint-header-row">
-            <strong>📐 Reference Blueprint Rules</strong>
-            <span class="badge-approved" id="blueprint-status-badge">Approved</span>
+        <!-- Section E: Blueprint Rules (Advanced) -->
+        <details class="inspector-accordion">
+          <summary class="accordion-header">
+            <span>E. BLUEPRINT PACING RULES</span>
+            <span class="badge-rules-status" id="blueprint-status-badge">Approved</span>
+          </summary>
+          <div class="accordion-body">
+            <ul class="blueprint-rules-list" id="blueprint-rules-list">
+              <li>⚡ Hook audience in first 2.5s with high-contrast text</li>
+              <li>⏱️ Average shot duration under 3.5s for fast pacing</li>
+              <li>✨ Highlight keyword in every caption</li>
+              <li>🎵 Sidechain compress music under voice-over</li>
+              <li>🎯 End with single high-conversion Call to Action</li>
+            </ul>
           </div>
-          <ul class="blueprint-rules-list" id="blueprint-rules-list">
-            <li>⚡ Hook audience in first 2.5s with high-contrast text</li>
-            <li>⏱️ Average shot duration under 3.5s for fast pacing</li>
-            <li>✨ Highlight keyword in every caption</li>
-            <li>🎵 Sidechain compress music under voice-over</li>
-            <li>🎯 End with single high-conversion Call to Action</li>
-          </ul>
-        </div>
+        </details>
 
-        <!-- Master Export Actions -->
-        <div class="export-actions-section">
-          <button type="button" class="btn-dock-export primary" id="btn-render-final-mp4">
-            🎬 Render 60 FPS Final MP4
+      </div>
+
+      <!-- Fixed Bottom Action Footer -->
+      <div class="inspector-footer-bar">
+        <button type="button" id="btn-save-scene-edits" class="btn-save-edits">
+          💾 Save Scene Edits
+        </button>
+
+        <div class="footer-export-row">
+          <button type="button" class="btn-export-primary" id="btn-render-final-mp4">
+            🎬 Render 60 FPS MP4
           </button>
-          <a class="btn-dock-export secondary" id="btn-download-mp4" href="#" download="explainer-video.mp4">
-            ⬇ Download MP4 Video
-          </a>
-          <a class="btn-dock-export tertiary" id="btn-export-remotion-zip" href="#" download>
-            📦 Export Remotion Project
-          </a>
+          <div class="export-links-group">
+            <a class="export-link-btn" id="btn-download-mp4" href="#" download="explainer-video.mp4" title="Download Rendered MP4">
+              ⬇ MP4
+            </a>
+            <a class="export-link-btn" id="btn-export-remotion-zip" href="#" download title="Download Remotion Source Project">
+              📦 ZIP
+            </a>
+          </div>
         </div>
       </div>
     </aside>
+
   </div>
+
 </body>
 </html>
-
