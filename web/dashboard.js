@@ -28,6 +28,26 @@
       .replace(/>/g, '&gt;');
   }
 
+  function showToast(message, type = 'info') {
+    const container = $('toast-container');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = `toast-msg ${type}`;
+    const icon = type === 'success' ? '✓ ' : (type === 'error' ? '⚠️ ' : 'ℹ️ ');
+    toast.textContent = `${icon}${message}`;
+    toast.onclick = () => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(10px)';
+      setTimeout(() => toast.remove(), 250);
+    };
+    container.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(10px)';
+      setTimeout(() => toast.remove(), 250);
+    }, 3800);
+  }
+
   async function getValidToken() {
     if (window.__APP_TOKEN__) {
       cachedToken = window.__APP_TOKEN__;
@@ -263,6 +283,9 @@
     const player = $('dashboard-video-player');
     const emptyState = $('stage-empty-state');
     const badgeDur = $('badge-active-duration');
+    const refBar = $('reference-context-bar');
+    const refTitle = $('context-ref-title');
+    const refTag = $('context-status-tag');
 
     const hasVideo = Boolean(
       projectState && (
@@ -275,6 +298,25 @@
 
     if (emptyState) {
       emptyState.style.display = hasVideo ? 'none' : 'flex';
+    }
+
+    if (refBar) {
+      refBar.style.display = hasVideo ? 'flex' : 'none';
+      if (hasVideo) {
+        if (refTitle) {
+          const videoName = projectState.name || 'Reference Video';
+          refTitle.textContent = `${videoName} Loaded`;
+        }
+        if (refTag) {
+          if (projectState.blueprint) {
+            refTag.textContent = '📐 Blueprint Ready';
+            refTag.className = 'context-status-tag ready';
+          } else {
+            refTag.textContent = 'Ready for Blueprint';
+            refTag.className = 'context-status-tag';
+          }
+        }
+      }
     }
 
     if (player && projectState) {
@@ -606,7 +648,7 @@
       return;
     }
 
-    showOverlay('Deconstructing Reference…', 'Gemini is analyzing pacing, cuts, and motion rules');
+    showOverlay('Deconstructing Reference…', 'Gemini 3.8 Flash is analyzing pacing, cuts, and motion rules');
     updatePipelineStep(2);
 
     try {
@@ -623,15 +665,26 @@
       projectState.blueprint = res.blueprint;
       hideOverlay();
       updatePipelineStep(2);
+      showToast('📐 Blueprint extracted successfully!', 'success');
+
       $('btn-view-blueprint')?.classList.add('active');
       $('btn-view-rebuilt')?.classList.remove('active');
       $('btn-view-source')?.classList.remove('active');
+      $('btn-view-merger')?.classList.remove('active');
+      const deck = $('stage-blueprint-view');
+      const player = $('dashboard-video-player');
+      const merger = $('stage-merger-view');
+      if (player) player.style.display = 'none';
+      if (merger) merger.style.display = 'none';
+      if (deck) deck.style.display = 'flex';
+
       activeSceneIndex = 0;
       renderAllViews();
 
       appendChatBubble('agent', `✅ ${res.message}`, `
         <div class="chat-card">
-          <div class="chat-card-title">📐 Blueprint Approved</div>
+          <div class="chat-card-title">📝 Step 2: Target Topic & Creative Brief</div>
+          <p style="font-size:11px; margin:0 0 6px; color:var(--muted);">Blueprint ready! Enter your topic in the brief input below (e.g. malaria symptoms, product demo) or proceed with defaults.</p>
           <button type="button" class="chat-card-btn" id="btn-auto-plan">⚡ Proceed to Script & Scene Plan</button>
         </div>
       `);
@@ -640,8 +693,11 @@
         await handleGenerateScenePlan();
       });
 
+      $('topic-brief-card')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
     } catch (e) {
       hideOverlay();
+      showToast('Notice: ' + e.message, 'error');
       appendChatBubble('agent', `⚠️ Notice: ${e.message}`);
     }
   }
@@ -649,7 +705,12 @@
   async function handleGenerateScenePlan() {
     if (!activeJobId) return;
 
-    showOverlay('Generating Original Scene Plan…', 'Writing English & Hindi scripts and mapping Remotion templates');
+    const topicInput = $('topic-brief-input')?.value.trim();
+    const brandInput = $('brand-name-input')?.value.trim();
+    const userStory = topicInput || 'Next-Gen Autonomous AI Platform that saves teams 15 hours a week.';
+    const brandName = brandInput || projectState?.name || 'MotionClone AI';
+
+    showOverlay('Generating Original Scene Plan…', `Writing ${activeLanguage.toUpperCase()} script and mapping Remotion templates`);
     updatePipelineStep(3);
 
     try {
@@ -658,8 +719,8 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           job_id: activeJobId,
-          user_story: 'Next-Gen Autonomous AI Platform that saves teams 15 hours a week.',
-          brand_name: projectState.name || 'MotionClone AI',
+          user_story: userStory,
+          brand_name: brandName,
           brand_tagline: 'From reference video to editable motion.',
           language: activeLanguage,
           aspect: activeAspect,
@@ -669,13 +730,14 @@
 
       projectState.scene_plan = res.scene_plan;
       hideOverlay();
+      showToast('✨ Scene plan & voiceover ready!', 'success');
       renderAllViews();
 
       appendChatBubble('agent', `🎉 ${res.message}`, `
         <div class="chat-card">
-          <div class="chat-card-title">✨ Scene Sequence Ready</div>
-          <p style="font-size:11px; margin:0 0 6px; color:var(--muted);">${res.scene_plan.scenes.length} Remotion scenes with synchronized sound effects.</p>
-          <button type="button" class="chat-card-btn" id="btn-auto-render">🎬 Render 60 FPS Video</button>
+          <div class="chat-card-title">🎬 Step 3: Render 60 FPS Video</div>
+          <p style="font-size:11px; margin:0 0 6px; color:var(--muted);">${res.scene_plan.scenes.length} Remotion scenes with synchronized sound effects and voiceover.</p>
+          <button type="button" class="chat-card-btn" id="btn-auto-render">🚀 Render 60 FPS Video Now</button>
         </div>
       `);
 
@@ -685,6 +747,7 @@
 
     } catch (e) {
       hideOverlay();
+      showToast('Scene plan error: ' + e.message, 'error');
       alert('Scene plan error: ' + e.message);
     }
   }
@@ -694,6 +757,7 @@
 
     showOverlay('Rendering 60 FPS Remotion Video…', 'Synthesizing motion graphics, captions, sound effects, and music');
     updatePipelineStep(4);
+    showToast('🎬 Rendering 60 FPS video...', 'info');
 
     try {
       const comp = activeAspect === '16:9' ? 'DashboardShowcase' : 'Motion';
@@ -710,11 +774,16 @@
             updatePipelineStep(5);
             videoCacheKey = Date.now();
             projectState.preview_url = `/media/${activeJobId}/output.mp4`;
+            
+            // Switch to Preview tab
+            $('btn-view-rebuilt')?.click();
+            showToast('🎉 Explainer Video Rendered Successfully!', 'success');
             renderVideoStage();
             appendChatBubble('agent', '🎬 Your 60 FPS Explainer Video is ready! Watch the preview in the center stage or download below.');
           } else if (j.status === 'error') {
             clearInterval(poll);
             hideOverlay();
+            showToast('Render error: ' + (j.error || 'Check server logs'), 'error');
             alert('Render failed: ' + (j.error || 'Check server logs'));
           }
         } catch {}
@@ -722,7 +791,71 @@
 
     } catch (e) {
       hideOverlay();
+      showToast('Render initiation error: ' + e.message, 'error');
       alert('Render initiation error: ' + e.message);
+    }
+  }
+
+  async function handlePasteAndRender() {
+    if (!activeJobId) {
+      alert('Please select or create an explainer project first.');
+      return;
+    }
+
+    const jsxCode = $('merger-jsx-input')?.value.trim();
+    const voiceoverScript = $('merger-voiceover-input')?.value.trim();
+
+    if (!jsxCode && !voiceoverScript) {
+      showToast('Please paste Remotion JSX code or a voiceover script.', 'error');
+      alert('Please paste Remotion JSX code or a voiceover script into the editors.');
+      return;
+    }
+
+    showOverlay('Merging Code & Rendering 60 FPS MP4…', 'Transpiling Remotion JSX, generating voiceover audio, and compiling video');
+    updatePipelineStep(4);
+
+    try {
+      const res = await callApi('/api/dashboard/paste-and-render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_id: activeJobId,
+          jsx_code: jsxCode,
+          voiceover_script: voiceoverScript,
+          aspect: activeAspect
+        })
+      });
+
+      showToast('🚀 Code merged! Compiling 60 FPS video...', 'info');
+
+      // Poll job status until complete or error
+      const poll = setInterval(async () => {
+        try {
+          const j = await callApi(`/api/jobs/${activeJobId}`);
+          if (j.status === 'complete') {
+            clearInterval(poll);
+            hideOverlay();
+            updatePipelineStep(5);
+            videoCacheKey = Date.now();
+            projectState.preview_url = `/media/${activeJobId}/output.mp4`;
+            
+            // Switch to Preview tab to watch rendered MP4
+            $('btn-view-rebuilt')?.click();
+            showToast('🎉 60 FPS Explainer Video Rendered Successfully!', 'success');
+            appendChatBubble('agent', '🎉 Your custom JSX + voiceover was compiled and rendered into a 60 FPS MP4 video! Watch the preview above or download the file.');
+          } else if (j.status === 'error') {
+            clearInterval(poll);
+            hideOverlay();
+            showToast('Render error: ' + (j.error || 'Check server logs'), 'error');
+            alert('Render failed: ' + (j.error || 'Check server logs'));
+          }
+        } catch {}
+      }, 2500);
+
+    } catch (e) {
+      hideOverlay();
+      showToast('Merge & Render failed: ' + e.message, 'error');
+      alert('Merge & Render error: ' + e.message);
     }
   }
 
@@ -887,8 +1020,11 @@
       $('btn-view-rebuilt').classList.add('active');
       $('btn-view-source')?.classList.remove('active');
       $('btn-view-blueprint')?.classList.remove('active');
+      $('btn-view-merger')?.classList.remove('active');
       const deck = $('stage-blueprint-view');
+      const merger = $('stage-merger-view');
       if (deck) deck.style.display = 'none';
+      if (merger) merger.style.display = 'none';
       const player = $('dashboard-video-player');
       if (player && activeJobId) {
         player.style.display = 'block';
@@ -901,8 +1037,11 @@
       $('btn-view-source').classList.add('active');
       $('btn-view-rebuilt')?.classList.remove('active');
       $('btn-view-blueprint')?.classList.remove('active');
+      $('btn-view-merger')?.classList.remove('active');
       const deck = $('stage-blueprint-view');
+      const merger = $('stage-merger-view');
       if (deck) deck.style.display = 'none';
+      if (merger) merger.style.display = 'none';
       const player = $('dashboard-video-player');
       if (player && activeJobId) {
         player.style.display = 'block';
@@ -915,13 +1054,86 @@
       $('btn-view-blueprint').classList.add('active');
       $('btn-view-source')?.classList.remove('active');
       $('btn-view-rebuilt')?.classList.remove('active');
+      $('btn-view-merger')?.classList.remove('active');
       const player = $('dashboard-video-player');
       const emptyState = $('stage-empty-state');
       const deck = $('stage-blueprint-view');
+      const merger = $('stage-merger-view');
       if (player) player.style.display = 'none';
       if (emptyState) emptyState.style.display = 'none';
+      if (merger) merger.style.display = 'none';
       if (deck) deck.style.display = 'flex';
       renderBlueprintSummary();
+    });
+
+    $('btn-view-merger')?.addEventListener('click', () => {
+      $('btn-view-merger').classList.add('active');
+      $('btn-view-source')?.classList.remove('active');
+      $('btn-view-rebuilt')?.classList.remove('active');
+      $('btn-view-blueprint')?.classList.remove('active');
+      const player = $('dashboard-video-player');
+      const emptyState = $('stage-empty-state');
+      const deck = $('stage-blueprint-view');
+      const merger = $('stage-merger-view');
+      if (player) player.style.display = 'none';
+      if (emptyState) emptyState.style.display = 'none';
+      if (deck) deck.style.display = 'none';
+      if (merger) merger.style.display = 'flex';
+
+      // Pre-fill sample Remotion JSX if empty
+      const mergerJsx = $('merger-jsx-input');
+      if (mergerJsx && !mergerJsx.value.trim()) {
+        mergerJsx.value = `import React from 'react';
+import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+
+export const ExplainerScene = () => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+
+  const titleProgress = spring({ frame, fps, config: { damping: 14 } });
+  const scale = interpolate(titleProgress, [0, 1], [0.85, 1]);
+  const opacity = interpolate(titleProgress, [0, 1], [0, 1]);
+
+  return (
+    <AbsoluteFill style={{
+      backgroundColor: '#0a0a0f',
+      justifyContent: 'center',
+      alignItems: 'center',
+      fontFamily: 'Inter, system-ui, sans-serif'
+    }}>
+      <div style={{ transform: \`scale(\${scale})\`, opacity, textAlign: 'center', padding: '0 40px' }}>
+        <h1 style={{
+          fontSize: 64,
+          fontWeight: 800,
+          background: 'linear-gradient(135deg, #00f2fe 0%, #4facfe 100%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          margin: '0 0 16px 0'
+        }}>
+          Autonomous AI Platform
+        </h1>
+        <p style={{ fontSize: 26, color: '#94a3b8', margin: 0 }}>
+          From Reference Video to 60 FPS Remotion Motion Graphics
+        </p>
+      </div>
+    </AbsoluteFill>
+  );
+};
+`;
+      }
+    });
+
+    // Persistent Bar & Direct Plan & Merger Render Buttons
+    $('btn-deconstruct-persistent')?.addEventListener('click', () => {
+      handleDeconstructReference();
+    });
+
+    $('btn-generate-plan-direct')?.addEventListener('click', () => {
+      handleGenerateScenePlan();
+    });
+
+    $('btn-merger-render')?.addEventListener('click', () => {
+      handlePasteAndRender();
     });
 
     // Timeline Preview Render Button
@@ -1002,9 +1214,18 @@
               await fetchJobs();
               await loadProject(created.job_id);
               hideOverlay();
-              appendChatBubble('agent', `✓ Reference video successfully imported from link: ${urlVal}`);
+              showToast('🎬 Reference video imported from link!', 'success');
+              appendChatBubble('agent', `✓ Reference video successfully imported! Ready for Step 1.`, `
+                <div class="chat-card">
+                  <div class="chat-card-title">⚡ Step 1: Deconstruct Video Blueprint</div>
+                  <p style="font-size:11px; margin:0 0 6px; color:var(--muted);">Gemini 3.8 Flash will deconstruct the pacing, cuts, and visual hierarchy.</p>
+                  <button type="button" class="chat-card-btn" id="btn-card-step1-url">⚡ Deconstruct Reference Video</button>
+                </div>
+              `);
+              $('btn-card-step1-url')?.addEventListener('click', () => handleDeconstructReference());
             } catch (err) {
               hideOverlay();
+              showToast('Import failed: ' + err.message, 'error');
               appendChatBubble('agent', `⚠️ Import failed: ${err.message}`);
               alert(err.message);
             }
@@ -1017,9 +1238,18 @@
               await callApi(`/api/dashboard/project/${activeJobId}/reference`, { method: 'POST', body: fd });
               await loadProject(activeJobId);
               hideOverlay();
-              appendChatBubble('agent', `✓ Reference video downloaded and attached to project!`);
+              showToast('🎬 Reference video attached to project!', 'success');
+              appendChatBubble('agent', `✓ Reference video downloaded and loaded into player! Ready for Step 1.`, `
+                <div class="chat-card">
+                  <div class="chat-card-title">⚡ Step 1: Deconstruct Video Blueprint</div>
+                  <p style="font-size:11px; margin:0 0 6px; color:var(--muted);">Gemini 3.8 Flash will deconstruct the pacing, cuts, and visual hierarchy.</p>
+                  <button type="button" class="chat-card-btn" id="btn-card-step1-attach">⚡ Deconstruct Reference Video</button>
+                </div>
+              `);
+              $('btn-card-step1-attach')?.addEventListener('click', () => handleDeconstructReference());
             } catch (err) {
               hideOverlay();
+              showToast('Import failed: ' + err.message, 'error');
               appendChatBubble('agent', `⚠️ Import failed: ${err.message}`);
               alert(err.message);
             }
@@ -1046,9 +1276,18 @@
             await fetchJobs();
             await loadProject(created.job_id);
             hideOverlay();
-            appendChatBubble('agent', `✓ Reference video "${file.name}" uploaded! Click "Deconstruct Reference" to generate the blueprint.`);
+            showToast('🎬 Reference video uploaded successfully!', 'success');
+            appendChatBubble('agent', `✓ Reference video "${file.name}" uploaded! Ready for Step 1.`, `
+              <div class="chat-card">
+                <div class="chat-card-title">⚡ Step 1: Deconstruct Video Blueprint</div>
+                <p style="font-size:11px; margin:0 0 6px; color:var(--muted);">Analyze pacing, kinetic motion, and scene transitions.</p>
+                <button type="button" class="chat-card-btn" id="btn-card-step1-file">⚡ Deconstruct Reference Video</button>
+              </div>
+            `);
+            $('btn-card-step1-file')?.addEventListener('click', () => handleDeconstructReference());
           } catch (err) {
             hideOverlay();
+            showToast('Upload failed: ' + err.message, 'error');
             alert('Upload failed: ' + err.message);
           }
         } else {
@@ -1059,9 +1298,18 @@
             await callApi(`/api/dashboard/project/${activeJobId}/reference`, { method: 'POST', body: fd });
             await loadProject(activeJobId);
             hideOverlay();
-            appendChatBubble('agent', `✓ Reference video "${file.name}" uploaded and loaded into player!`);
+            showToast('🎬 Reference video uploaded to player!', 'success');
+            appendChatBubble('agent', `✓ Reference video "${file.name}" loaded into player! Ready for Step 1.`, `
+              <div class="chat-card">
+                <div class="chat-card-title">⚡ Step 1: Deconstruct Video Blueprint</div>
+                <p style="font-size:11px; margin:0 0 6px; color:var(--muted);">Analyze pacing, kinetic motion, and scene transitions.</p>
+                <button type="button" class="chat-card-btn" id="btn-card-step1-active">⚡ Deconstruct Reference Video</button>
+              </div>
+            `);
+            $('btn-card-step1-active')?.addEventListener('click', () => handleDeconstructReference());
           } catch (err) {
             hideOverlay();
+            showToast('Upload failed: ' + err.message, 'error');
             alert('Upload failed: ' + err.message);
           }
         }
@@ -1103,7 +1351,17 @@
         hideOverlay();
         await loadProject(activeJobId);
         if (detectedVideo) {
-          appendChatBubble('agent', '🎬 Video uploaded to project! Video player is ready. Click "⚡ Deconstruct Reference" to analyze it.');
+          showToast('🎬 Video uploaded to project!', 'success');
+          appendChatBubble('agent', '🎬 Video uploaded to project! Video player is ready. Ready for Step 1.', `
+            <div class="chat-card">
+              <div class="chat-card-title">⚡ Step 1: Deconstruct Video Blueprint</div>
+              <p style="font-size:11px; margin:0 0 6px; color:var(--muted);">Analyze reference scene pacing, typography, and motion rules.</p>
+              <button type="button" class="chat-card-btn" id="btn-card-step1-asset">⚡ Deconstruct Reference Video</button>
+            </div>
+          `);
+          $('btn-card-step1-asset')?.addEventListener('click', () => handleDeconstructReference());
+        } else {
+          showToast('📁 Assets uploaded successfully!', 'success');
         }
       };
     }
@@ -1158,7 +1416,49 @@
     hideOverlay();
 
     // Greeting Message
-    appendChatBubble('agent', '👋 Welcome to MotionClone: Reference-to-Video Explainer Studio! I am your AI Creative Director. Upload a reference video and tell me about your product to build an original 30-second 60 FPS motion graphics explainer.');
+    appendChatBubble('agent', '👋 Welcome to MotionClone: Reference-to-Video Explainer Studio! I am your AI Creative Director. Upload a reference video or paste JSX in "Paste & Render" to build an original 60 FPS motion graphics explainer.');
+
+    // Pre-fill sample Remotion JSX into merger tab
+    const mergerJsx = $('merger-jsx-input');
+    if (mergerJsx && !mergerJsx.value.trim()) {
+      mergerJsx.value = `import React from 'react';
+import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+
+export const ExplainerScene = () => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+
+  const titleProgress = spring({ frame, fps, config: { damping: 14 } });
+  const scale = interpolate(titleProgress, [0, 1], [0.85, 1]);
+  const opacity = interpolate(titleProgress, [0, 1], [0, 1]);
+
+  return (
+    <AbsoluteFill style={{
+      backgroundColor: '#0a0a0f',
+      justifyContent: 'center',
+      alignItems: 'center',
+      fontFamily: 'Inter, system-ui, sans-serif'
+    }}>
+      <div style={{ transform: \`scale(\${scale})\`, opacity, textAlign: 'center', padding: '0 40px' }}>
+        <h1 style={{
+          fontSize: 64,
+          fontWeight: 800,
+          background: 'linear-gradient(135deg, #00f2fe 0%, #4facfe 100%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          margin: '0 0 16px 0'
+        }}>
+          Autonomous AI Platform
+        </h1>
+        <p style={{ fontSize: 26, color: '#94a3b8', margin: 0 }}>
+          From Reference Video to 60 FPS Remotion Motion Graphics
+        </p>
+      </div>
+    </AbsoluteFill>
+  );
+};
+`;
+    }
   });
 })();
 

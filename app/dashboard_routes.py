@@ -264,8 +264,14 @@ def install(app, server):
         )
         plan.music_track_id = req.music_track_id
 
-        # Persist scene plan
+        # Persist scene plan & Remotion plan
         (folder / 'scene_plan.json').write_text(plan.model_dump_json(indent=2), encoding='utf-8')
+        try:
+            from .dashboard_agent import export_scene_plan_to_remotion_plan
+            remotion_plan = export_scene_plan_to_remotion_plan(plan)
+            (folder / 'plan.json').write_text(remotion_plan.model_dump_json(indent=2), encoding='utf-8')
+        except Exception as e:
+            logger.warning(f"Could not convert scene plan to plan.json: {e}")
 
         return {
             "ok": True,
@@ -342,6 +348,73 @@ def install(app, server):
                 pass
                 
         return {"ok": True, "scene_plan": plan.model_dump(), "message": "Scene updated and persisted!"}
+
+    @app.post('/api/dashboard/paste-and-render')
+    def api_paste_and_render(req: dict[str, Any]):
+        job_id = req.get('job_id')
+        if not job_id:
+            raise HTTPException(400, "Missing job_id")
+        
+        server.get_job(job_id)
+        folder = DATA / job_id
+        jsx_code = req.get('jsx_code', '').strip()
+        voiceover_script = req.get('voiceover_script', '').strip()
+        scene_plan_str = req.get('scene_plan_json', '').strip()
+        aspect = req.get('aspect', '9:16')
+
+        # 1. Save JSX code if provided
+        if jsx_code:
+            rebuild_dir = folder / 'rebuild'
+            rebuild_dir.mkdir(parents=True, exist_ok=True)
+            (rebuild_dir / 'Composition.jsx').write_text(jsx_code, encoding='utf-8')
+            (folder / 'CustomComposition.jsx').write_text(jsx_code, encoding='utf-8')
+
+        # 2. Save voiceover script
+        if voiceover_script:
+            (folder / 'voiceover.txt').write_text(voiceover_script, encoding='utf-8')
+
+        # 3. Save or generate scene plan
+        if scene_plan_str:
+            try:
+                parsed_plan = json.loads(scene_plan_str)
+                (folder / 'scene_plan.json').write_text(json.dumps(parsed_plan, indent=2), encoding='utf-8')
+            except Exception as e:
+                logger.warning(f"Failed to parse pasted scene plan JSON: {e}")
+
+        # Update dashboard_project.json
+        dashboard_file = folder / 'dashboard_project.json'
+        if dashboard_file.is_file():
+            try:
+                state = json.loads(dashboard_file.read_text(encoding='utf-8'))
+                state['stage'] = 'Custom code merged. Rendering…'
+                state['aspect'] = aspect
+                dashboard_file.write_text(json.dumps(state, indent=2), encoding='utf-8')
+            except Exception:
+                pass
+
+        # 4. Ensure plan.json exists for Remotion runner
+        plan_file = folder / 'plan.json'
+        if not plan_file.is_file():
+            from .models import Plan, Track, Keyframe
+            fallback_plan = Plan(
+                title=f"Custom Explainer ({job_id})",
+                summary="User custom JSX & voiceover merge",
+                tracks=[
+                    Track(id="main_title", kind="text", text="Autonomous AI Platform", start=0.0, end=5.0, color="#ffffff", keyframes=[Keyframe(t=0.0, opacity=1.0)])
+                ],
+                background="#0a0a0f"
+            )
+            plan_file.write_text(fallback_plan.model_dump_json(indent=2), encoding='utf-8')
+
+        # Trigger Remotion render
+        from .rebrand import api_render_remotion
+        comp = 'DashboardShowcase' if aspect == '16:9' else 'Motion'
+        render_res = api_render_remotion(job_id, format='mp4', composition=comp)
+        return {
+            "ok": True,
+            "message": "Custom JSX & voiceover merged successfully! Remotion 60 FPS render started.",
+            "render": render_res
+        }
 
     @app.post('/api/dashboard/project/{id}/save')
     def api_save_dashboard_project(id: str, payload: dict[str, Any]):

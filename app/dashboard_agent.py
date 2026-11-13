@@ -433,6 +433,66 @@ def generate_scene_plan(
     )
 
 
+def export_scene_plan_to_remotion_plan(scene_plan: ExplainerScenePlan) -> Any:
+    """Converts an ExplainerScenePlan into a validated Remotion Plan with animated text tracks."""
+    from .models import Plan, Track, Keyframe
+    tracks: list[Track] = []
+    current_time = 0.0
+    for idx, scene in enumerate(scene_plan.scenes):
+        dur = max(1.0, float(scene.duration_seconds or 3.0))
+        t_start = round(current_time, 2)
+        t_end = round(current_time + dur, 2)
+        current_time = t_end
+
+        # Main headline text track
+        text_content = scene.headline or f"Scene {idx + 1}"
+        tracks.append(
+            Track(
+                id=f"headline_{idx + 1}",
+                kind="text",
+                start=t_start,
+                end=t_end,
+                text=text_content,
+                color="#ffffff",
+                size=0.08,
+                keyframes=[Keyframe(t=0.0, opacity=1.0)]
+            )
+        )
+        if scene.subtitle:
+            tracks.append(
+                Track(
+                    id=f"sub_{idx + 1}",
+                    kind="text",
+                    start=round(t_start + 0.2, 2),
+                    end=t_end,
+                    text=scene.subtitle,
+                    color="#00f2fe",
+                    size=0.045,
+                    keyframes=[Keyframe(t=0.0, opacity=1.0)]
+                )
+            )
+
+    if not tracks:
+        tracks.append(
+            Track(
+                id="default_title",
+                kind="text",
+                start=0.0,
+                end=5.0,
+                text=scene_plan.title or "MotionClone Explainer",
+                color="#ffffff",
+                keyframes=[Keyframe(t=0.0, opacity=1.0)]
+            )
+        )
+
+    return Plan(
+        title=scene_plan.title,
+        summary=f"Explainer video with {len(scene_plan.scenes)} scenes",
+        tracks=tracks,
+        background="#0a0a0f"
+    )
+
+
 def process_dashboard_chat_turn(
     message: str,
     history: list[dict[str, str]],

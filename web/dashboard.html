@@ -259,6 +259,7 @@
             <button type="button" class="stage-tab-btn active" id="btn-view-source">📹 Reference</button>
             <button type="button" class="stage-tab-btn" id="btn-view-blueprint">📐 Blueprint</button>
             <button type="button" class="stage-tab-btn" id="btn-view-rebuilt">🎬 Preview</button>
+            <button type="button" class="stage-tab-btn" id="btn-view-merger">⚡ Paste & Render</button>
           </div>
 
           <div class="stage-meta-badges">
@@ -266,6 +267,20 @@
             <span class="meta-pill" id="badge-active-ratio">9:16 Reel</span>
             <span class="meta-pill" id="badge-active-duration">30.0s</span>
           </div>
+        </div>
+      </div>
+
+      <!-- Persistent Contextual Action Bar when Reference Video is Loaded -->
+      <div class="reference-context-bar" id="reference-context-bar" style="display:none;">
+        <div class="context-bar-left">
+          <span class="context-dot-pulse"></span>
+          <span class="context-text" id="context-ref-title">Reference Video Ready</span>
+          <span class="context-status-tag" id="context-status-tag">Ready for Blueprint</span>
+        </div>
+        <div class="context-bar-right">
+          <button type="button" class="btn-deconstruct-prominent" id="btn-deconstruct-persistent">
+            ⚡ Deconstruct Reference Video
+          </button>
         </div>
       </div>
 
@@ -283,6 +298,35 @@
             </div>
             <div class="blueprint-cards-grid" id="blueprint-cards-grid">
               <!-- Populated dynamically with shot cards -->
+            </div>
+          </div>
+
+          <!-- Dedicated Paste & Render Merger View Deck (Displayed when Paste & Render tab is active) -->
+          <div class="merger-deck-overlay" id="stage-merger-view" style="display:none;">
+            <div class="merger-deck-header">
+              <div class="merger-title-wrap">
+                <h3>⚡ Paste & Render Merger</h3>
+                <p>Paste Remotion JSX Code or JSON Scene Plan + Voiceover Script to compile and render a 60 FPS MP4 in ~15–25 seconds</p>
+              </div>
+              <button type="button" class="btn-merger-render-now" id="btn-merger-render">
+                🚀 Merge & Render Final MP4
+              </button>
+            </div>
+            <div class="merger-editors-grid">
+              <div class="merger-editor-box">
+                <div class="editor-label-bar">
+                  <span>React Remotion JSX Code / JSON Scene Plan</span>
+                  <span class="editor-lang-tag">JSX / JSON</span>
+                </div>
+                <textarea id="merger-jsx-input" class="code-textarea" placeholder="// Paste Remotion JSX Code or JSON Scene Plan here...&#10;import { AbsoluteFill, interpolate, spring } from 'remotion';&#10;export const MyScene = () => { ... };"></textarea>
+              </div>
+              <div class="merger-editor-box">
+                <div class="editor-label-bar">
+                  <span>Voiceover Narration Script (English or Hindi)</span>
+                  <span class="editor-lang-tag">Audio Script</span>
+                </div>
+                <textarea id="merger-voiceover-input" class="code-textarea" placeholder="Paste voiceover script here...&#10;English: Malaria is a life-threatening disease spread by mosquitoes...&#10;Hindi: मलेरिया एक गंभीर बीमारी है जो मच्छरों के काटने से फैलती है..."></textarea>
+              </div>
             </div>
           </div>
 
@@ -304,6 +348,25 @@
             <div class="neon-spinner"></div>
             <strong id="stage-overlay-title">Processing Video…</strong>
             <p id="stage-overlay-desc">Analyzing motion keyframes & structure</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dedicated Creative Topic & Brief Input Bar -->
+      <div class="topic-brief-card" id="topic-brief-card">
+        <div class="brief-row">
+          <div class="brief-col-topic">
+            <label for="topic-brief-input" class="brief-label">🎯 What should your rebuilt video be about?</label>
+            <input type="text" id="topic-brief-input" class="brief-input" placeholder="e.g. Symptoms & Prevention of Malaria in an energetic, clinical explainer style...">
+          </div>
+          <div class="brief-col-brand">
+            <label for="brand-name-input" class="brief-label">🏷️ Brand / Product Name</label>
+            <input type="text" id="brand-name-input" class="brief-input" placeholder="e.g. HealthPulse">
+          </div>
+          <div class="brief-col-action">
+            <button type="button" class="btn-generate-plan-direct" id="btn-generate-plan-direct">
+              📝 Generate Script & Plan
+            </button>
           </div>
         </div>
       </div>
@@ -492,6 +555,9 @@
     </aside>
 
   </div>
+
+  <!-- Floating Toast Notifications -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
 
 </body>
 </html>

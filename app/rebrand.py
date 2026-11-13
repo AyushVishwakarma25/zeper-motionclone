@@ -787,7 +787,7 @@ def install(app, server):
         job = server.get_job(id)
         folder = server.DATA / id
         from .remotion import render as remotion_render
-        from .models import Brief, Plan
+        from .models import Brief, Plan, Track, Keyframe
 
         with server.LOCK:
             if server.ACTIVE['id']:
@@ -803,7 +803,11 @@ def install(app, server):
                 if plan_file.is_file():
                     plan_data = Plan.model_validate_json(plan_file.read_text(encoding='utf-8'))
                 else:
-                    plan_data = Plan(tracks=[], background='#0b0b12')
+                    plan_data = Plan(
+                        title=job.get('name', 'MotionClone Film'),
+                        tracks=[Track(id='scene_fallback', kind='text', text='MotionClone', start=0.0, end=5.0, keyframes=[Keyframe(t=0.0)])],
+                        background='#0b0b12'
+                    )
                 brief = Brief.model_validate(job.get('brief', {'brand': '', 'instructions': ''}))
                 remotion_render(
                     folder, plan_data, brief, job['cancel'],
