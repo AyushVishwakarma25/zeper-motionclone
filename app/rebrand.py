@@ -788,6 +788,7 @@ def install(app, server):
 
 
 def trigger_remotion_render(id: str, format: str = 'mp4', composition: str = 'Motion'):
+    from . import server
     job = server.get_job(id)
     folder = server.DATA / id
     from .remotion import render as remotion_render
