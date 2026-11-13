@@ -186,3 +186,4 @@ def enforce_credit_gate(
         'cache_key': cache_key,
         'credits_charged': required_credits
     }
+

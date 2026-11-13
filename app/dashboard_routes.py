@@ -3,6 +3,7 @@ import json
 import logging
 import re
 import shutil
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -248,6 +249,78 @@ def install(app, server):
 
         return {"ok": True, "message": "Dashboard project saved to disk."}
 
+    @app.post('/api/dashboard/project/{id}/reference')
+    async def api_attach_project_reference(
+        id: str,
+        video: UploadFile | None = File(None),
+        url: str = Form("")
+    ):
+        job = server.get_job(id)
+        folder = DATA / id
+        clean_url = url.strip()
+
+        if not video and not clean_url:
+            raise HTTPException(400, "Please provide a video file or public video URL.")
+
+        if video and video.filename:
+            # Direct video file upload
+            await server.save_upload(video, folder / 'source.mp4', server.MAX_BYTES)
+            from .media import thumbnail, probe
+            try:
+                meta = probe(folder / 'source.mp4')
+                (folder / 'media.json').write_text(json.dumps(meta, indent=2), encoding='utf-8')
+                job['media'] = meta
+                thumbnail(folder / 'source.mp4', folder / 'thumbnail.jpg')
+            except Exception as e:
+                logger.warning(f"Metadata probe failed on uploaded reference: {e}")
+            job['has_reference'] = True
+            job['url'] = ''
+        elif clean_url:
+            # Download from public URL (YouTube, Vimeo, X, direct mp4)
+            from .media import download, prepare, thumbnail
+            cancel = threading.Event()
+            input_bin = folder / 'input.bin'
+            try:
+                download(clean_url, input_bin, cancel, lambda stage, pct: None)
+                meta, _ = prepare(input_bin, folder, cancel, lambda stage, pct: None, rebuild=True)
+                job['media'] = meta
+                job['url'] = clean_url
+                thumbnail(folder / 'source.mp4', folder / 'thumbnail.jpg')
+            except Exception as e:
+                logger.error(f"URL download failed: {e}")
+                raise HTTPException(422, f"Could not download video from link: {e}")
+
+        job['stage'] = 'Reference ready'
+        job['status'] = 'draft'
+        with server.LOCK:
+            server.JOBS[id] = job
+        server.persist(job)
+
+        # Update dashboard_project.json
+        dashboard_file = folder / 'dashboard_project.json'
+        state = {}
+        if dashboard_file.is_file():
+            try:
+                state = json.loads(dashboard_file.read_text(encoding='utf-8'))
+            except Exception:
+                pass
+        state.update({
+            "job_id": id,
+            "has_reference": (folder / "source.mp4").is_file(),
+            "reference_url": clean_url,
+            "source_url": f"/media/{id}/source.mp4" if (folder / "source.mp4").is_file() else None,
+            "stage": "Reference ready"
+        })
+        dashboard_file.write_text(json.dumps(state, indent=2), encoding='utf-8')
+
+        return {
+            "ok": True,
+            "job_id": id,
+            "source_url": f"/media/{id}/source.mp4",
+            "has_reference": True,
+            "message": "Reference video attached successfully!"
+        }
+
     @app.post('/api/dashboard/create-project')
     async def api_create_dashboard_project(
         name: str = Form("New Explainer Project"),
@@ -267,8 +340,26 @@ def install(app, server):
         (folder / 'assets').mkdir(exist_ok=True)
 
         try:
+            clean_ref_url = reference_url.strip()
             if reference_file and reference_file.filename:
                 await server.save_upload(reference_file, folder / 'source.mp4', server.MAX_BYTES)
+                from .media import thumbnail, probe
+                try:
+                    meta = probe(folder / 'source.mp4')
+                    (folder / 'media.json').write_text(json.dumps(meta, indent=2), encoding='utf-8')
+                    thumbnail(folder / 'source.mp4', folder / 'thumbnail.jpg')
+                except Exception:
+                    pass
+            elif clean_ref_url:
+                from .media import download, prepare, thumbnail
+                cancel = threading.Event()
+                input_bin = folder / 'input.bin'
+                try:
+                    download(clean_ref_url, input_bin, cancel, lambda stage, pct: None)
+                    meta, _ = prepare(input_bin, folder, cancel, lambda stage, pct: None, rebuild=True)
+                    thumbnail(folder / 'source.mp4', folder / 'thumbnail.jpg')
+                except Exception as e:
+                    logger.warning(f"Initial URL download error: {e}")
             
             job = {
                 'id': new_id,
@@ -278,7 +369,7 @@ def install(app, server):
                 'stage': 'Reference loaded',
                 'progress': 100,
                 'brief': {'brand': name, 'instructions': '', 'mode': 'rebuild', 'accent': '#00f2fe'},
-                'url': reference_url.strip(),
+                'url': clean_ref_url,
                 'events': [],
                 'error': None
             }

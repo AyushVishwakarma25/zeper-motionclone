@@ -690,6 +690,103 @@
       }
     });
 
+    // Reference Video Upload or URL Import
+    const refFileInput = $('ref-file-input');
+    const refUrlInput = $('ref-url-input');
+    const btnBrowseRef = $('btn-browse-ref');
+
+    if (btnBrowseRef && refFileInput) {
+      btnBrowseRef.onclick = async () => {
+        const urlVal = refUrlInput ? refUrlInput.value.trim() : '';
+        if (urlVal) {
+          // Import from URL
+          if (!activeJobId) {
+            // Auto create project if none exists
+            try {
+              const fd = new FormData();
+              fd.append('name', 'Explainer Reference');
+              fd.append('aspect', activeAspect);
+              fd.append('language', activeLanguage);
+              fd.append('reference_url', urlVal);
+              showOverlay('Importing Video from Link…', 'Downloading video via yt-dlp / FFmpeg');
+              const created = await callApi('/api/dashboard/create-project', { method: 'POST', body: fd });
+              await fetchJobs();
+              await loadProject(created.job_id);
+              hideOverlay();
+              appendChatBubble('agent', `✓ Reference video successfully imported from link: ${urlVal}`);
+            } catch (err) {
+              hideOverlay();
+              alert('Could not import link: ' + err.message);
+            }
+          } else {
+            // Attach URL to active project
+            try {
+              showOverlay('Importing Video from Link…', 'Downloading video stream');
+              const fd = new FormData();
+              fd.append('url', urlVal);
+              await callApi(`/api/dashboard/project/${activeJobId}/reference`, { method: 'POST', body: fd });
+              await loadProject(activeJobId);
+              hideOverlay();
+              appendChatBubble('agent', `✓ Reference video downloaded and attached to project!`);
+            } catch (err) {
+              hideOverlay();
+              alert('Could not import link: ' + err.message);
+            }
+          }
+        } else {
+          // Open file browser for local video upload
+          refFileInput.click();
+        }
+      };
+
+      refFileInput.onchange = async () => {
+        if (!refFileInput.files?.length) return;
+        const file = refFileInput.files[0];
+        
+        if (!activeJobId) {
+          // Auto create project with uploaded video file
+          try {
+            showOverlay('Uploading Reference Video…', 'Storing video and extracting visual frames');
+            const fd = new FormData();
+            fd.append('name', file.name.replace(/\.[^/.]+$/, ''));
+            fd.append('aspect', activeAspect);
+            fd.append('language', activeLanguage);
+            fd.append('reference_file', file);
+            const created = await callApi('/api/dashboard/create-project', { method: 'POST', body: fd });
+            await fetchJobs();
+            await loadProject(created.job_id);
+            hideOverlay();
+            appendChatBubble('agent', `✓ Reference video "${file.name}" uploaded! Click "Deconstruct Reference" to generate the blueprint.`);
+          } catch (err) {
+            hideOverlay();
+            alert('Upload failed: ' + err.message);
+          }
+        } else {
+          // Attach file to active project
+          try {
+            showOverlay('Uploading Reference Video…', 'Storing video and extracting visual frames');
+            const fd = new FormData();
+            fd.append('video', file);
+            await callApi(`/api/dashboard/project/${activeJobId}/reference`, { method: 'POST', body: fd });
+            await loadProject(activeJobId);
+            hideOverlay();
+            appendChatBubble('agent', `✓ Reference video "${file.name}" uploaded and attached!`);
+          } catch (err) {
+            hideOverlay();
+            alert('Upload failed: ' + err.message);
+          }
+        }
+      };
+    }
+
+    // Enter key inside URL input triggers Import
+    refUrlInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        btnBrowseRef?.click();
+      }
+    });
+
     // User Asset Upload Dropzone
     const assetDropzone = $('user-asset-dropzone');
     const assetInput = $('user-asset-input');
