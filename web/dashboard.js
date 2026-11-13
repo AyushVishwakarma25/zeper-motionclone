@@ -303,7 +303,8 @@
     }
 
     if (player && projectState) {
-      const src = projectState.preview_url
+      const isReferenceActive = $('btn-view-source')?.classList.contains('active') || $('btn-view-blueprint')?.classList.contains('active');
+      const src = (!isReferenceActive && projectState.preview_url)
         ? `${projectState.preview_url}?v=${videoCacheKey}`
         : (projectState.source_url || (projectState.has_reference ? `/media/${activeJobId}/source.mp4` : null));
 
@@ -657,9 +658,17 @@
       const deck = $('stage-blueprint-view');
       const player = $('dashboard-video-player');
       const merger = $('stage-merger-view');
-      if (player) player.style.display = 'none';
+      const insights = $('stage-reference-insights');
       if (merger) merger.style.display = 'none';
+      if (insights) insights.style.display = 'none';
       if (deck) deck.style.display = 'flex';
+      const label = $('monitor-video-label');
+      if (label) label.textContent = '📹 Reference Monitor';
+      if (player && activeJobId) {
+        player.style.display = 'block';
+        player.src = `/media/${activeJobId}/source.mp4`;
+        player.load();
+      }
 
       activeSceneIndex = 0;
       renderAllViews();
@@ -998,7 +1007,11 @@
       $('ref-file-input')?.click();
     });
 
-    // Viewport Mode Pills
+    $('btn-deconstruct-insights')?.addEventListener('click', () => {
+      handleDeconstructReference();
+    });
+
+    // Viewport Mode Pills (30% Video Monitor + 70% Workspace Split)
     $('btn-view-rebuilt')?.addEventListener('click', () => {
       $('btn-view-rebuilt').classList.add('active');
       $('btn-view-source')?.classList.remove('active');
@@ -1006,9 +1019,13 @@
       $('btn-view-merger')?.classList.remove('active');
       const deck = $('stage-blueprint-view');
       const merger = $('stage-merger-view');
+      const insights = $('stage-reference-insights');
       if (deck) deck.style.display = 'none';
       if (merger) merger.style.display = 'none';
+      if (insights) insights.style.display = 'flex';
       const player = $('dashboard-video-player');
+      const label = $('monitor-video-label');
+      if (label) label.textContent = '🎬 60 FPS Preview';
       if (player && activeJobId) {
         player.style.display = 'block';
         player.src = `/media/${activeJobId}/output.mp4?v=${videoCacheKey}`;
@@ -1027,9 +1044,13 @@
       $('btn-view-merger')?.classList.remove('active');
       const deck = $('stage-blueprint-view');
       const merger = $('stage-merger-view');
+      const insights = $('stage-reference-insights');
       if (deck) deck.style.display = 'none';
       if (merger) merger.style.display = 'none';
+      if (insights) insights.style.display = 'flex';
       const player = $('dashboard-video-player');
+      const label = $('monitor-video-label');
+      if (label) label.textContent = '📹 Reference Video';
       if (player && activeJobId) {
         player.style.display = 'block';
         player.src = `/media/${activeJobId}/source.mp4`;
@@ -1051,10 +1072,19 @@
       const emptyState = $('stage-empty-state');
       const deck = $('stage-blueprint-view');
       const merger = $('stage-merger-view');
-      if (player) player.style.display = 'none';
-      if (emptyState) emptyState.style.display = 'none';
+      const insights = $('stage-reference-insights');
       if (merger) merger.style.display = 'none';
+      if (insights) insights.style.display = 'none';
       if (deck) deck.style.display = 'flex';
+      const label = $('monitor-video-label');
+      if (label) label.textContent = '📹 Reference Monitor';
+      if (player && activeJobId) {
+        player.style.display = 'block';
+        if (!player.src || !player.src.includes('source.mp4')) {
+          player.src = `/media/${activeJobId}/source.mp4`;
+          player.load();
+        }
+      }
       const tl = $('timeline-section');
       if (tl) tl.style.display = 'flex';
       const btnDec = $('btn-deconstruct-persistent');
@@ -1068,13 +1098,14 @@
       $('btn-view-rebuilt')?.classList.remove('active');
       $('btn-view-blueprint')?.classList.remove('active');
       const player = $('dashboard-video-player');
-      const emptyState = $('stage-empty-state');
       const deck = $('stage-blueprint-view');
       const merger = $('stage-merger-view');
-      if (player) player.style.display = 'none';
-      if (emptyState) emptyState.style.display = 'none';
+      const insights = $('stage-reference-insights');
       if (deck) deck.style.display = 'none';
+      if (insights) insights.style.display = 'none';
       if (merger) merger.style.display = 'flex';
+      const label = $('monitor-video-label');
+      if (label) label.textContent = '⚡ Code & Render Studio';
       const tl = $('timeline-section');
       if (tl) tl.style.display = 'none';
       const btnDec = $('btn-deconstruct-persistent');
