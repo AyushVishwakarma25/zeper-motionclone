@@ -151,6 +151,18 @@ def master_studio_page(request: Request):
     return HTMLResponse(page)
 
 
+@app.get('/dashboard')
+def dashboard_page(request: Request):
+    dashboard_file = ROOT / 'web/dashboard.html'
+    if not dashboard_file.is_file():
+        raise HTTPException(404, 'Dashboard page not found.')
+    page = dashboard_file.read_text(encoding='utf-8')
+    page = page.replace('<head>', f'<head><script>window.__APP_TOKEN__ = {json.dumps(TOKEN)};</script>', 1)
+    if HOSTED:
+        page = page.replace('<body>', '<body data-hosted="true">').replace('href="/"', 'href="/studio"').replace('250 MB', '25 MB')
+    return HTMLResponse(page)
+
+
 @app.get('/api/status')
 def status():
     if time.monotonic()-AUTH['checked']>20:
@@ -546,4 +558,7 @@ install_editor(app, sys.modules[__name__])
 
 from .rebrand import install as install_rebrand
 install_rebrand(app, sys.modules[__name__])
+
+from .dashboard_routes import install as install_dashboard
+install_dashboard(app, sys.modules[__name__])
 
