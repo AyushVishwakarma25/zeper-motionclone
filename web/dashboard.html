@@ -223,64 +223,29 @@
          ----------------------------------------------------------------------- -->
     <main class="center-workspace" id="center-workspace">
 
-      <!-- Center Top Toolbar: Stepper + View Tabs + Specs -->
+      <!-- Center Top Toolbar: Clean Consolidated View Tabs & Actions -->
       <div class="workspace-header-bar">
-        <!-- 5-Step Progress Stepper -->
-        <nav class="workflow-stepper" aria-label="Explainer Production Workflow">
-          <button type="button" class="step-item active" id="step-node-1" data-step="1">
-            <span class="step-num">1</span>
-            <span class="step-title">Reference</span>
+        <div class="stage-tabs-pillgroup">
+          <button type="button" class="stage-tab-btn active" id="btn-view-source" title="View & play original reference video">
+            <span class="tab-step-badge">1</span> 📹 Reference
           </button>
-          <div class="step-line"></div>
-          <button type="button" class="step-item" id="step-node-2" data-step="2">
-            <span class="step-num">2</span>
-            <span class="step-title">AI Blueprint</span>
+          <button type="button" class="stage-tab-btn" id="btn-view-blueprint" title="Inspect AI deconstruction blueprint & set story topic">
+            <span class="tab-step-badge">2</span> 📐 Blueprint
           </button>
-          <div class="step-line"></div>
-          <button type="button" class="step-item" id="step-node-3" data-step="3">
-            <span class="step-num">3</span>
-            <span class="step-title">Script & Plan</span>
+          <button type="button" class="stage-tab-btn" id="btn-view-rebuilt" title="Watch rendered 60 FPS video & edit scenes">
+            <span class="tab-step-badge">3</span> 🎬 60 FPS Preview
           </button>
-          <div class="step-line"></div>
-          <button type="button" class="step-item" id="step-node-4" data-step="4">
-            <span class="step-num">4</span>
-            <span class="step-title">Preview</span>
+          <button type="button" class="stage-tab-btn" id="btn-view-merger" title="Paste Remotion JSX & script to render directly">
+            <span class="tab-step-badge">4</span> ⚡ Paste & Render
           </button>
-          <div class="step-line"></div>
-          <button type="button" class="step-item" id="step-node-5" data-step="5">
-            <span class="step-num">5</span>
-            <span class="step-title">Final Render</span>
-          </button>
-        </nav>
-
-        <!-- Right Side: View Tabs & Badges -->
-        <div class="stage-view-controls">
-          <div class="stage-tabs-pillgroup">
-            <button type="button" class="stage-tab-btn active" id="btn-view-source">📹 Reference</button>
-            <button type="button" class="stage-tab-btn" id="btn-view-blueprint">📐 Blueprint</button>
-            <button type="button" class="stage-tab-btn" id="btn-view-rebuilt">🎬 Preview</button>
-            <button type="button" class="stage-tab-btn" id="btn-view-merger">⚡ Paste & Render</button>
-          </div>
-
-          <div class="stage-meta-badges">
-            <span class="meta-pill-fps">⚡ 60 FPS</span>
-            <span class="meta-pill" id="badge-active-ratio">9:16 Reel</span>
-            <span class="meta-pill" id="badge-active-duration">30.0s</span>
-          </div>
         </div>
-      </div>
 
-      <!-- Persistent Contextual Action Bar when Reference Video is Loaded -->
-      <div class="reference-context-bar" id="reference-context-bar" style="display:none;">
-        <div class="context-bar-left">
-          <span class="context-dot-pulse"></span>
-          <span class="context-text" id="context-ref-title">Reference Video Ready</span>
-          <span class="context-status-tag" id="context-status-tag">Ready for Blueprint</span>
-        </div>
-        <div class="context-bar-right">
-          <button type="button" class="btn-deconstruct-prominent" id="btn-deconstruct-persistent">
-            ⚡ Deconstruct Reference Video
+        <div class="stage-header-actions">
+          <button type="button" class="btn-deconstruct-prominent" id="btn-deconstruct-persistent" style="display:none;" title="Deconstruct Reference Video into AI Blueprint">
+            <span class="context-dot-pulse"></span> ⚡ Deconstruct Video
           </button>
+          <span class="meta-pill" id="badge-active-ratio">9:16 Reel</span>
+          <span class="meta-pill" id="badge-active-duration">30.0s</span>
         </div>
       </div>
 
@@ -292,6 +257,25 @@
 
           <!-- Dedicated Blueprint View Deck (Displayed when Blueprint tab is active) -->
           <div class="blueprint-deck-overlay" id="stage-blueprint-view" style="display:none;">
+            <!-- Dedicated Creative Topic & Brief Input Bar (Docked neatly inside Blueprint) -->
+            <div class="topic-brief-card" id="topic-brief-card">
+              <div class="brief-row">
+                <div class="brief-col-topic">
+                  <label for="topic-brief-input" class="brief-label">🎯 What should your rebuilt video be about?</label>
+                  <input type="text" id="topic-brief-input" class="brief-input" placeholder="e.g. Symptoms & Prevention of Malaria in an energetic, clinical explainer style...">
+                </div>
+                <div class="brief-col-brand">
+                  <label for="brand-name-input" class="brief-label">🏷️ Brand / Product Name</label>
+                  <input type="text" id="brand-name-input" class="brief-input" placeholder="e.g. HealthPulse">
+                </div>
+                <div class="brief-col-action">
+                  <button type="button" class="btn-generate-plan-direct" id="btn-generate-plan-direct">
+                    📝 Generate Script & Plan
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <div class="blueprint-deck-header">
               <h3>📐 AI Deconstruction Blueprint Shots</h3>
               <p>Structure and pacing extracted from reference video</p>
@@ -352,27 +336,8 @@
         </div>
       </div>
 
-      <!-- Dedicated Creative Topic & Brief Input Bar -->
-      <div class="topic-brief-card" id="topic-brief-card">
-        <div class="brief-row">
-          <div class="brief-col-topic">
-            <label for="topic-brief-input" class="brief-label">🎯 What should your rebuilt video be about?</label>
-            <input type="text" id="topic-brief-input" class="brief-input" placeholder="e.g. Symptoms & Prevention of Malaria in an energetic, clinical explainer style...">
-          </div>
-          <div class="brief-col-brand">
-            <label for="brand-name-input" class="brief-label">🏷️ Brand / Product Name</label>
-            <input type="text" id="brand-name-input" class="brief-input" placeholder="e.g. HealthPulse">
-          </div>
-          <div class="brief-col-action">
-            <button type="button" class="btn-generate-plan-direct" id="btn-generate-plan-direct">
-              📝 Generate Script & Plan
-            </button>
-          </div>
-        </div>
-      </div>
-
       <!-- Scene Sequence Timeline (Directly Below Preview Stage) -->
-      <section class="timeline-section" aria-label="Scene Sequence Timeline">
+      <section class="timeline-section" id="timeline-section" aria-label="Scene Sequence Timeline">
         <div class="timeline-header-row">
           <div class="timeline-title-meta">
             <span class="timeline-chip">TIMELINE</span>

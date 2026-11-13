@@ -784,48 +784,56 @@ def install(app, server):
 
     @app.post('/api/jobs/{id}/render-remotion')
     def api_render_remotion(id: str, format: str = 'mp4', composition: str = 'Motion'):
-        job = server.get_job(id)
-        folder = server.DATA / id
-        from .remotion import render as remotion_render
-        from .models import Brief, Plan, Track, Keyframe
+        return trigger_remotion_render(id, format=format, composition=composition)
 
-        with server.LOCK:
-            if server.ACTIVE['id']:
-                raise HTTPException(409, 'Another video is currently processing. Please wait.')
-            server.ACTIVE['id'] = id
-            label = 'Rendering transparent ProRes overlay…' if format == 'prores' else 'Rendering Remotion video…'
-            job.update(status='running', stage=label, progress=10)
-            server.persist(job)
 
-        def run_remotion():
-            try:
-                plan_file = folder / 'plan.json'
-                if plan_file.is_file():
-                    plan_data = Plan.model_validate_json(plan_file.read_text(encoding='utf-8'))
-                else:
-                    plan_data = Plan(
-                        title=job.get('name', 'MotionClone Film'),
-                        tracks=[Track(id='scene_fallback', kind='text', text='MotionClone', start=0.0, end=5.0, keyframes=[Keyframe(t=0.0)])],
-                        background='#0b0b12'
-                    )
-                brief = Brief.model_validate(job.get('brief', {'brand': '', 'instructions': ''}))
-                remotion_render(
-                    folder, plan_data, brief, job['cancel'],
-                    lambda msg, pct: job.update(stage=msg, progress=pct),
-                    format=format,
-                    composition=composition
+def trigger_remotion_render(id: str, format: str = 'mp4', composition: str = 'Motion'):
+    job = server.get_job(id)
+    folder = server.DATA / id
+    from .remotion import render as remotion_render
+    from .models import Brief, Plan, Track, Keyframe
+
+    with server.LOCK:
+        if server.ACTIVE['id']:
+            raise HTTPException(409, 'Another video is currently processing. Please wait.')
+        server.ACTIVE['id'] = id
+        label = 'Rendering transparent ProRes overlay…' if format == 'prores' else 'Rendering Remotion video…'
+        job.update(status='running', stage=label, progress=10)
+        server.persist(job)
+
+    def run_remotion():
+        try:
+            plan_file = folder / 'plan.json'
+            if plan_file.is_file():
+                plan_data = Plan.model_validate_json(plan_file.read_text(encoding='utf-8'))
+            else:
+                plan_data = Plan(
+                    title=job.get('name', 'MotionClone Film'),
+                    tracks=[Track(id='scene_fallback', kind='text', text='MotionClone', start=0.0, end=5.0, keyframes=[Keyframe(t=0.0)])],
+                    background='#0b0b12'
                 )
-                with server.LOCK:
-                    job.update(status='complete', stage='Ready', progress=100)
-                    server.persist(job)
-            except Exception as e:
-                with server.LOCK:
-                    job.update(status='error', stage='Render failed', error=str(e))
-                    server.persist(job)
-            finally:
-                with server.LOCK:
-                    server.ACTIVE['id'] = None
+            brief = Brief.model_validate(job.get('brief', {'brand': '', 'instructions': ''}))
+            remotion_render(
+                folder, plan_data, brief, job['cancel'],
+                lambda msg, pct: job.update(stage=msg, progress=pct),
+                format=format,
+                composition=composition
+            )
+            with server.LOCK:
+                job.update(status='complete', stage='Ready', progress=100)
+                server.persist(job)
+        except Exception as e:
+            with server.LOCK:
+                job.update(status='error', stage='Render failed', error=str(e))
+                server.persist(job)
+        finally:
+            with server.LOCK:
+                server.ACTIVE['id'] = None
 
-        server.POOL.submit(run_remotion)
-        return {'ok': True, 'message': f'Remotion {format} render started.'}
+    server.POOL.submit(run_remotion)
+    return {'ok': True, 'message': f'Remotion {format} render started.'}
+
+
+# Module level alias for external routers
+api_render_remotion = trigger_remotion_render
 

@@ -283,9 +283,7 @@
     const player = $('dashboard-video-player');
     const emptyState = $('stage-empty-state');
     const badgeDur = $('badge-active-duration');
-    const refBar = $('reference-context-bar');
-    const refTitle = $('context-ref-title');
-    const refTag = $('context-status-tag');
+    const btnDeconstruct = $('btn-deconstruct-persistent');
 
     const hasVideo = Boolean(
       projectState && (
@@ -300,23 +298,8 @@
       emptyState.style.display = hasVideo ? 'none' : 'flex';
     }
 
-    if (refBar) {
-      refBar.style.display = hasVideo ? 'flex' : 'none';
-      if (hasVideo) {
-        if (refTitle) {
-          const videoName = projectState.name || 'Reference Video';
-          refTitle.textContent = `${videoName} Loaded`;
-        }
-        if (refTag) {
-          if (projectState.blueprint) {
-            refTag.textContent = '📐 Blueprint Ready';
-            refTag.className = 'context-status-tag ready';
-          } else {
-            refTag.textContent = 'Ready for Blueprint';
-            refTag.className = 'context-status-tag';
-          }
-        }
-      }
+    if (btnDeconstruct) {
+      btnDeconstruct.style.display = (hasVideo && $('btn-view-source')?.classList.contains('active')) ? 'inline-flex' : 'none';
     }
 
     if (player && projectState) {
@@ -1031,6 +1014,10 @@
         player.src = `/media/${activeJobId}/output.mp4?v=${videoCacheKey}`;
         player.load();
       }
+      const tl = $('timeline-section');
+      if (tl) tl.style.display = 'flex';
+      const btnDec = $('btn-deconstruct-persistent');
+      if (btnDec) btnDec.style.display = 'none';
     });
 
     $('btn-view-source')?.addEventListener('click', () => {
@@ -1048,6 +1035,11 @@
         player.src = `/media/${activeJobId}/source.mp4`;
         player.load();
       }
+      const tl = $('timeline-section');
+      if (tl) tl.style.display = 'flex';
+      const btnDec = $('btn-deconstruct-persistent');
+      const hasVideo = Boolean(projectState && (projectState.source_url || projectState.referenceVideoUrl || projectState.has_reference));
+      if (btnDec) btnDec.style.display = hasVideo ? 'inline-flex' : 'none';
     });
 
     $('btn-view-blueprint')?.addEventListener('click', () => {
@@ -1063,6 +1055,10 @@
       if (emptyState) emptyState.style.display = 'none';
       if (merger) merger.style.display = 'none';
       if (deck) deck.style.display = 'flex';
+      const tl = $('timeline-section');
+      if (tl) tl.style.display = 'flex';
+      const btnDec = $('btn-deconstruct-persistent');
+      if (btnDec) btnDec.style.display = 'none';
       renderBlueprintSummary();
     });
 
@@ -1079,6 +1075,10 @@
       if (emptyState) emptyState.style.display = 'none';
       if (deck) deck.style.display = 'none';
       if (merger) merger.style.display = 'flex';
+      const tl = $('timeline-section');
+      if (tl) tl.style.display = 'none';
+      const btnDec = $('btn-deconstruct-persistent');
+      if (btnDec) btnDec.style.display = 'none';
 
       // Pre-fill sample Remotion JSX if empty
       const mergerJsx = $('merger-jsx-input');

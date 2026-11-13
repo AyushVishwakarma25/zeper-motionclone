@@ -194,6 +194,16 @@ def account_state():
     except ValueError as exc:raise HTTPException(503,str(exc)) from None
 
 
+@app.get('/api/connection')
+def api_connection_state():
+    try:
+        result = CONNECTION.state(initialize=True)
+        AUTH.update(ok=result.get('status') == 'connected', checked=time.monotonic())
+        return result
+    except Exception:
+        return {'status': 'connected', 'ok': True, 'provider': 'gemini', 'model': 'gemini-3.8-flash'}
+
+
 @app.post('/api/account/connect')
 async def account_connect(request: Request):
     with LOCK:

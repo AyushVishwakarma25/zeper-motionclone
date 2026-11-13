@@ -392,24 +392,47 @@ def install(app, server):
             except Exception:
                 pass
 
-        # 4. Ensure plan.json exists for Remotion runner
+        # 4. Ensure plan.json exists for Remotion runner with dynamic tracks from voiceover or fallback
         plan_file = folder / 'plan.json'
         if not plan_file.is_file():
             from .models import Plan, Track, Keyframe
+            tracks = []
+            if voiceover_script:
+                lines = [l.strip() for l in voiceover_script.splitlines() if l.strip() and not l.strip().startswith(('#', '//'))]
+                t_curr = 0.0
+                for idx, line in enumerate(lines[:8]):
+                    dur = max(2.5, min(6.0, len(line.split()) * 0.4))
+                    t_start = round(t_curr, 2)
+                    t_end = round(t_curr + dur, 2)
+                    t_curr = t_end
+                    tracks.append(
+                        Track(
+                            id=f"vo_track_{idx + 1}",
+                            kind="text",
+                            text=line[:120],
+                            start=t_start,
+                            end=t_end,
+                            color="#ffffff",
+                            size=0.065,
+                            keyframes=[Keyframe(t=0.0, opacity=1.0)]
+                        )
+                    )
+            if not tracks:
+                tracks = [
+                    Track(id="main_title", kind="text", text="Autonomous AI Platform", start=0.0, end=5.0, color="#ffffff", keyframes=[Keyframe(t=0.0, opacity=1.0)])
+                ]
             fallback_plan = Plan(
                 title=f"Custom Explainer ({job_id})",
                 summary="User custom JSX & voiceover merge",
-                tracks=[
-                    Track(id="main_title", kind="text", text="Autonomous AI Platform", start=0.0, end=5.0, color="#ffffff", keyframes=[Keyframe(t=0.0, opacity=1.0)])
-                ],
+                tracks=tracks,
                 background="#0a0a0f"
             )
             plan_file.write_text(fallback_plan.model_dump_json(indent=2), encoding='utf-8')
 
         # Trigger Remotion render
-        from .rebrand import api_render_remotion
+        from .rebrand import trigger_remotion_render
         comp = 'DashboardShowcase' if aspect == '16:9' else 'Motion'
-        render_res = api_render_remotion(job_id, format='mp4', composition=comp)
+        render_res = trigger_remotion_render(job_id, format='mp4', composition=comp)
         return {
             "ok": True,
             "message": "Custom JSX & voiceover merged successfully! Remotion 60 FPS render started.",

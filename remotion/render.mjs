@@ -43,7 +43,14 @@ function syncDir(src, dst) {
 }
 syncDir(publicDir, staticDir);
 
-const browsers = [process.env.REMOTION_BROWSER, 'C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'];
+const browsers = [
+  process.env.REMOTION_BROWSER,
+  '/usr/bin/chromium',
+  '/usr/bin/chromium-browser',
+  '/usr/bin/google-chrome',
+  'C:/Program Files/Google/Chrome/Application/chrome.exe',
+  'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
+];
 const browserExecutable = browsers.find(p => p && fs.existsSync(p));
 const composition = await selectComposition({
   serveUrl: bundleDir,

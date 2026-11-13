@@ -29,6 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpango-1.0-0 \
     libcairo2 \
     libcups2 \
+    chromium \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js 22 LTS
@@ -63,6 +64,7 @@ COPY hyperframes/ ./hyperframes/
 RUN mkdir -p /data && chmod 777 /data
 ENV FRAMEFORGE_DATA=/data
 ENV FRAMEFORGE_HOSTED=1
+ENV REMOTION_BROWSER=/usr/bin/chromium
 ENV PORT=8080
 ENV FRAMEFORGE_PORT=8080
 
