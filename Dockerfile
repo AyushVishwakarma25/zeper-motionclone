@@ -1,0 +1,51 @@
+# Multi-runtime image: Python 3.12 + Node.js 22 + FFmpeg for Google Cloud Run
+FROM python:3.12-slim-bookworm
+
+# Set non-interactive debian frontend
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# Install system dependencies: curl, ffmpeg, build essentials
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    gnupg \
+    ca-certificates \
+    ffmpeg \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 22 LTS
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Python requirements
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install HyperFrames Node dependencies
+COPY hyperframes/package*.json ./hyperframes/
+RUN npm ci --prefix hyperframes --no-fund --no-audit
+
+# Copy application source
+COPY app/ ./app/
+COPY web/ ./web/
+COPY assets/ ./assets/
+COPY docs/ ./docs/
+COPY licenses/ ./licenses/
+COPY remotion/ ./remotion/
+
+# Create persistent/temporary data directory
+RUN mkdir -p /data && chmod 777 /data
+ENV FRAMEFORGE_DATA=/data
+ENV FRAMEFORGE_HOSTED=1
+ENV PORT=8080
+ENV FRAMEFORGE_PORT=8080
+
+EXPOSE 8080
+
+# Cloud Run invokes containers listening on $PORT
+CMD ["sh", "-c", "uvicorn app.server:app --host 0.0.0.0 --port ${PORT:-8080}"]

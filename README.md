@@ -8,14 +8,14 @@
 <h1 align="center">From reference video to editable motion.</h1>
 
 <p align="center">
-  Rebuild text, shapes, and animation with Codex + ChatGPT.<br>
+  Rebuild text, shapes, and animation with Google Gemini + Vertex AI.<br>
   Compare the result. Export a video. Keep the project and make it yours.
 </p>
 
 <p align="center">
-  <a href="https://motionclone.lol"><strong>Try the online studio ↗</strong></a> &nbsp; · &nbsp;
   <a href="#run-locally"><strong>Run&nbsp;on&nbsp;Windows</strong></a> &nbsp; · &nbsp;
-  <a href="docs/GETTING-STARTED.md">Full&nbsp;walkthrough</a>
+  <a href="#deploy-on-google-cloud-platform-gcp"><strong>Deploy&nbsp;on&nbsp;GCP</strong></a> &nbsp; · &nbsp;
+  <a href="docs/PRD-GEMINI-VERTEX-AI.md"><strong>Gemini&nbsp;PRD</strong></a>
 </p>
 
 <p align="center">
@@ -23,12 +23,11 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/platform-Windows-111?style=flat-square" alt="Windows">
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20Cloud%20Run-111?style=flat-square" alt="Platform">
   <img src="https://img.shields.io/badge/python-3.11%2B-111?style=flat-square" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/node-22%2B-111?style=flat-square" alt="Node.js 22+">
-  <img src="https://img.shields.io/badge/AI-your%20ChatGPT%20%2F%20Codex%20login-111?style=flat-square" alt="Uses your ChatGPT / Codex login">
-  <a href="https://github.com/blixvip/MotionClone/stargazers"><img src="https://img.shields.io/github/stars/blixvip/MotionClone?style=flat-square&color=111" alt="GitHub stars"></a>
-  <a href="https://discord.gg/zEB4VjmfSb"><img src="https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord"></a>
+  <img src="https://img.shields.io/badge/AI-Google%20Gemini%20%2F%20Vertex%20AI-4285F4?style=flat-square&logo=google" alt="Google Gemini / Vertex AI">
+  <img src="https://img.shields.io/badge/Cloud-Google%20Cloud%20Platform-34A853?style=flat-square&logo=googlecloud" alt="Google Cloud Platform">
 </p>
 
 <p align="center">
@@ -61,7 +60,7 @@
 - **Learn from the ads you admire.** Turn any motion-graphics clip into code you can read, tweak, and re-render instead of guessing keyframes by hand.
 - **Editable, not a screen recording.** The output is a HyperFrames project (HTML, assets, fonts, timing), so you can change copy, colors, and pacing, or hand it to a coding agent.
 - **Honest comparison built in.** Original and rebuild play in sync, so you see exactly where they match and where they don't.
-- **No API key.** It uses your own Codex / ChatGPT sign-in; nothing to paste into a config file.
+- **Google Gemini & Vertex AI powered.** Uses Gemini 2.5 Flash / Pro via the unified `google-genai` SDK with native structured schemas and high-resolution multimodal vision analysis.
 
 ## A reference is the starting point
 
@@ -71,28 +70,46 @@ Paste a public video link or upload a clip. MotionClone reconstructs it as an **
 | --- | --- | --- |
 | Import from X, YouTube, Vimeo, a direct video URL, or a local file. | Play both videos together, scrub, and slow down to inspect the match. | Download an MP4 or edit the project’s copy, assets, styling, and timing. |
 
-**Bring your own AI account.** Connect your own ChatGPT/Codex account to generate videos. Downloading this repository does **not** include AI access, credits, or unlimited generation. Your account's model access, costs, and usage limits apply. Reconstruction is approximate: small text, unfamiliar fonts, photographs, and complex 3D can need more work.
+**Powered by Google Gemini / Vertex AI.** Connect using either your Google AI Studio `GEMINI_API_KEY` or Google Cloud Vertex AI (GCP Project ID + Application Default Credentials / IAM Service Account).
 
 ## Run locally
 
-**Windows prerequisites:** Git, Python 3.11+, Node.js 22+ with npm, FFmpeg + ffprobe, Google Chrome, and the official Codex CLI with ChatGPT account access. Make `git`, `python`, `npm`, `ffmpeg`, `ffprobe`, and `codex` available on PATH.
+**Prerequisites:** Git, Python 3.11+, Node.js 22+ with npm, FFmpeg + ffprobe, Google Chrome. Make `git`, `python`, `npm`, `ffmpeg`, and `ffprobe` available on PATH.
 
 ```powershell
 git clone https://github.com/blixvip/MotionClone.git
 cd MotionClone
-codex login
+
+# Set your Gemini API key (or use Vertex AI ADC)
+$env:GEMINI_API_KEY = "your-gemini-api-key"
+
 .\start.ps1
 ```
 
-The launcher installs locked dependencies and opens **http://127.0.0.1:4319**. First launch needs an internet connection. Next time, double-click **Start MotionClone.vbs**.
+The launcher installs locked dependencies and opens **http://127.0.0.1:4319**.
 
-No API key required. MotionClone uses your Codex login. To choose another model available to your account, set `FRAMEFORGE_MODEL` before starting the app.
+## Connect your AI account
 
-Prefer the browser? The [online studio](https://motionclone.lol) is in early access and requires sign-in, a separate ChatGPT connection, and an available processing worker.
+Open **Settings → Connect Gemini**:
+- **Option 1 (Gemini API Key):** Paste your key from Google AI Studio.
+- **Option 2 (Vertex AI on GCP):** Enter your GCP Project ID and Region (e.g. `us-central1`). If running in GCP Cloud Run, authentication is automatic via the attached Service Account.
 
-## Connect your AI account first
+## Deploy on Google Cloud Platform (GCP)
 
-Open **Settings → Connect ChatGPT**, complete the official OpenAI sign-in, and return to MotionClone. Alternatively, run `codex login` before launching. Signing into the hosted website does not connect the AI account automatically. Current generation supports ChatGPT through Codex; other agent providers are not integrated. [Provider access and usage details](https://learn.chatgpt.com/docs/pricing).
+MotionClone is containerized and ready for 1-command deployment to **Google Cloud Run**:
+
+```powershell
+# Deploy from PowerShell
+.\deploy-gcp.ps1 -ProjectId "YOUR_GCP_PROJECT" -Region "us-central1"
+```
+
+Or using bash:
+```bash
+chmod +x deploy-gcp.sh
+./deploy-gcp.sh YOUR_GCP_PROJECT us-central1
+```
+
+For complete technical specifications and migration details, see the [Gemini & Vertex AI PRD](docs/PRD-GEMINI-VERTEX-AI.md).
 
 ## Build a sequence in the Editor
 

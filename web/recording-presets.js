@@ -60,10 +60,10 @@
       const composition=compositions.find(p=>p.id===button.dataset.composition);
       button.setAttribute('aria-pressed',String(composition.format===format&&composition.layout===layout));
     }
-    $('recording-style-name').textContent=preset.name;
+    setText('recording-style-name', preset.name);
     const description=layout==='wipe'?'Original on the left, AI result on the right':layout==='spotlight'?'AI result with the original inset':'Two complete frames';
-    $('recording-size').textContent=`${width} × ${height} · ${description} · original audio`;
-    $('recording-link-status').textContent='';$('recording-link-fallback').hidden=true;
+    setText('recording-size', `${width} × ${height} · ${description} · original audio`);
+    setText('recording-link-status', '');if($('recording-link-fallback'))$('recording-link-fallback').hidden=true;
     try{localStorage.setItem('motionclone-recording',JSON.stringify(state()));}catch{}
     updateURL();fit();
   }
@@ -74,13 +74,13 @@
     const composition=compositions.find(p=>p.id===button.dataset.composition);
     format=composition.format;layout=composition.layout;apply();
   }));
-  $('recording-format').addEventListener('change',event=>{format=event.target.value;apply();});
-  $('recording-layout').addEventListener('change',event=>{layout=event.target.value;apply();});
-  $('copy-recording-link').addEventListener('click',async()=>{
+  if($('recording-format'))$('recording-format').addEventListener('change',event=>{format=event.target.value;apply();});
+  if($('recording-layout'))$('recording-layout').addEventListener('change',event=>{layout=event.target.value;apply();});
+  if($('copy-recording-link'))$('copy-recording-link').addEventListener('click',async()=>{
     const url=new URL(location.href);url.searchParams.set('view','compare');url.searchParams.set('record','1');
     for(const [key,value] of Object.entries(state()))url.searchParams.set(key,value);
-    try{await navigator.clipboard.writeText(url.href);$('recording-link-status').textContent='Copied · opens on this computer';}
-    catch{$('recording-link-value').value=url.href;$('recording-link-fallback').hidden=false;$('recording-link-value').focus();$('recording-link-value').select();$('recording-link-status').textContent='Select and copy the link below.';}
+    try{await navigator.clipboard.writeText(url.href);setText('recording-link-status', 'Copied · opens on this computer');}
+    catch{if($('recording-link-value')){$('recording-link-value').value=url.href;if($('recording-link-fallback'))$('recording-link-fallback').hidden=false;$('recording-link-value').focus();$('recording-link-value').select();}setText('recording-link-status', 'Select and copy the link below.');}
   });
   window.recordingPresentation={
     settings:state,

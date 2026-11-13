@@ -1,14 +1,44 @@
 <dialog id="settings-dialog" aria-labelledby="settings-title">
-  <div class="settings-header"><div><h2 id="settings-title">Settings</h2><p>Your account and workspace.</p></div><button id="close-settings" class="icon-button" data-icon="close" type="button" aria-label="Close settings" autofocus></button></div>
+  <div class="settings-header"><div><h2 id="settings-title">Settings</h2><p>Google Gemini, Vertex AI and Workspace configuration.</p></div><button id="close-settings" class="icon-button" data-icon="close" type="button" aria-label="Close settings" autofocus></button></div>
   <section id="account-panel" class="account-panel" aria-labelledby="account-heading-title">
-    <div class="settings-section-heading"><span class="settings-symbol" data-icon="layers" aria-hidden="true"></span><div><h3 id="account-heading-title">ChatGPT connection</h3><p>Use your ChatGPT plan to rebuild videos.</p></div><span id="account-badge" class="account-badge">Checking…</span></div>
-    <div class="account-identity"><strong id="account-title">Checking your connection…</strong><p id="account-description">Selected reference frames go to ChatGPT to reconstruct the motion.</p><span id="account-plan" hidden></span></div>
-    <div class="account-actions"><button id="connect-account" class="primary" type="button" hidden>Connect ChatGPT</button><button id="disconnect-account" class="secondary" type="button" hidden>Disconnect</button><button id="refresh-account" class="text-button" data-icon="refresh" type="button">Refresh status</button><a id="account-signout" class="text-button" href="/signout-with-chatgpt?return_to=%2F" hidden>Sign out of MotionClone</a></div>
-    <div id="account-device" class="account-device" hidden><p>Enter this code on OpenAI’s sign-in page.</p><div class="account-code-row"><code id="account-code"></code><button id="copy-account-code" class="secondary" type="button">Copy code</button></div><a id="account-verify" class="primary" target="_blank" rel="noopener noreferrer">Open ChatGPT sign-in ↗</a><p class="hint">Return here after signing in. If prompted, enable device code login in ChatGPT → Settings → Security.</p></div>
+    <div class="settings-section-heading"><span class="settings-symbol" data-icon="layers" aria-hidden="true"></span><div><h3 id="account-heading-title">Google Gemini & Vertex AI</h3><p>Power scene analysis and keyframe generation with Google Gemini 2.5.</p></div><span id="account-badge" class="account-badge">Checking…</span></div>
+    <div class="account-identity"><strong id="account-title">Checking connection…</strong><p id="account-description">Video frames are analyzed with Google Gemini to reconstruct editable motion graphics.</p><span id="account-plan"></span></div>
+    
+    <div id="gemini-config-form" class="gemini-form" style="margin: 16px 0; display: flex; flex-direction: column; gap: 12px;">
+      <div>
+        <label for="gemini-api-key" style="display:block; font-size:12px; font-weight:600; margin-bottom:4px; opacity:0.85;">Gemini API Key <small style="font-weight:normal; opacity:0.7;">(from Google AI Studio or GCP)</small></label>
+        <input type="password" id="gemini-api-key" placeholder="AIzaSy... (leave blank if using Vertex AI ADC)" style="width:100%; box-sizing:border-box; padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.15); background:rgba(0,0,0,0.3); color:inherit; font-family:monospace; font-size:13px;" />
+      </div>
+      <div style="display:grid; grid-template-columns: 2fr 1fr; gap:10px;">
+        <div>
+          <label for="gcp-project-id" style="display:block; font-size:12px; font-weight:600; margin-bottom:4px; opacity:0.85;">GCP Project ID <small style="font-weight:normal; opacity:0.7;">(for Vertex AI)</small></label>
+          <input type="text" id="gcp-project-id" placeholder="e.g. my-project-id" style="width:100%; box-sizing:border-box; padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.15); background:rgba(0,0,0,0.3); color:inherit; font-size:13px;" />
+        </div>
+        <div>
+          <label for="gcp-location" style="display:block; font-size:12px; font-weight:600; margin-bottom:4px; opacity:0.85;">GCP Region</label>
+          <input type="text" id="gcp-location" value="us-central1" placeholder="us-central1" style="width:100%; box-sizing:border-box; padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.15); background:rgba(0,0,0,0.3); color:inherit; font-size:13px;" />
+        </div>
+      </div>
+      <div>
+        <label for="gemini-model" style="display:block; font-size:12px; font-weight:600; margin-bottom:4px; opacity:0.85;">Gemini Model</label>
+        <select id="gemini-model" style="width:100%; box-sizing:border-box; padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.15); background:#1e2024; color:inherit; font-size:13px;">
+          <option value="gemini-2.5-flash">Gemini 2.5 Flash (Recommended: Fast & Accurate)</option>
+          <option value="gemini-2.5-pro">Gemini 2.5 Pro (Deep Visual Reasoning)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="account-actions">
+      <button id="connect-account" class="primary" type="button">Save &amp; Connect Gemini</button>
+      <button id="disconnect-account" class="secondary" type="button" hidden>Disconnect</button>
+      <button id="refresh-account" class="text-button" data-icon="refresh" type="button">Refresh status</button>
+      <a id="account-signout" class="text-button" href="/signout" hidden>Sign out</a>
+    </div>
+
     <p id="account-message" role="status" aria-live="polite" hidden></p>
-    <p class="settings-note">MotionClone includes no AI access or credits. Connect your own ChatGPT/Codex account to generate. Your provider's costs, model access, and usage limits apply. Signing into MotionClone is separate from connecting this AI account.</p>
-    <p id="account-local-note" class="settings-note">Uses your Codex login on this computer. Disconnecting here also signs the Codex CLI out.</p>
+    <p class="settings-note">Supports Google Cloud Vertex AI (using Workload Identity, Service Accounts, or GCP ADC) and Gemini Developer API keys. No OpenAI Codex CLI required.</p>
+    <p id="account-local-note" class="settings-note">Configuration is saved securely in your project workspace directory.</p>
   </section>
   <section class="settings-system" aria-labelledby="settings-system-title"><div class="settings-section-heading"><span class="settings-symbol" data-icon="settings" aria-hidden="true"></span><div><h3 id="settings-system-title">Workspace status</h3><p>Everything needed to process and export video.</p></div></div><dl class="settings-checks"><div><dt>Video processing <small>FFmpeg</small></dt><dd id="settings-ffmpeg">Checking…</dd></div><div><dt>Motion renderer <small>HyperFrames</small></dt><dd id="settings-renderer">Checking…</dd></div><div><dt>Project storage</dt><dd id="settings-storage">On this computer</dd></div></dl></section>
-  <div class="settings-footer"><span>MotionClone <span id="settings-version"></span></span><span>Your account’s usage limits apply.</span></div>
+  <div class="settings-footer"><span>MotionClone <span id="settings-version"></span></span><span>Powered by Google Gemini on Vertex AI.</span></div>
 </dialog>

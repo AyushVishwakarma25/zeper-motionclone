@@ -122,14 +122,22 @@ def preview(folder,ranges,meta,cancel,*,tag='preview',only=None):
     from playwright.sync_api import sync_playwright
     result=[];cap=cv2.VideoCapture(str(folder/'source.mp4'));out=folder/'scene-work'
     scan=saved_json(folder/'temporal.json')
+    def capture_frame(page):
+        try:
+            return page.screenshot(timeout=2500, animations='disabled')
+        except Exception:
+            page.evaluate('() => new Promise(r => setTimeout(r, 100))')
+            return page.screenshot(timeout=6000, animations='disabled')
+
     try:
         with sync_playwright() as pw:
-            browser=pw.chromium.launch(channel='chrome')
+            browser=pw.chromium.launch(channel='chrome', args=['--disable-features=CDPScreenshotNewSurface'])
             try:
                 page=browser.new_page(viewport={'width':meta['width'],'height':meta['height']},device_scale_factor=1)
                 errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
                 page.goto((folder/'rebuild/index.html').resolve().as_uri());page.wait_for_function('!!window.drawFrame')
-                page.evaluate('document.fonts.ready');page.evaluate('document.fonts.load("40px Agbalumo")')
+                page.evaluate('document.fonts.ready')
+                page.evaluate('document.fonts.check("40px Agbalumo") ? document.fonts.load("40px Agbalumo") : null')
                 for i,(first,last) in enumerate(ranges):
                     if only is not None and i not in only:continue
                     scores=[];pairs=[];references=[];rebuilt=[]
@@ -138,7 +146,7 @@ def preview(folder,ranges,meta,cancel,*,tag='preview',only=None):
                     for n in indices:
                         if cancel.is_set():raise Cancelled()
                         page.evaluate('(t)=>drawFrame(t)',n/meta['fps'])
-                        image=Image.open(io.BytesIO(page.screenshot())).convert('RGB')
+                        image=Image.open(io.BytesIO(capture_frame(page))).convert('RGB')
                         cap.set(cv2.CAP_PROP_POS_FRAMES,n);ok,frame=cap.read()
                         if not ok:raise ValueError('Reference preview could not be decoded.')
                         ref=Image.fromarray(cv2.cvtColor(frame,cv2.COLOR_BGR2RGB))

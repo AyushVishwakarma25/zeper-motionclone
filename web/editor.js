@@ -25,12 +25,12 @@
     $('import-url').disabled=$('reference-file').disabled=!initialized||importing;
     $('refresh').disabled=initializing;
     $('play-sequence').disabled=!segments.length||busy;
-    $('generate-hint').textContent=busy?'A video is processing. You can keep arranging your next sequence.':!connected?'Connect your own ChatGPT/Codex account to generate.':!segments.length?'Add a segment to begin.':'Uses your AI account allowance. No AI credits are included.';
+    $('generate-hint').textContent=busy?'A video is processing. You can keep arranging your next sequence.':!connected?'Configure Google Gemini or Vertex AI in Settings to generate.':!segments.length?'Add a segment to begin.':'Uses Google Gemini to analyze and reconstruct motion.';
   }
   async function refresh(){
-    const status=await api('/api/status');token=status.token;connected=!!status.chatgpt;busy=!!status.active;
-    $('connection-title').textContent=connected?'Your AI account is connected':'Connect your own AI account to generate';
-    $('connection-dot').classList.toggle('connected',connected);$('connect').textContent=connected?'Account settings ↗':'Connect AI ↗';
+    const status=await api('/api/status');token=status.token;connected=!!(status.gemini || status.chatgpt);busy=!!status.active;
+    $('connection-title').textContent=connected?'Google Gemini is connected':'Configure Google Gemini in Settings';
+    $('connection-dot').classList.toggle('connected',connected);$('connect').textContent=connected?'Settings ↗':'Configure Gemini ↗';
     updateButtons();return status;
   }
   async function loadReferences(){
@@ -141,12 +141,38 @@
     }catch(e){notice(e.message);$('import-status').textContent='Import did not finish. Retry or choose another reference.';}
     finally{importing=false;$('import-url').disabled=false;$('reference-file').disabled=false;await refresh().catch(()=>{});}
   }
+  const btnAutofill = $('btn-editor-autofill');
+  if (btnAutofill) {
+    btnAutofill.onclick = async () => {
+      const url = $('editor-client-url')?.value.trim();
+      if (!url) { notice('Enter a website URL first.'); return; }
+      btnAutofill.disabled = true;
+      btnAutofill.textContent = 'Extracting…';
+      try {
+        notice('');
+        const res = await api('/api/brand/analyze', json({ url }));
+        if (res.company_name) $('brand').value = res.company_name;
+        let notes = [];
+        if (res.tagline) notes.push(`Tagline: ${res.tagline}`);
+        if (res.description) notes.push(res.description);
+        if (res.value_propositions?.length) notes.push(`Highlights: ${res.value_propositions.join(', ')}`);
+        if (res.colors) notes.push(`Brand Colors: BG ${res.colors.background || '#0e0e13'}, Text ${res.colors.text || '#ffffff'}, Accent ${res.colors.accent || '#00f2fe'}`);
+        if (notes.length) $('instructions').value = notes.join('\n\n');
+        changed();
+      } catch (e) {
+        notice('Website extraction error: ' + e.message);
+      } finally {
+        btnAutofill.disabled = false;
+        btnAutofill.textContent = 'Extract Brand';
+      }
+    };
+  }
   $('import-form').onsubmit=e=>{e.preventDefault();void importReference(null);};
   $('reference-file').onchange=()=>{if($('reference-file').files[0])void importReference($('reference-file').files[0]);};
   $('generate').onclick=async()=>{
     if(submitting||saving||busy||!initialized)return;
     submitting=true;updateButtons();const snapshot=JSON.parse(JSON.stringify(edit()));
-    try{notice('');await save(snapshot);const status=await refresh();if(!status.chatgpt)throw new Error('Connect your own ChatGPT/Codex account first.');
+    try{notice('');await save(snapshot);const status=await refresh();if(!(status.gemini || status.chatgpt))throw new Error('Configure Google Gemini or Vertex AI in Settings first.');
       busy=true;updateButtons();const job=await api('/api/editor/generate',json(snapshot));
       submitting=false;updateButtons();
       const result=$('open-result');result.href=hosted?`/studio?project=${job.id}`:`/?project=${job.id}`;result.textContent='View generation progress ↗';result.hidden=false;

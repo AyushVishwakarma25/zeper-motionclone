@@ -1,4 +1,5 @@
 $ErrorActionPreference = 'Stop'
+$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
 $projectRoot = $PSScriptRoot
 $pythonPath = Join-Path $projectRoot '.venv\Scripts\python.exe'
 Set-Location -LiteralPath $projectRoot

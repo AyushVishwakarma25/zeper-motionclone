@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import os
 import re
 import secrets
@@ -13,6 +14,8 @@ from pathlib import Path
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+
+logger = logging.getLogger('motionclone')
 from PIL import Image, UnidentifiedImageError
 from .ai import analyze, auth_status
 from .media import MAX_BYTES, contact_sheets, download, prepare, review_timestamps, reference_frames
@@ -24,20 +27,27 @@ from .connection import Connection
 ROOT=Path(__file__).resolve().parents[1]
 HOSTED=os.environ.get('FRAMEFORGE_HOSTED')=='1'
 DATA=Path(os.environ.get('FRAMEFORGE_DATA',str(ROOT/'data'))).resolve(); DATA.mkdir(parents=True,exist_ok=True)
-TOKEN=os.environ.get('FRAMEFORGE_TOKEN') or secrets.token_urlsafe(32)
-if HOSTED and (not os.environ.get('CODEX_HOME') or DATA==ROOT/'data'):
-    raise RuntimeError('Hosted workers require isolated project and account directories.')
+TOKEN_FILE = DATA / '.token'
+if os.environ.get('FRAMEFORGE_TOKEN'):
+    TOKEN = os.environ['FRAMEFORGE_TOKEN']
+elif TOKEN_FILE.is_file():
+    TOKEN = TOKEN_FILE.read_text(encoding='utf-8').strip()
+else:
+    TOKEN = secrets.token_urlsafe(32)
+    try:
+        TOKEN_FILE.write_text(TOKEN, encoding='utf-8')
+    except Exception:
+        pass
+if HOSTED and DATA==ROOT/'data':
+    raise RuntimeError('Hosted workers require isolated project directories.')
 PORT=int(os.environ.get('FRAMEFORGE_PORT','4319'))
 POOL=ThreadPoolExecutor(max_workers=1)
 LOCK=threading.RLock()
 JOBS={}
 ACTIVE={'id':None}
 AUTH={'ok':False,'checked':0.0}
-app=FastAPI(title='MotionClone Local',docs_url=None,redoc_url=None)
+app=FastAPI(title='MotionClone Studio',docs_url=None,redoc_url=None)
 CONNECTION=Connection()
-if HOSTED:
-    if (Path(os.environ['CODEX_HOME'])/'auth.json').is_file():
-        CONNECTION.client()
 
 
 def persist(job):
@@ -89,11 +99,16 @@ async def local_boundary(request: Request, call_next):
     allowed={f'127.0.0.1:{PORT}',f'localhost:{PORT}','testserver'}
     if host not in allowed:return JSONResponse({'detail':'Local access only.'},status_code=403)
     if request.method not in ('GET','HEAD','OPTIONS'):
-        if request.headers.get('x-frameforge-token')!=TOKEN:
-            return JSONResponse({'detail':'Refresh this page to reconnect.'},status_code=403)
         origin=request.headers.get('origin')
-        if origin and origin not in {f'http://127.0.0.1:{PORT}',f'http://localhost:{PORT}'}:
+        allowed_origins={f'http://127.0.0.1:{PORT}',f'http://localhost:{PORT}'}
+        if origin and origin not in allowed_origins:
             return JSONResponse({'detail':'Cross-origin requests are blocked.'},status_code=403)
+        req_token = request.headers.get('x-frameforge-token')
+        sec_site = request.headers.get('sec-fetch-site')
+        is_same_origin = (origin in allowed_origins) or (sec_site == 'same-origin') or (not origin and host in allowed)
+        if req_token != TOKEN and not is_same_origin:
+            logger.warning(f"TOKEN MISMATCH on {request.url.path}: received {req_token!r} != expected {TOKEN!r}")
+            return JSONResponse({'detail':'Refresh this page to reconnect.'},status_code=403)
         try:length=int(request.headers.get('content-length','0'))
         except ValueError:return JSONResponse({'detail':'Invalid request size.'},status_code=400)
         if length>MAX_BYTES+12*1024*1024:
@@ -104,7 +119,7 @@ async def local_boundary(request: Request, call_next):
             if not connected:return JSONResponse({'detail':'Connect your own ChatGPT account before rebuilding a video.'},status_code=401)
     response=await call_next(request)
     response.headers.update({'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY',
-        'Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'"})
+        'Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'"})
     return response
 
 
@@ -112,6 +127,7 @@ async def local_boundary(request: Request, call_next):
 def index(request: Request):
     page=(ROOT/'web/index.html').read_text(encoding='utf-8')
     page=page.replace('<!--ACCOUNT_SETTINGS-->',(ROOT/'web/account.html').read_text(encoding='utf-8'))
+    page=page.replace('<head>', f'<head><script>window.__APP_TOKEN__ = {json.dumps(TOKEN)};</script>', 1)
     if HOSTED:
         page=page.replace('<body ', '<body data-hosted="true" ',1)
         page=page.replace('href="/"','href="/studio"')
@@ -120,17 +136,27 @@ def index(request: Request):
         page=page.replace('Saved locally.','Saved privately.').replace('Vimeo, or direct video links.','or Vimeo video links.')
         page=page.replace('250 MB','25 MB')
         return HTMLResponse(page)
-    if 'workspace' in request.query_params or 'project' in request.query_params or 'settings' in request.query_params:
-        return HTMLResponse(page)
-    page=(ROOT/'web/showcase.html').read_text(encoding='utf-8')
-    return HTMLResponse(page.replace('href="./','href="/static/').replace('src="./','src="/static/'))
+    if 'showcase' in request.query_params:
+        showcase=(ROOT/'web/showcase.html').read_text(encoding='utf-8')
+        return HTMLResponse(showcase.replace('href="./','href="/static/').replace('src="./','src="/static/'))
+    return HTMLResponse(page)
+
+
+@app.get('/master-studio')
+def master_studio_page(request: Request):
+    page = (ROOT/'web/master-studio.html').read_text(encoding='utf-8')
+    page = page.replace('<head>', f'<head><script>window.__APP_TOKEN__ = {json.dumps(TOKEN)};</script>', 1)
+    if HOSTED:
+        page = page.replace('<body>', '<body data-hosted="true">').replace('href="/"', 'href="/studio"').replace('250 MB', '25 MB')
+    return HTMLResponse(page)
 
 
 @app.get('/api/status')
 def status():
     if time.monotonic()-AUTH['checked']>20:
         AUTH.update(ok=auth_status(),checked=time.monotonic())
-    return {'chatgpt':AUTH['ok'],'ffmpeg':bool(shutil.which('ffmpeg') and shutil.which('ffprobe')),
+    return {'gemini':AUTH['ok'],'chatgpt':AUTH['ok'],'ai_provider':'gemini',
+            'ffmpeg':bool(shutil.which('ffmpeg') and shutil.which('ffprobe')),
             'token':TOKEN,'active':ACTIVE['id'],'version':'2.0.0','account_connection':True,
             'remotion':(ROOT/'remotion/node_modules/@remotion/renderer').exists(),
             'hyperframes':(ROOT/'hyperframes/node_modules/hyperframes/bin/hyperframes.mjs').exists()}
@@ -146,11 +172,16 @@ def account_state():
 
 
 @app.post('/api/account/connect')
-def account_connect():
+async def account_connect(request: Request):
     with LOCK:
         if ACTIVE['id']:raise HTTPException(409,'Wait for your video to finish before changing accounts.')
-        try:return CONNECTION.start()
-        except ValueError as exc:raise HTTPException(503,str(exc)) from None
+        try:
+            body = {}
+            if request.headers.get('content-type', '').startswith('application/json'):
+                body = await request.json()
+            return CONNECTION.connect(body) if body else CONNECTION.start()
+        except ValueError as exc:raise HTTPException(400,str(exc)) from None
+        except Exception as exc:raise HTTPException(500,str(exc)) from None
 
 
 @app.post('/api/account/disconnect')
@@ -470,18 +501,37 @@ def export(id:str):
     return FileResponse(dest,filename='motionclone-project.zip')
 
 
+@app.get('/media/{id}/assets/{name}')
+def media_asset(id:str, name:str):
+    get_job(id)
+    if '..' in name or '/' in name or '\\' in name:
+        raise HTTPException(400, 'Invalid asset filename')
+    path = DATA/id/'assets'/name
+    if not path.is_file():
+        rebuild_path = DATA/id/'rebuild/assets'/name
+        if rebuild_path.is_file():
+            return FileResponse(rebuild_path)
+        raise HTTPException(404, 'Asset not found')
+    return FileResponse(path)
+
+
 @app.get('/media/{id}/{name}')
 def media(id:str,name:str):
     get_job(id)
-    allowed={'source.mp4','preview.mp4','output.mp4','verification.json','plan.json','logo.png','thumbnail.jpg'}
-    if name not in allowed and not re.fullmatch(r'(reference|rendered)-\d{2}\.jpg',name):raise HTTPException(404)
+    allowed={'source.mp4','preview.mp4','output.mp4','output.mov','verification.json','plan.json','logo.png','thumbnail.jpg','still.png'}
+    is_valid_img = bool(re.fullmatch(r'[\w\-.]+\.(png|jpg|jpeg|webp|svg|gif)', name, re.I))
+    if name not in allowed and not re.fullmatch(r'(reference|rendered)-\d{2}\.jpg',name) and not is_valid_img:raise HTTPException(404)
     path=DATA/id/name
     if name=='thumbnail.jpg' and not path.exists():
         from .media import thumbnail
         folder=DATA/id
         source=folder/'output.mp4' if (folder/'output.mp4').exists() else folder/'source.mp4'
         if source.exists():thumbnail(source,path)
-    if not path.is_file():raise HTTPException(404)
+    if not path.is_file():
+        # Check assets folder if requested directly
+        if is_valid_img and (DATA/id/'assets'/name).is_file():
+            return FileResponse(DATA/id/'assets'/name)
+        raise HTTPException(404)
     return FileResponse(path)
 
 
@@ -493,3 +543,7 @@ app.mount('/static',StaticFiles(directory=ROOT/'web'),name='static')
 from .editor import install as install_editor
 import sys
 install_editor(app, sys.modules[__name__])
+
+from .rebrand import install as install_rebrand
+install_rebrand(app, sys.modules[__name__])
+

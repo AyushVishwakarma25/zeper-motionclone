@@ -21,10 +21,12 @@ function libraryPage() {
   error(''); renderScreen();refreshLibrary(); window.scrollTo({top:0,behavior:'instant'});
 }
 function navigation(active) {
-  $('page-location').textContent=active==='new-project'?'New video':current&&!$('editor-view').hidden?'Project':'Saved videos';
-  for(const id of ['new-project','open-library']) {
-    $(id).classList.toggle('active',id===active);
-    if(id===active)$(id).setAttribute('aria-current','page');else $(id).removeAttribute('aria-current');
+  setText('page-location', active==='new-project'?'New video':active==='open-master-studio'?'Master Studio':current&&!$('editor-view')?.hidden?'Project':'Saved videos');
+  for(const id of ['new-project','open-library','open-master-studio']) {
+    const el = $(id);
+    if (!el) continue;
+    el.classList.toggle('active',id===active);
+    if(id===active)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');
   }
 }
 function editorState() {
@@ -36,15 +38,15 @@ function editorState() {
   document.body.classList.toggle('is-project',!!current&&!busy);
   $('import-fields').disabled=busy||submitting;
   setControl('create',busy?'Rebuilding…':submitting?'Starting…':'Rebuild video',busy||submitting?'loader':'layers');
-  $('create-form').setAttribute('aria-busy',String(busy||submitting));
-  $('editor-description').textContent=!current?'Paste a video link or upload a file to get started.':busy?'Rebuilding your video. Your progress is saved.':current.brief.mode==='hyperframes'?'Watch your rebuild, compare it, then download.':current.brief.mode==='faithful'?'This export reuses the original video. Its text, artwork, and animation were not rebuilt.':'Preview, edit, and download your video.';
+  $('create-form')?.setAttribute('aria-busy',String(busy||submitting));
+  setText('editor-description', !current?'Paste a video link or upload a file to get started.':busy?'Rebuilding your video. Your progress is saved.':current.brief.mode==='hyperframes'?'Watch your rebuild, compare it, then download.':current.brief.mode==='faithful'?'This export reuses the original video. Its text, artwork, and animation were not rebuilt.':'Preview, edit, and download your video.');
 }
 function fillDetails(job) {
-  $('url').value=job.url||'';
-  $('saved-name').value=job.name;
-  $('saved-collection').value=job.collection||'';
-  $('saved-tags').value=(job.tags||[]).join(', ');
-  $('saved-notice').textContent='';
+  if($('url'))$('url').value=job.url||'';
+  if($('saved-name'))$('saved-name').value=job.name;
+  if($('saved-collection'))$('saved-collection').value=job.collection||'';
+  if($('saved-tags'))$('saved-tags').value=(job.tags||[]).join(', ');
+  setText('saved-notice', '');
 }
 async function openProject(id) {
   if(submitting)return;
@@ -63,22 +65,22 @@ show = job => {
   $('library-details').hidden=false;
   $('render-faithful').hidden=!['faithful','hyperframes'].includes(job.brief.mode);
   $('render-faithful').disabled=['running','queued'].includes(job.status);
-  if(job.status==='draft'&&['faithful','hyperframes'].includes(job.brief.mode))$('project-options').open=true;
-  $('editor-title').textContent=job.name;
-  $('editor-kind').textContent=job.brief.mode==='hyperframes'?'HYPERFRAMES · REBUILT LAYERS':job.brief.mode==='faithful'?'HYPERFRAMES · SOURCE FRAMES':job.status==='draft'?'SAVED VARIATION':job.brief.mode==='rebuild'?'REMOTION REBUILD':'ORIGINAL VIDEO';
+  if(job.status==='draft'&&['faithful','hyperframes'].includes(job.brief.mode)&&$('project-options'))$('project-options').open=true;
+  setText('editor-title', job.name);
+  setText('editor-kind', job.brief.mode==='hyperframes'?'HYPERFRAMES · REBUILT LAYERS':job.brief.mode==='faithful'?'HYPERFRAMES · SOURCE FRAMES':job.status==='draft'?'SAVED VARIATION':job.brief.mode==='rebuild'?'REMOTION REBUILD':'ORIGINAL VIDEO');
   setControl('favorite',job.favorite?'Favorited':'Favorite','star');
-  $('favorite').setAttribute('aria-pressed',String(!!job.favorite));
+  if($('favorite'))$('favorite').setAttribute('aria-pressed',String(!!job.favorite));
   setControl('archive',job.archived?'Restore to library':'Archive','archive');
-  $('duplicate').disabled=(!job.plan&&!['faithful','hyperframes'].includes(job.brief.mode))||['running','queued'].includes(job.status);
-  $('remotion-export').hidden=job.brief.mode!=='rebuild';
-  $('hyperframes-export').hidden=!['faithful','hyperframes'].includes(job.brief.mode);
-  $('verification-label').classList.toggle('needs-review',job.brief.mode==='hyperframes'&&!job.verification?.near_perfect);
-  $('verification-label').textContent=job.brief.mode==='hyperframes'?(job.verification?.near_perfect?'REBUILT · MATCH CHECKED':'REBUILT · VISUAL DIFFERENCES REMAIN'):job.brief.mode==='faithful'?'ORIGINAL VIDEO · NOT RECONSTRUCTED':'EXPORT CHECKED';
+  if($('duplicate'))$('duplicate').disabled=(!job.plan&&!['faithful','hyperframes'].includes(job.brief.mode))||['running','queued'].includes(job.status);
+  if($('remotion-export'))$('remotion-export').hidden=job.brief.mode!=='rebuild';
+  if($('hyperframes-export'))$('hyperframes-export').hidden=!['faithful','hyperframes'].includes(job.brief.mode);
+  $('verification-label')?.classList.toggle('needs-review',job.brief.mode==='hyperframes'&&!job.verification?.near_perfect);
+  setText('verification-label', job.brief.mode==='hyperframes'?(job.verification?.near_perfect?'REBUILT · MATCH CHECKED':'REBUILT · VISUAL DIFFERENCES REMAIN'):job.brief.mode==='faithful'?'ORIGINAL VIDEO · NOT RECONSTRUCTED':'EXPORT CHECKED');
   setControl('result-tab',job.brief.mode==='hyperframes'?'Rebuilt':job.brief.mode==='faithful'?'Original export':'Result','play');
-  $('hyperframes-export').href=`/api/jobs/${job.id}/hyperframes`;
-  $('remotion-export').href=`/api/jobs/${job.id}/remotion`;
-  $('mode-label').textContent=job.brief.mode==='hyperframes'?'HYPERFRAMES · INDEPENDENT LAYERS':job.brief.mode==='faithful'?'HYPERFRAMES · ORIGINAL FRAMES':job.brief.mode==='rebuild'?'EDITABLE REMOTION LAYERS':'ORIGINAL VIDEO + BRANDING';
-  if(job.scan)$('sheet-count').textContent=`${job.scan.decoded} SCANNED · ${job.scan.selected} SELECTED`;
+  if($('hyperframes-export'))$('hyperframes-export').href=`/api/jobs/${job.id}/hyperframes`;
+  if($('remotion-export'))$('remotion-export').href=`/api/jobs/${job.id}/remotion`;
+  setText('mode-label', job.brief.mode==='hyperframes'?'HYPERFRAMES · INDEPENDENT LAYERS':job.brief.mode==='faithful'?'HYPERFRAMES · ORIGINAL FRAMES':job.brief.mode==='rebuild'?'EDITABLE REMOTION LAYERS':'ORIGINAL VIDEO + BRANDING');
+  if(job.scan)setText('sheet-count', `${job.scan.decoded} SCANNED · ${job.scan.selected} SELECTED`);
   const index=libraryJobs.findIndex(item=>item.id===job.id);
   if(index>=0)libraryJobs[index]=job;
   renderScreen();
@@ -190,12 +192,13 @@ function drawLibrary() {
     });
     librarySignature=signature;
   }
-  $('library-empty').hidden=!!jobs.length||!libraryLoaded;
-  $('library-count').textContent=libraryLoaded?`${jobs.length} ${jobs.length===1?'video':'videos'}`:'Loading…';
+  if($('library-empty'))$('library-empty').hidden=!!jobs.length||!libraryLoaded;
+  setText('library-count', libraryLoaded?`${jobs.length} ${jobs.length===1?'video':'videos'}`:'Loading…');
   const filtered=!!(query||collection||libraryFilter!=='all');
-  $('empty-title').textContent=filtered?'No matching videos':'No saved videos yet';
-  $('empty-copy').textContent=filtered?'Try another search or filter.':'Import your first video. It will be saved here automatically.';
-  $('empty-add').hidden=filtered;$('library-empty-art').src='/static/assets/illustration-'+(filtered?'search':'empty')+'.svg';
+  setText('empty-title', filtered?'No matching videos':'No saved videos yet');
+  setText('empty-copy', filtered?'Try another search or filter.':'Import your first video. It will be saved here automatically.');
+  if($('empty-add'))$('empty-add').hidden=filtered;
+  if($('library-empty-art'))$('library-empty-art').src='/static/assets/illustration-'+(filtered?'search':'empty')+'.svg';
 }
 refreshLibrary = async () => {
   try {
@@ -212,10 +215,29 @@ async function patchProject(id,patch) {
   if(current?.id===id)show(job);
   await refreshLibrary();return job;
 }
+window.openProject = openProject;
+window.editorPage = editorPage;
+window.libraryPage = libraryPage;
 
 $('back-library').addEventListener('click',libraryPage);
 $('open-library').addEventListener('click',libraryPage);
 $('view-all').addEventListener('click',libraryPage);
+$('open-master-studio')?.addEventListener('click', async () => {
+  navigation('open-master-studio');
+  if (!current && window.allJobs?.length) {
+    await openProject(window.allJobs[0].id);
+  } else if (!current) {
+    const jobs = await refreshLibrary();
+    if (jobs.length) await openProject(jobs[0].id);
+  } else {
+    editorPage();
+  }
+  const studio = document.getElementById('master-studio');
+  if (studio) {
+    studio.hidden = false;
+    studio.scrollIntoView({ behavior: 'smooth' });
+  }
+});
 for(const id of ['add-reference','empty-add'])$(id).addEventListener('click',()=>{$('new-project').click();});
 $('new-project').addEventListener('click',()=>{
   if(submitting)return;
@@ -223,27 +245,27 @@ $('new-project').addEventListener('click',()=>{
   $('library-details').hidden=true;$('library-details').open=false;
   $('project-options').open=false;
   window.history.replaceState({},'','/?workspace=1');
-  $('editor-title').textContent='Rebuild a video.';$('editor-kind').textContent='NEW REFERENCE';editorPage();
+  setText('editor-title', 'Rebuild a video.');setText('editor-kind', 'NEW REFERENCE');editorPage();
 });
-$('library-search').addEventListener('input',drawLibrary);
-for(const id of ['collection-filter','library-sort'])$(id).addEventListener('change',drawLibrary);
+if($('library-search'))$('library-search').addEventListener('input',drawLibrary);
+for(const id of ['collection-filter','library-sort']){const el=$(id);if(el)el.addEventListener('change',drawLibrary);}
 document.querySelectorAll('[data-filter]').forEach(button=>button.addEventListener('click',()=>{
   libraryFilter=button.dataset.filter;
   document.querySelectorAll('[data-filter]').forEach(b=>{b.classList.toggle('active',b===button);b.setAttribute('aria-pressed',String(b===button));});drawLibrary();
 }));
-$('save-details').addEventListener('click',async()=>{
+if($('save-details'))$('save-details').addEventListener('click',async()=>{
   if(!current)return;
-  try{const job=await patchProject(current.id,{name:$('saved-name').value,collection:$('saved-collection').value,
-    tags:$('saved-tags').value.split(',').map(t=>t.trim()).filter(Boolean)});fillDetails(job);$('saved-notice').textContent='Details saved.';error('');}
+  try{const job=await patchProject(current.id,{name:$('saved-name')?.value,collection:$('saved-collection')?.value,
+    tags:($('saved-tags')?.value||'').split(',').map(t=>t.trim()).filter(Boolean)});fillDetails(job);setText('saved-notice', 'Details saved.');error('');}
   catch(e){error(e.message);}
 });
-$('favorite').addEventListener('click',async()=>{if(current)try{await patchProject(current.id,{favorite:!current.favorite});}catch(e){error(e.message);}});
-$('archive').addEventListener('click',async()=>{if(current)try{await patchProject(current.id,{archived:!current.archived});libraryPage();}catch(e){error(e.message);}});
-$('duplicate').addEventListener('click',async()=>{
+if($('favorite'))$('favorite').addEventListener('click',async()=>{if(current)try{await patchProject(current.id,{favorite:!current.favorite});}catch(e){error(e.message);}});
+if($('archive'))$('archive').addEventListener('click',async()=>{if(current)try{await patchProject(current.id,{archived:!current.archived});libraryPage();}catch(e){error(e.message);}});
+if($('duplicate'))$('duplicate').addEventListener('click',async()=>{
   if(!current)return;$('duplicate').disabled=true;
   try{const job=await api(`/api/jobs/${current.id}/duplicate`,{method:'POST'});await refreshLibrary();await openProject(job.id);
-    $('saved-notice').textContent=current.brief.mode==='hyperframes'?'Rebuilt layers copied. Open Options to render this version.':current.brief.mode==='faithful'?'Original video copied. Open Options to export it.':'Copy saved. Change the text below, then Render edits. No new analysis needed.';}
-  catch(e){error(e.message);}finally{$('duplicate').disabled=false;}
+    setText('saved-notice', current.brief.mode==='hyperframes'?'Rebuilt layers copied. Open Options to render this version.':current.brief.mode==='faithful'?'Original video copied. Open Options to export it.':'Copy saved. Change the text below, then Render edits. No new analysis needed.');}
+  catch(e){error(e.message);}finally{if($('duplicate'))$('duplicate').disabled=false;}
 });
 // Keep saved videos current while the library is visible.
 setInterval(()=>{if(!$('library-view').hidden||document.body.classList.contains('is-new'))refreshLibrary();},6000);
@@ -254,23 +276,23 @@ function renderScreen(){
   const active=busy?job:libraryJobs.find(item=>['queued','running'].includes(item.status));
   $('active-project').hidden=!active||busy&&!$('editor-view').hidden;
   $('active-project').dataset.job=active?.id||'';
-  $('source-summary').hidden=!busy;
-  $('source-summary-text').textContent=job?.url||job?.name||'Uploaded video';
-  $('export-details').hidden=!complete;
-  $('viewer-tabs').hidden=!job?.files?.['output.mp4']&&!job?.files?.['preview.mp4'];
-  $('cancel').disabled=busy&&(cancellingId===job.id||job.stage?.startsWith('Cancelling'));
+  if($('source-summary'))$('source-summary').hidden=!busy;
+  setText('source-summary-text', job?.url||job?.name||'Uploaded video');
+  if($('export-details'))$('export-details').hidden=!complete;
+  if($('viewer-tabs'))$('viewer-tabs').hidden=!job?.files?.['output.mp4']&&!job?.files?.['preview.mp4'];
+  if($('cancel'))$('cancel').disabled=busy&&(cancellingId===job.id||job.stage?.startsWith('Cancelling'));
   if(!busy)cancellingId='';
-  setControl('cancel',$('cancel').disabled?'Cancelling…':'Cancel',$('cancel').disabled?'loader':'stop');
+  if($('cancel'))setControl('cancel',$('cancel').disabled?'Cancelling…':'Cancel',$('cancel').disabled?'loader':'stop');
   if(job){
-    $('job-error-title').textContent=job.status==='cancelled'?'Rebuild cancelled':job.status==='interrupted'?'Rebuild interrupted':'Couldn’t finish this video';
-    $('editor-description').textContent=['error','cancelled','interrupted'].includes(job.status)?'Your project is saved. Retry or choose another video.':$('editor-description').textContent;
+    setText('job-error-title', job.status==='cancelled'?'Rebuild cancelled':job.status==='interrupted'?'Rebuild interrupted':'Couldn’t finish this video');
+    setText('editor-description', ['error','cancelled','interrupted'].includes(job.status)?'Your project is saved. Retry or choose another video.':$('editor-description')?.textContent||'');
     const stageIcon=job.progress>=95?'compare':job.progress>=60?'render':job.progress>=15?'layers':'download';
     setControl('job-state',busy?'IN PROGRESS':'',stageIcon);
     if(complete){
       const rebuilt=job.brief.mode==='hyperframes',matched=!!job.verification?.near_perfect;
-      $('finished-title').textContent=rebuilt?(matched?'Your rebuilt video is ready.':'Your video is ready.'):job.brief.mode==='faithful'?'Original video export.':'Your export is ready.';
-      $('finished-summary').textContent=rebuilt?(matched?'Compare the result, then download your video or editable project.':'Visual differences remain. Compare before using the result.'):job.brief.mode==='faithful'?'This export retains the original video; its visuals were not reconstructed.':'Download your video or open its project.';
-      if(!$('verification-label').querySelector('svg'))$('verification-label').prepend(icon(rebuilt&&!matched?'warning':'check-circle'));
+      setText('finished-title', rebuilt?(matched?'Your rebuilt video is ready.':'Your video is ready.'):job.brief.mode==='faithful'?'Original video export.':'Your export is ready.');
+      setText('finished-summary', rebuilt?(matched?'Compare the result, then download your video or editable project.':'Visual differences remain. Compare before using the result.'):job.brief.mode==='faithful'?'This export retains the original video; its visuals were not reconstructed.':'Download your video or open its project.');
+      if($('verification-label')&&!$('verification-label').querySelector('svg'))$('verification-label').prepend(icon(rebuilt&&!matched?'warning':'check-circle'));
     }
   }
   decorateControls();

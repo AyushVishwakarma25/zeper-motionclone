@@ -13,8 +13,8 @@ class Keyframe(Strict):
     t: float = Field(ge=0, le=MAX_DURATION)
     x: float = Field(default=.1, ge=-2, le=2)
     y: float = Field(default=.4, ge=-2, le=2)
-    w: float = Field(default=.8, gt=0, le=3)
-    h: float = Field(default=.15, gt=0, le=3)
+    w: float = Field(default=.8, ge=0.001, le=3)
+    h: float = Field(default=.15, ge=0.001, le=3)
     opacity: float = Field(default=1, ge=0, le=1)
     rotation: float = Field(default=0, ge=-360, le=360)
     blur: float = Field(default=0, ge=0, le=30)
@@ -25,19 +25,19 @@ class Track(Strict):
     id: str = Field(max_length=80)
     kind: Literal['text','rect','ellipse','line','image','gradient']
     start: float = Field(default=0, ge=0, le=MAX_DURATION)
-    end: float = Field(default=5, gt=0, le=MAX_DURATION)
+    end: float = Field(default=5, ge=0.001, le=MAX_DURATION)
     text: str = Field(default='', max_length=500)
     color: str = Field(default='#ffffff', pattern=r'^#[0-9a-fA-F]{6}$')
     color2: str = Field(default='#000000', pattern=r'^#[0-9a-fA-F]{6}$')
     font: Literal['sans','serif','mono'] = 'sans'
     weight: Literal['regular','bold'] = 'bold'
     align: Literal['left','center','right'] = 'center'
-    size: float = Field(default=.08, gt=0, le=1)
+    size: float = Field(default=.08, ge=0.001, le=1)
     radius: float = Field(default=.02, ge=0, le=1)
     stroke: float = Field(default=0, ge=0, le=.1)
     asset: Literal['logo','none'] = 'none'
     easing: Literal['linear','smooth','out','step'] = 'linear'
-    keyframes: list[Keyframe] = Field(default_factory=lambda:[Keyframe(t=0)], min_length=1, max_length=160)
+    keyframes: list[Keyframe] = Field(default_factory=lambda:[Keyframe(t=0)], min_length=1)
 
     @model_validator(mode='after')
     def timing(self):
@@ -49,10 +49,10 @@ class Track(Strict):
 class Mask(Strict):
     id: str = Field(max_length=80)
     start: float = Field(ge=0, le=MAX_DURATION)
-    end: float = Field(gt=0, le=MAX_DURATION)
+    end: float = Field(ge=0.001, le=MAX_DURATION)
     method: Literal['gradient','solid','inpaint'] = 'gradient'
     color: str = Field(default='#ffffff', pattern=r'^#[0-9a-fA-F]{6}$')
-    keyframes: list[Keyframe] = Field(min_length=1, max_length=160)
+    keyframes: list[Keyframe] = Field(min_length=1)
 
     @model_validator(mode='after')
     def timing(self):
@@ -64,10 +64,10 @@ class Mask(Strict):
 class Plan(Strict):
     title: str = Field(default='Untitled film', max_length=160)
     summary: str = Field(default='', max_length=3000)
-    observations: list[str] = Field(default_factory=list, max_length=30)
+    observations: list[str] = Field(default_factory=list)
     background: str = Field(default='#101112', pattern=r'^#[0-9a-fA-F]{6}$')
-    masks: list[Mask] = Field(default_factory=list, max_length=120)
-    tracks: list[Track] = Field(default_factory=list, min_length=1, max_length=160)
+    masks: list[Mask] = Field(default_factory=list)
+    tracks: list[Track] = Field(default_factory=list, min_length=1)
 
 
 class Brief(Strict):
@@ -100,11 +100,11 @@ class LibraryUpdate(Strict):
 
 class Review(Strict):
     summary: str = Field(max_length=3000)
-    observations: list[str] = Field(max_length=30)
-    replace_tracks: list[Track] = Field(max_length=160)
-    replace_masks: list[Mask] = Field(max_length=120)
-    remove_tracks: list[str] = Field(max_length=160)
-    remove_masks: list[str] = Field(max_length=120)
+    observations: list[str] = Field(default_factory=list)
+    replace_tracks: list[Track] = Field(default_factory=list)
+    replace_masks: list[Mask] = Field(default_factory=list)
+    remove_tracks: list[str] = Field(default_factory=list)
+    remove_masks: list[str] = Field(default_factory=list)
 
 
 def apply_review(plan: Plan, review: Review):

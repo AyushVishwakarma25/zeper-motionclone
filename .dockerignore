@@ -1,0 +1,13 @@
+.git
+.github
+.venv
+data
+server.log
+server-error.log
+__pycache__
+*.pyc
+tests
+hyperframes/node_modules
+remotion/node_modules
+node_modules
+.DS_Store

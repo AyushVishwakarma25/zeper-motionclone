@@ -1,0 +1,48 @@
+steps:
+  # 1. Build container image in Google Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '$_LOCATION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/motionclone-studio:$COMMIT_SHA'
+      - '-t'
+      - '$_LOCATION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/motionclone-studio:latest'
+      - '.'
+
+  # 2. Push container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '$_LOCATION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/motionclone-studio'
+
+  # 3. Deploy to Google Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'motionclone-studio'
+      - '--image'
+      - '$_LOCATION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/motionclone-studio:$COMMIT_SHA'
+      - '--region'
+      - '$_LOCATION'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--memory'
+      - '4Gi'
+      - '--cpu'
+      - '2'
+      - '--timeout'
+      - '900'
+      - '--set-env-vars'
+      - 'GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$_LOCATION,FRAMEFORGE_HOSTED=1'
+
+substitutions:
+  _LOCATION: 'us-central1'
+  _REPO_NAME: 'motionclone'
+
+images:
+  - '$_LOCATION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/motionclone-studio:$COMMIT_SHA'
+  - '$_LOCATION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/motionclone-studio:latest'

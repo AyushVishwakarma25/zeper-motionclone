@@ -9,12 +9,12 @@
 
 # MotionClone：用参考视频制作 AI 动效
 
-MotionClone 使用 Codex 和你的 ChatGPT 账号，将参考视频中的文字、形状、图像和动画重建为**可编辑的 HyperFrames 项目**。你可以替换文案、调整动画节奏，再把这些动效用在产品演示或发布视频中。
+MotionClone 使用 **Google Gemini 与 Vertex AI**，将参考视频中的文字、形状、图像和动画重建为**可编辑的 HyperFrames 项目**。你可以替换文案、调整动画节奏，再把这些动效用在产品演示或发布视频中。
 
 <p>
-  <a href="https://motionclone.lol">试用在线工作室</a> ·
   <a href="#本地运行">在 Windows 上运行</a> ·
-  <a href="docs/AGENT-WORKFLOW.md">编程智能体使用指南（英文）</a>
+  <a href="#部署至-google-cloud-platform-gcp">部署至 GCP Cloud Run</a> ·
+  <a href="docs/PRD-GEMINI-VERTEX-AI.md">Gemini & Vertex AI PRD</a>
 </p>
 
 <a href="https://buymeacoffee.com/blix"><img src="web/assets/buymeacoffee-yellow.png" width="170" alt="请 blix 喝杯咖啡"></a>
@@ -23,15 +23,11 @@ MotionClone 使用 Codex 和你的 ChatGPT 账号，将参考视频中的文字�
 
 *这是实际保存的重建结果。左侧是原视频，右侧是 MotionClone 的重建版本。[打开播放器查看](https://motionclone.lol/#examples) · [查看静态图片](docs/images/hero-comparison.png)*
 
-**请连接你自己的 AI 账号。** 生成视频需要你自己的 ChatGPT/Codex 连接。下载本仓库不包含 AI 访问权限、额度或无限次生成；模型权限、费用和用量限制取决于你的账号套餐。登录网站与连接 AI 账号是两个独立步骤。重建结果可能与原视频有差异；小字、不常见的字体、照片和复杂 3D 画面往往需要进一步调整。
+**基于 Google Gemini / Vertex AI 构建。** 生成视频需要 Google Gemini API 密钥或 GCP Vertex AI 权限（通过 GCP 统一身份认证 ADC 或服务账号）。模型权限、费用和用量限制取决于你的 Google Cloud 或 Google AI Studio 账号。
 
 在 **Editor** 页面可导入参考视频，选择片段的起止时间，排序并添加创作说明，然后用自己的 AI 账号生成可编辑视频。最多 12 个片段，总时长不超过 120 秒。点击 **Save sequence** 保存草稿，点击 **Generate my video** 开始生成。详见 [Editor 使用说明（英文）](docs/EDITOR.md)。
 
 ## 本地运行
-
-下面的教程使用 Windows 本地应用。[在线工作室](https://motionclone.lol)目前也已开放早期试用，需要登录、单独连接 ChatGPT，并且后台处理服务处于运行状态。
-
-本文已翻译为简体中文，软件界面和截图仍为英文。操作步骤中会保留英文按钮名，方便对照。
 
 运行启动脚本前，请先安装以下工具：
 
@@ -41,20 +37,41 @@ MotionClone 使用 Codex 和你的 ChatGPT 账号，将参考视频中的文字�
 | Node.js 22+ 和 npm | 运行 HyperFrames |
 | FFmpeg 和 ffprobe | 读取与导出视频 |
 | Google Chrome | 渲染动画 |
-| 官方 Codex CLI，以及具备相应使用权限的 ChatGPT 账号 | 分析并重建参考视频 |
+| Google Gemini API 密钥 或 Google Cloud Vertex AI | 分析并重建参考视频 |
 
-确保 `git`、`python`、`npm`、`ffmpeg`、`ffprobe` 和 `codex` 已加入 PATH，然后在 PowerShell 中运行：
+确保 `git`、`python`、`npm`、`ffmpeg` 和 `ffprobe` 已加入 PATH，然后在 PowerShell 中运行：
 
 ```powershell
 git clone https://github.com/blixvip/MotionClone.git
 cd MotionClone
-codex login
+
+# 设置 Gemini API 密钥（或使用 Vertex AI ADC）
+$env:GEMINI_API_KEY = "your-gemini-api-key"
+
 .\start.ps1
 ```
 
-启动脚本会安装锁定版本的依赖，并打开 **http://127.0.0.1:4319**。首次启动需要联网。以后运行 `start.ps1` 或双击 **Start MotionClone.vbs** 即可。
+启动脚本会安装锁定版本的依赖，并打开 **http://127.0.0.1:4319**。
 
-无需 API 密钥，MotionClone 会使用你的 Codex 登录状态。如需改用账号支持的其他模型，请在启动前设置 `FRAMEFORGE_MODEL`。这个环境变量沿用了旧名称，以保持兼容。
+## 连接 AI 账号
+
+点击右上角 **Settings → Connect Gemini**：
+- **方案一（Gemini API Key）：** 输入在 Google AI Studio 获取的 API 密钥。
+- **方案二（GCP Vertex AI）：** 输入 GCP 项目 ID 与区域（如 `us-central1`）。在 GCP Cloud Run 环境下会自动通过服务账号验证。
+
+## 部署至 Google Cloud Platform (GCP)
+
+项目已提供完整的 Docker 容器与 Google Cloud Run 一键部署脚本：
+
+```powershell
+.\deploy-gcp.ps1 -ProjectId "YOUR_GCP_PROJECT" -Region "us-central1"
+```
+
+或使用 Bash 脚本：
+```bash
+chmod +x deploy-gcp.sh
+./deploy-gcp.sh YOUR_GCP_PROJECT us-central1
+```
 
 ## 1. 添加参考视频
 

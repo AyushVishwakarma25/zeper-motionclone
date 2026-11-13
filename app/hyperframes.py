@@ -75,10 +75,22 @@ window.__timelines['source-recreation']=gsap.timeline({{paused:true}}).to({{}},{
 
 def run_cli(args, folder, cancel, progress=None):
     log = folder / ('hyperframes-render.log' if args[0]=='render' else 'hyperframes-check.log')
+    temp_dir = folder / 'tmp'
+    temp_dir.mkdir(exist_ok=True)
     env = os.environ.copy()
-    env.update(NO_COLOR='1', CI='1', DO_NOT_TRACK='1', PRODUCER_ENABLE_BROWSER_POOL='false')
+    env.update(
+        NO_COLOR='1',
+        CI='1',
+        DO_NOT_TRACK='1',
+        PRODUCER_ENABLE_BROWSER_POOL='false',
+        TMP=str(temp_dir),
+        TEMP=str(temp_dir),
+    )
+    cmd_args = list(args)
+    if cmd_args and cmd_args[0] == 'render' and '--low-memory-mode' not in cmd_args:
+        cmd_args.append('--low-memory-mode')
     with log.open('w',encoding='utf-8') as stream:
-        proc = popen(['node',str(CLI),*args],cwd=folder,stdin=subprocess.DEVNULL,stdout=stream,stderr=subprocess.STDOUT,env=env)
+        proc = popen(['node',str(CLI),*cmd_args],cwd=folder,stdin=subprocess.DEVNULL,stdout=stream,stderr=subprocess.STDOUT,env=env)
         close_tree = own_process_tree(proc)
         start = time.monotonic()
         last = -1

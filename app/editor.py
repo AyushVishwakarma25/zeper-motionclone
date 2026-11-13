@@ -1,4 +1,5 @@
 """Persist a reference sequence and feed its trimmed montage into reconstruction."""
+import json
 import threading
 import time
 import uuid
@@ -16,7 +17,7 @@ from .process import run
 class Segment(Strict):
     project: str = Field(pattern=r'^[a-f0-9]{12}$')
     start: float = Field(ge=0, le=MAX_DURATION)
-    end: float = Field(gt=0, le=MAX_DURATION)
+    end: float = Field(ge=0.001, le=MAX_DURATION)
     notes: str = Field(default='', max_length=200)
 
     @model_validator(mode='after')
@@ -31,7 +32,7 @@ class Edit(Strict):
     instructions: str = Field(default='', max_length=2500)
     format: Literal['landscape','portrait','square'] = 'landscape'
     keep_audio: bool = True
-    segments: list[Segment] = Field(default_factory=list, max_length=12)
+    segments: list[Segment] = Field(default_factory=list)
 
     @model_validator(mode='after')
     def duration(self):
@@ -86,6 +87,7 @@ def install(app, server):
     @app.get('/editor')
     def editor_page():
         page=(server.ROOT/'web/editor.html').read_text(encoding='utf-8')
+        page=page.replace('<head>', f'<head><script>window.__APP_TOKEN__ = {json.dumps(server.TOKEN)};</script>', 1)
         if server.HOSTED:
             page=page.replace('<body>', '<body data-hosted="true">').replace('href="/?workspace=1"','href="/studio"').replace('250 MB','25 MB')
         return HTMLResponse(page)
@@ -117,7 +119,7 @@ def install(app, server):
     @app.post('/api/editor/generate')
     def generate(edit: Edit):
         if not server.auth_status():
-            raise HTTPException(401,'Connect your own ChatGPT/Codex account before generating. Your account costs and usage limits apply.')
+            raise HTTPException(401, 'Connect Google Gemini or Vertex AI in Settings before generating.')
         if not edit.segments: raise HTTPException(422,'Add at least one segment.')
         with server.LOCK:
             if server.ACTIVE['id']: raise HTTPException(409,'Another video is processing. Wait for it to finish.')

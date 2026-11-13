@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Master Studio Pro · 4-Zone Video Creator</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="/static/assets/motionclone-icon-color.svg">
+  <link rel="stylesheet" href="/static/editor.css?v=1">
+  <link rel="stylesheet" href="/static/master-studio.css?v=mc-20261025-8">
+  <script src="/static/ui.js?v=mc-20261025-8" defer></script>
+  <script src="/static/master-studio.js?v=mc-20261025-8" defer></script>
+</head>
+<body class="studio-body">
+  <header class="editor-header">
+    <a class="wordmark" href="/">MotionClone<span>.</span></a>
+    <nav aria-label="Workspace">
+      <a href="/?workspace=1">Studio</a>
+      <a href="/editor">Editor</a>
+      <a href="/master-studio" aria-current="page">Master Studio</a>
+    </nav>
+    <div class="header-right" style="margin-left:auto; display:flex; align-items:center; gap:16px;">
+      <span class="badge-fps-pill">⚡ 60 FPS Engine</span>
+      <a class="creator" href="https://x.com/waselyyy" target="_blank" rel="noopener noreferrer">@waselyyy</a>
+    </div>
+  </header>
+
+  <main class="studio-main">
+    <div class="page-heading">
+      <div>
+        <p class="eyebrow">MASTER STUDIO PRO · 4-ZONE ARCHITECTURE</p>
+        <h1>Autonomous Motion Studio.</h1>
+        <p>Animate website & dashboard screenshots, customize visual layers, and export broadcast-quality 60 FPS video.</p>
+      </div>
+      <div class="save-actions">
+        <label for="project-picker-select" class="sr-only">Active Project</label>
+        <select id="project-picker-select" class="project-picker" style="min-width:210px; height:40px; padding:0 12px; font-weight:600; font-size:12px;">
+          <option value="">Loading projects…</option>
+        </select>
+        <span id="save-status" role="status" style="font-size:12px; color:var(--muted);">Ready</span>
+        <button id="btn-save-project-top" class="secondary" title="Save current project layers to disk">Save project</button>
+      </div>
+    </div>
+
+    <!-- AI Engine & Hardware Status Banner -->
+    <section class="connection-banner" aria-label="AI and engine status">
+      <span id="connection-dot" class="status-dot connected"></span>
+      <div>
+        <strong id="connection-title">Google Gemini 2.5 & Remotion 60 FPS Ready</strong>
+        <p id="connection-desc">Hardware-accelerated Remotion rendering, interactive cursor physics, and synchronized sound design active.</p>
+      </div>
+      <a id="connect" href="/?workspace=1&settings=1" target="_blank" rel="noopener noreferrer">Configure Gemini ↗</a>
+      <button id="btn-refresh-status" class="quiet" type="button">Refresh</button>
+    </section>
+
+    <!-- Master Studio 4-Zone Container Mount Point -->
+    <div id="master-studio-root" class="master-studio-root"></div>
+
+    <p class="footer-note">Only use references and assets you own or have permission to adapt. Master Studio Pro generates local programmatic motion graphics using Remotion and HyperFrames.</p>
+  </main>
+</body>
+</html>
