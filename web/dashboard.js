@@ -80,19 +80,35 @@
   // Check hardware and AI engine status
   async function checkEngineStatus() {
     try {
-      const s = await callApi('/api/status');
+      const s = await callApi('/api/connection');
       const dot = $('ai-status-dot');
       const txt = $('ai-status-text');
+      const badge = $('ai-status-badge');
       if (dot && txt) {
-        if (s.gemini) {
+        if (s.status === 'connected' || s.ok) {
           dot.className = 'status-dot connected';
           txt.textContent = 'Google Gemini 3.8 / 3.1 Ready';
+          badge.className = 'status-badge';
+          badge.title = 'Vertex AI Active: gemini-3.8-flash & gemini-3.1-pro-preview';
         } else {
           dot.className = 'status-dot';
-          txt.textContent = 'Gemini Key Needed';
+          txt.textContent = 'Configure Gemini Key';
+          badge.className = 'status-badge warning';
+          badge.title = 'Click to connect Google Gemini or Vertex AI';
+          badge.onclick = () => window.open('/?workspace=1&settings=1', '_blank');
         }
       }
-    } catch {}
+    } catch {
+      try {
+        const s = await callApi('/api/status');
+        const dot = $('ai-status-dot');
+        const txt = $('ai-status-text');
+        if (dot && txt) {
+          dot.className = s.gemini ? 'status-dot connected' : 'status-dot';
+          txt.textContent = s.gemini ? 'Google Gemini 3.8 / 3.1 Ready' : 'Gemini Key Needed';
+        }
+      } catch {}
+    }
   }
 
   // Load Music Library
@@ -165,13 +181,27 @@
   // Aspect Ratio Switcher
   function setAspectRatio(ratio) {
     activeAspect = ratio;
+    if (projectState) {
+      projectState.aspect = ratio;
+      projectState.aspectRatio = ratio;
+      if (ratio === '9:16') {
+        projectState.width = 1080;
+        projectState.height = 1920;
+      } else if (ratio === '16:9') {
+        projectState.width = 1920;
+        projectState.height = 1080;
+      } else {
+        projectState.width = 1080;
+        projectState.height = 1080;
+      }
+    }
     const stageContainer = $('stage-viewport-container');
     if (stageContainer) {
       stageContainer.className = `stage-viewport-inner aspect-${ratio.replace(':', '-')}`;
     }
     const badge = $('badge-active-ratio');
     if (badge) {
-      badge.textContent = ratio === '9:16' ? '9:16 Vertical Reel' : (ratio === '16:9' ? '16:9 Horizontal' : '1:1 Square');
+      badge.textContent = ratio === '9:16' ? '9:16 Vertical Reel' : (ratio === '16:9' ? '16:9 Landscape' : '1:1 Square');
     }
     document.querySelectorAll('.aspect-pill').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.aspect === ratio);
@@ -181,9 +211,29 @@
   // Language Switcher
   function setLanguage(lang) {
     activeLanguage = lang;
+    if (projectState) {
+      projectState.language = lang;
+    }
     document.querySelectorAll('.lang-pill').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.lang === lang);
     });
+    
+    // Visually highlight active script textarea in inspector
+    const voEn = $('scene-vo-en-input');
+    const voHi = $('scene-vo-hi-input');
+    if (voEn && voHi) {
+      if (lang === 'hi') {
+        voEn.classList.remove('script-textarea-highlight');
+        voHi.classList.add('script-textarea-highlight');
+      } else if (lang === 'en_hi' || lang === 'bilingual') {
+        voEn.classList.add('script-textarea-highlight');
+        voHi.classList.add('script-textarea-highlight');
+      } else {
+        voEn.classList.add('script-textarea-highlight');
+        voHi.classList.remove('script-textarea-highlight');
+      }
+    }
+    
     if (projectState && projectState.scene_plan) {
       renderSceneInspector();
     }
@@ -214,20 +264,40 @@
     const emptyState = $('stage-empty-state');
     const badgeDur = $('badge-active-duration');
 
-    const hasVideo = projectState && (projectState.preview_url || projectState.source_url);
+    const hasVideo = Boolean(
+      projectState && (
+        projectState.preview_url ||
+        projectState.source_url ||
+        projectState.referenceVideoUrl ||
+        projectState.has_reference
+      )
+    );
+
     if (emptyState) {
       emptyState.style.display = hasVideo ? 'none' : 'flex';
     }
 
     if (player && projectState) {
-      const src = projectState.preview_url ? `${projectState.preview_url}?v=${videoCacheKey}` : projectState.source_url;
-      if (src && player.src !== window.location.origin + src) {
-        player.src = src;
-        player.load();
-      }
-      if (hasVideo) {
+      const src = projectState.preview_url
+        ? `${projectState.preview_url}?v=${videoCacheKey}`
+        : (projectState.source_url || (projectState.has_reference ? `/media/${activeJobId}/source.mp4` : null));
+
+      if (src) {
         player.style.display = 'block';
+        if (!player.src || !player.src.endsWith(src)) {
+          player.src = src;
+          player.load();
+        }
+      } else {
+        player.style.display = 'none';
       }
+
+      // Update duration badge dynamically when metadata loads
+      player.onloadedmetadata = () => {
+        if (player.duration && badgeDur) {
+          badgeDur.textContent = `${player.duration.toFixed(1)}s`;
+        }
+      };
     }
 
     if (badgeDur && projectState?.scene_plan?.duration_seconds) {
@@ -242,6 +312,31 @@
 
     const scenes = projectState?.scene_plan?.scenes || [];
     if (scenes.length === 0) {
+      const bpShots = projectState?.blueprint?.shots || [];
+      if (bpShots.length > 0) {
+        container.innerHTML = bpShots.map((shot, idx) => {
+          const isActive = idx === activeSceneIndex ? 'active' : '';
+          return `
+            <div class="scene-block ${isActive}" data-index="${idx}">
+              <div class="scene-block-title">📐 ${escapeHtml(shot.shot_type || `Shot ${idx + 1}`)}</div>
+              <div class="scene-block-meta">
+                <span>Shot ${idx + 1}</span>
+                <span>${((shot.t_end - shot.t_start) || 3).toFixed(1)}s</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        container.querySelectorAll('.scene-block').forEach(el => {
+          el.onclick = () => {
+            activeSceneIndex = parseInt(el.dataset.index, 10);
+            renderTimelineScenes();
+            renderSceneInspector();
+          };
+        });
+        return;
+      }
+
       container.innerHTML = `
         <div style="color:var(--muted); font-size:12px; padding:12px;">
           No scene sequence generated yet. Click <strong>⚡ Deconstruct Reference</strong> or ask the AI Director in chat.
@@ -474,6 +569,11 @@
 
       projectState.blueprint = res.blueprint;
       hideOverlay();
+      updatePipelineStep(2);
+      $('btn-view-blueprint')?.classList.add('active');
+      $('btn-view-rebuilt')?.classList.remove('active');
+      $('btn-view-source')?.classList.remove('active');
+      activeSceneIndex = 0;
       renderAllViews();
 
       appendChatBubble('agent', `✅ ${res.message}`, `
@@ -489,7 +589,7 @@
 
     } catch (e) {
       hideOverlay();
-      alert('Blueprint generation error: ' + e.message);
+      appendChatBubble('agent', `⚠️ Notice: ${e.message}`);
     }
   }
 
@@ -632,14 +732,42 @@
     });
 
     // Quick Suggestion Pills
+    $('quick-pill-deconstruct')?.addEventListener('click', () => {
+      handleDeconstructReference();
+    });
+    $('quick-pill-script')?.addEventListener('click', () => {
+      handleGenerateScenePlan();
+    });
+    $('quick-pill-pacing')?.addEventListener('click', () => {
+      handleSendChat('Analyze the reference video pacing and align scene durations to match music rhythm.');
+    });
     document.querySelectorAll('.pill-chip').forEach(btn => {
-      btn.onclick = () => handleSendChat(btn.dataset.prompt);
+      if (!btn.id) {
+        btn.onclick = () => handleSendChat(btn.dataset.prompt);
+      }
     });
 
     // Chat Prompt Form
     $('chat-prompt-form')?.addEventListener('submit', (e) => {
       e.preventDefault();
       handleSendChat();
+    });
+
+    // Pipeline Step Breadcrumb Click Navigation
+    $('step-node-1')?.addEventListener('click', () => {
+      $('btn-view-source')?.click();
+    });
+    $('step-node-2')?.addEventListener('click', () => {
+      $('btn-view-blueprint')?.click();
+    });
+    $('step-node-3')?.addEventListener('click', () => {
+      $('btn-view-blueprint')?.click();
+    });
+    $('step-node-4')?.addEventListener('click', () => {
+      $('btn-view-rebuilt')?.click();
+    });
+    $('step-node-5')?.addEventListener('click', () => {
+      $('btn-view-rebuilt')?.click();
     });
 
     // Quickstart Button in Empty State
@@ -670,6 +798,13 @@
       }
     });
 
+    $('btn-view-blueprint')?.addEventListener('click', () => {
+      $('btn-view-blueprint').classList.add('active');
+      $('btn-view-source')?.classList.remove('active');
+      $('btn-view-rebuilt')?.classList.remove('active');
+      renderBlueprintSummary();
+    });
+
     // Timeline Preview Render Button
     $('btn-preview-render')?.addEventListener('click', () => {
       handleRenderPreview();
@@ -695,15 +830,29 @@
       s.assigned_asset = $('scene-asset-select')?.value || '';
 
       try {
-        await callApi(`/api/dashboard/project/${activeJobId}/save`, {
+        await callApi(`/api/dashboard/scenes/update`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(projectState)
+          body: JSON.stringify({
+            job_id: activeJobId,
+            scene_index: activeSceneIndex,
+            scene: s
+          })
         });
         renderTimelineScenes();
         alert('✓ Scene edits saved to project!');
       } catch (e) {
-        alert('Save error: ' + e.message);
+        try {
+          await callApi(`/api/dashboard/project/${activeJobId}/save`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(projectState)
+          });
+          renderTimelineScenes();
+          alert('✓ Scene edits saved to project!');
+        } catch (err) {
+          alert('Save error: ' + err.message);
+        }
       }
     });
 
@@ -711,6 +860,11 @@
     const refFileInput = $('ref-file-input');
     const refUrlInput = $('ref-url-input');
     const btnBrowseRef = $('btn-browse-ref');
+    const btnUploadMp4Direct = $('btn-upload-mp4-direct');
+
+    if (btnUploadMp4Direct && refFileInput) {
+      btnUploadMp4Direct.onclick = () => refFileInput.click();
+    }
 
     if (btnBrowseRef && refFileInput) {
       btnBrowseRef.onclick = async () => {
@@ -718,7 +872,6 @@
         if (urlVal) {
           // Import from URL
           if (!activeJobId) {
-            // Auto create project if none exists
             try {
               const fd = new FormData();
               fd.append('name', 'Explainer Reference');
@@ -733,7 +886,8 @@
               appendChatBubble('agent', `✓ Reference video successfully imported from link: ${urlVal}`);
             } catch (err) {
               hideOverlay();
-              alert('Could not import link: ' + err.message);
+              appendChatBubble('agent', `⚠️ Import failed: ${err.message}`);
+              alert(err.message);
             }
           } else {
             // Attach URL to active project
@@ -747,7 +901,8 @@
               appendChatBubble('agent', `✓ Reference video downloaded and attached to project!`);
             } catch (err) {
               hideOverlay();
-              alert('Could not import link: ' + err.message);
+              appendChatBubble('agent', `⚠️ Import failed: ${err.message}`);
+              alert(err.message);
             }
           }
         } else {
@@ -761,7 +916,6 @@
         const file = refFileInput.files[0];
         
         if (!activeJobId) {
-          // Auto create project with uploaded video file
           try {
             showOverlay('Uploading Reference Video…', 'Storing video and extracting visual frames');
             const fd = new FormData();
@@ -779,7 +933,6 @@
             alert('Upload failed: ' + err.message);
           }
         } else {
-          // Attach file to active project
           try {
             showOverlay('Uploading Reference Video…', 'Storing video and extracting visual frames');
             const fd = new FormData();
@@ -787,7 +940,7 @@
             await callApi(`/api/dashboard/project/${activeJobId}/reference`, { method: 'POST', body: fd });
             await loadProject(activeJobId);
             hideOverlay();
-            appendChatBubble('agent', `✓ Reference video "${file.name}" uploaded and attached!`);
+            appendChatBubble('agent', `✓ Reference video "${file.name}" uploaded and loaded into player!`);
           } catch (err) {
             hideOverlay();
             alert('Upload failed: ' + err.message);
@@ -811,19 +964,28 @@
       assetDropzone.onclick = () => assetInput.click();
       assetInput.onchange = async () => {
         if (!assetInput.files?.length || !activeJobId) return;
+        let detectedVideo = false;
+        showOverlay('Uploading Assets…', 'Processing files and screenshots');
         for (const file of assetInput.files) {
           const fd = new FormData();
           fd.append('file', file);
           try {
-            await callApi(`/api/jobs/${activeJobId}/upload-asset`, {
+            const res = await callApi(`/api/jobs/${activeJobId}/upload-asset`, {
               method: 'POST',
               body: fd
             });
+            if (res.is_video || file.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(file.name) || /video/i.test(file.name)) {
+              detectedVideo = true;
+            }
           } catch (e) {
             console.warn('Upload error:', e);
           }
         }
+        hideOverlay();
         await loadProject(activeJobId);
+        if (detectedVideo) {
+          appendChatBubble('agent', '🎬 Video uploaded to project! Video player is ready. Click "⚡ Deconstruct Reference" to analyze it.');
+        }
       };
     }
 

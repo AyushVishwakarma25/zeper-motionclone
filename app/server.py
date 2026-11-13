@@ -89,8 +89,22 @@ def public(job, detailed=True):
 
 
 def get_job(id):
-    if not re.fullmatch(r'[a-f0-9]{12}',id) or id not in JOBS:raise HTTPException(404,'Project not found.')
-    return JOBS[id]
+    if not re.fullmatch(r'[a-f0-9]{12}', id):
+        raise HTTPException(404, 'Project not found.')
+    with LOCK:
+        if id in JOBS:
+            return JOBS[id]
+        # Lazy load from disk if present
+        job_file = DATA / id / 'job.json'
+        if job_file.is_file():
+            try:
+                job = json.loads(job_file.read_text(encoding='utf-8'))
+                job['cancel'] = threading.Event()
+                JOBS[id] = job
+                return job
+            except Exception:
+                pass
+    raise HTTPException(404, 'Project not found.')
 
 
 @app.middleware('http')

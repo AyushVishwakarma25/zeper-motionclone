@@ -685,8 +685,16 @@ def install(app, server):
         rebuild_assets.mkdir(parents=True, exist_ok=True)
 
         raw_name = Path(file.filename or 'asset.png').name
+        content_type = getattr(file, 'content_type', '') or ''
+        is_video_hint = bool(
+            re.search(r'\.(mp4|mov|webm|m4v|mkv)$', raw_name, re.I)
+            or content_type.startswith('video/')
+            or 'video' in raw_name.lower()
+        )
         safe_name = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', raw_name)
-        if not re.search(r'\.(png|jpg|jpeg|webp|svg|gif|mp4|mov|webm)$', safe_name, re.I):
+        if is_video_hint and not re.search(r'\.(mp4|mov|webm)$', safe_name, re.I):
+            safe_name += '.mp4'
+        elif not re.search(r'\.(png|jpg|jpeg|webp|svg|gif|mp4|mov|webm)$', safe_name, re.I):
             safe_name += '.png'
 
         dest = assets_dir / safe_name
@@ -699,7 +707,7 @@ def install(app, server):
         (rebuild_assets / safe_name).write_bytes(contents)
 
         # If a video is uploaded to assets, auto-wire it as the reference source.mp4
-        is_video = bool(re.search(r'\.(mp4|mov|webm)$', safe_name, re.I))
+        is_video = bool(re.search(r'\.(mp4|mov|webm)$', safe_name, re.I)) or is_video_hint
         if is_video and len(contents) > 10240:
             dest_source = folder / 'source.mp4'
             dest_source.write_bytes(contents)
@@ -711,7 +719,21 @@ def install(app, server):
                 job['media'] = meta
                 job['has_reference'] = True
                 job['stage'] = 'Reference ready'
+                server.persist(job)
                 thumbnail(dest_source, folder / 'thumbnail.jpg')
+            except Exception:
+                pass
+
+            # Update dashboard_project.json
+            dashboard_file = folder / 'dashboard_project.json'
+            try:
+                dstate = {}
+                if dashboard_file.is_file():
+                    dstate = json.loads(dashboard_file.read_text(encoding='utf-8'))
+                dstate['has_reference'] = True
+                dstate['source_url'] = f'/media/{id}/source.mp4'
+                dstate['stage'] = 'Reference ready'
+                dashboard_file.write_text(json.dumps(dstate, indent=2), encoding='utf-8')
             except Exception:
                 pass
 
@@ -726,6 +748,8 @@ def install(app, server):
         return {
             'ok': True,
             'filename': safe_name,
+            'is_video': is_video,
+            'source_url': f'/media/{id}/source.mp4' if is_video else None,
             'url': f'/media/{id}/assets/{safe_name}',
             'width': w,
             'height': h

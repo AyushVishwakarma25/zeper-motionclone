@@ -46,7 +46,7 @@
       <div class="lang-selector" title="Script & Voiceover Language">
         <button type="button" class="lang-pill active" data-lang="en">English</button>
         <button type="button" class="lang-pill" data-lang="hi">हिन्दी</button>
-        <button type="button" class="lang-pill" data-lang="bilingual">EN + HI</button>
+        <button type="button" class="lang-pill" data-lang="en_hi">EN + HI</button>
       </div>
 
       <!-- AI Status Badge -->
@@ -79,10 +79,11 @@
 
       <!-- Quick Suggestion Pills -->
       <div class="suggestion-pills">
-        <button type="button" class="pill-chip" data-prompt="Analyze the reference video and generate a scene-by-scene blueprint">⚡ Deconstruct Reference</button>
-        <button type="button" class="pill-chip" data-prompt="Create an original 30-second scene plan with punchy hooks and proof points">📝 Generate Script & Plan</button>
-        <button type="button" class="pill-chip" data-prompt="Make scene 2 faster and highlight the key metrics in bold">⏱️ Make Scene 2 Faster</button>
-        <button type="button" class="pill-chip" data-prompt="Translate voice-over and headlines into modern conversational Hindi">🇮🇳 Switch to Hindi Script</button>
+        <button type="button" class="pill-chip" id="quick-pill-deconstruct">⚡ Deconstruct Reference</button>
+        <button type="button" class="pill-chip" id="quick-pill-script">📝 Generate Script & Plan</button>
+        <button type="button" class="pill-chip" id="quick-pill-pacing">⏱️ Match Pacing</button>
+        <button type="button" class="pill-chip" data-prompt="Make scene 2 faster and highlight the key metrics in bold">⚡ Fast Scene 2</button>
+        <button type="button" class="pill-chip" data-prompt="Translate voice-over and headlines into modern conversational Hindi">🇮🇳 Hindi Script</button>
       </div>
 
       <!-- Chat Messages Scroll Area -->
@@ -115,6 +116,7 @@
               <div class="reference-input-wrap">
                 <input type="text" id="ref-url-input" class="tray-input" placeholder="Paste X / YouTube / Vimeo URL or drop file">
                 <button type="button" id="btn-browse-ref" class="btn-tray-action">Import</button>
+                <button type="button" id="btn-upload-mp4-direct" class="btn-tray-action" title="Upload local MP4 directly">Upload MP4</button>
               </div>
               <input type="file" id="ref-file-input" accept="video/mp4,video/quicktime,video/webm" style="display:none;">
             </div>

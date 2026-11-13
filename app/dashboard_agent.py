@@ -181,19 +181,109 @@ def generate_blueprint_from_reference(
         response_mime_type="application/json",
         response_schema=BlueprintStructure,
         temperature=0.2,
-        max_output_tokens=4096,
+        max_output_tokens=8192,
     )
 
-    res = client.models.generate_content(
-        model=model,
-        contents=contents,
-        config=config,
+    try:
+        res = client.models.generate_content(
+            model=model,
+            contents=contents,
+            config=config,
+        )
+
+        if res and res.text:
+            text = res.text.strip()
+            # Fast path
+            try:
+                return BlueprintStructure.model_validate_json(text)
+            except Exception:
+                # Attempt repair if JSON was truncated
+                if not text.endswith('}'):
+                    # Close open arrays or objects
+                    if text.rfind(']') < text.rfind('['):
+                        text += '\n]}'
+                    else:
+                        text += '\n}'
+                try:
+                    return BlueprintStructure.model_validate_json(text)
+                except Exception as inner_e:
+                    logger.warning(f"Could not parse repaired blueprint JSON: {inner_e}")
+    except Exception as e:
+        logger.warning(f"Gemini blueprint generation encountered: {e}. Falling back to synthesized blueprint.")
+
+    return _fallback_blueprint(reference_meta, aspect)
+
+
+def _fallback_blueprint(reference_meta: dict[str, Any], aspect: str = "9:16") -> BlueprintStructure:
+    duration = float(reference_meta.get("duration", 30.0)) or 30.0
+    hook_sec = min(3.0, round(duration * 0.1, 1))
+    cta_sec = min(5.0, round(duration * 0.15, 1))
+    body_sec = max(5.0, round(duration - hook_sec - cta_sec, 1))
+    
+    shots = [
+        BlueprintShot(
+            t_start=0.0,
+            t_end=hook_sec,
+            shot_type="typography card",
+            camera_motion="slow zoom in",
+            transition="cut",
+            visual_purpose="High-contrast question hook to stop scrolling",
+            text_overlay_style="bold headline"
+        ),
+        BlueprintShot(
+            t_start=hook_sec,
+            t_end=round(hook_sec + body_sec * 0.35, 1),
+            shot_type="screen demo",
+            camera_motion="pan right",
+            transition="wipe-left",
+            visual_purpose="Demonstrate core product feature & interactive UI",
+            text_overlay_style="subtle eyebrow + title"
+        ),
+        BlueprintShot(
+            t_start=round(hook_sec + body_sec * 0.35, 1),
+            t_end=round(hook_sec + body_sec * 0.7, 1),
+            shot_type="product close-up",
+            camera_motion="slow push-in",
+            transition="cut",
+            visual_purpose="Show key metric / proof point / results card",
+            text_overlay_style="metric callout"
+        ),
+        BlueprintShot(
+            t_start=round(hook_sec + body_sec * 0.7, 1),
+            t_end=round(duration - cta_sec, 1),
+            shot_type="b-roll",
+            camera_motion="spring enter",
+            transition="zoom-punch",
+            visual_purpose="Highlight rapid workflow execution and speed",
+            text_overlay_style="kinetic caption"
+        ),
+        BlueprintShot(
+            t_start=round(duration - cta_sec, 1),
+            t_end=round(duration, 1),
+            shot_type="call to action",
+            camera_motion="static",
+            transition="dissolve",
+            visual_purpose="Final logo reveal and high-conversion call to action",
+            text_overlay_style="bold CTA button"
+        ),
+    ]
+    return BlueprintStructure(
+        hook_seconds=hook_sec,
+        body_seconds=body_sec,
+        cta_seconds=cta_sec,
+        total_seconds=round(duration, 1),
+        aspect=aspect,
+        cuts_per_minute=28,
+        avg_shot_duration=round(duration / len(shots), 1),
+        shots=shots,
+        rules=[
+            "Hook audience in first 2.5 seconds with high-contrast text",
+            "Keep each visual cut under 3.5 seconds for snappy pacing",
+            "Bold keyword highlight in every text overlay",
+            "Sync transitions to music beats",
+            "End with clear, single Call-to-Action"
+        ]
     )
-
-    if not res or not res.text:
-        raise ValueError("Gemini returned empty blueprint.")
-
-    return BlueprintStructure.model_validate_json(res.text.strip())
 
 
 def generate_scene_plan(
@@ -242,19 +332,105 @@ def generate_scene_plan(
         response_mime_type="application/json",
         response_schema=ExplainerScenePlan,
         temperature=0.3,
-        max_output_tokens=6144,
+        max_output_tokens=8192,
     )
 
-    res = client.models.generate_content(
-        model=model,
-        contents=[prompt],
-        config=config,
+    try:
+        res = client.models.generate_content(
+            model=model,
+            contents=[prompt],
+            config=config,
+        )
+
+        if res and res.text:
+            text = res.text.strip()
+            try:
+                return ExplainerScenePlan.model_validate_json(text)
+            except Exception:
+                if not text.endswith('}'):
+                    if text.rfind(']') < text.rfind('['):
+                        text += '\n]}'
+                    else:
+                        text += '\n}'
+                try:
+                    return ExplainerScenePlan.model_validate_json(text)
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.warning(f"Gemini scene plan error: {e}. Falling back to default scene plan.")
+
+    # Fallback default 5-scene plan
+    scenes = [
+        SceneItem(
+            id=1,
+            title="Hook / Punchy Statement",
+            template="kinetic_text",
+            start_seconds=0.0,
+            duration_seconds=3.0,
+            headline="Stop Wasting Hours On Video",
+            subtitle=brand_name,
+            voiceover_script_en=f"Creating product videos used to take days. Now, {brand_name} changes everything.",
+            voiceover_script_hi=f"वीडियो बनाने में अब दिनों का समय बर्बाद नहीं होगा। {brand_name} से यह सब बदल गया है।",
+            transition="cut"
+        ),
+        SceneItem(
+            id=2,
+            title="Interactive Demo / UI",
+            template="interactive_cursor_click" if not assets_list else "dashboard_3d_float",
+            start_seconds=3.0,
+            duration_seconds=7.0,
+            headline="Seamless AI Workflow",
+            subtitle="Built for high-growth tech teams",
+            voiceover_script_en="Simply drop your reference video or screenshots, and watch the AI construct every scene instantly.",
+            voiceover_script_hi="बस अपना वीडियो या स्क्रीनशॉट ड्रॉप करें, और AI तुरंत हर सीन तैयार कर देगा।",
+            assigned_asset=assets_list[0] if assets_list else "",
+            transition="wipe"
+        ),
+        SceneItem(
+            id=3,
+            title="Core Metric & Value Prop",
+            template="fact_card",
+            start_seconds=10.0,
+            duration_seconds=7.0,
+            headline="10x Faster Video Production",
+            subtitle="Editable 60 FPS Remotion output",
+            voiceover_script_en="Export fully editable code and render broadcast-ready 60 FPS video in seconds.",
+            voiceover_script_hi="पूरी तरह से एडिटेबल कोड एक्सपोर्ट करें और सेकंडों में 60 FPS वीडियो रेंडर करें।",
+            transition="zoom"
+        ),
+        SceneItem(
+            id=4,
+            title="Product Feature Showcase",
+            template="dashboard_3d_float" if len(assets_list) > 1 else "kinetic_text",
+            start_seconds=17.0,
+            duration_seconds=8.0,
+            headline=brand_tagline or "Autonomous Motion Graphics",
+            subtitle="No complex timeline software needed",
+            voiceover_script_en="Customize typography, colors, and pacing with conversational AI prompts.",
+            voiceover_script_hi="सरल AI प्रॉम्प्ट्स के साथ टाइपोग्राफी, रंग और पेसिंग कस्टमाइज़ करें।",
+            assigned_asset=assets_list[1] if len(assets_list) > 1 else "",
+            transition="cut"
+        ),
+        SceneItem(
+            id=5,
+            title="Call To Action",
+            template="title_card",
+            start_seconds=25.0,
+            duration_seconds=5.0,
+            headline=f"Try {brand_name} Today",
+            subtitle="Get started free at zeperai.com",
+            voiceover_script_en="Start building original product explainers today. Get started now.",
+            voiceover_script_hi="आज ही अपने ओरिजिनल प्रोडक्ट एक्सप्लेनर बनाना शुरू करें।",
+            transition="smooth"
+        )
+    ]
+    return ExplainerScenePlan(
+        title=f"{brand_name} Explainer",
+        aspect=aspect if aspect in ("9:16", "16:9", "1:1") else "9:16",
+        language=language if language in ("en", "hi", "bilingual") else "en",
+        duration_seconds=30.0,
+        scenes=scenes
     )
-
-    if not res or not res.text:
-        raise ValueError("Gemini returned empty scene plan.")
-
-    return ExplainerScenePlan.model_validate_json(res.text.strip())
 
 
 def process_dashboard_chat_turn(

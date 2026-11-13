@@ -144,6 +144,35 @@ def install(app, server):
                 for p in assets_dir.glob('*') if p.is_file() and not p.name.startswith('.')
             ]
 
+        # Filesystem truth overrides stale JSON state
+        source_p = folder / "source.mp4"
+        if not source_p.is_file() and assets_dir.is_dir():
+            # Check if any video was uploaded to assets drawer (e.g. WhatsApp_Video)
+            for p in sorted(assets_dir.glob('*'), key=lambda x: x.stat().st_mtime, reverse=True):
+                if p.is_file() and (re.search(r'\.(mp4|mov|webm)$', p.name, re.I) or 'video' in p.name.lower()) and p.stat().st_size > 10240:
+                    try:
+                        shutil.copy2(p, source_p)
+                        from .media import thumbnail, probe
+                        meta = probe(source_p)
+                        (folder / 'media.json').write_text(json.dumps(meta, indent=2), encoding='utf-8')
+                        thumbnail(source_p, folder / 'thumbnail.jpg')
+                        break
+                    except Exception:
+                        pass
+
+        if source_p.is_file() and source_p.stat().st_size > 10240:
+            default_state["has_reference"] = True
+            default_state["source_url"] = f"/media/{id}/source.mp4"
+        else:
+            default_state["has_reference"] = False
+            default_state["source_url"] = None
+
+        output_p = folder / "output.mp4"
+        if output_p.is_file() and output_p.stat().st_size > 10240:
+            default_state["preview_url"] = f"/media/{id}/output.mp4"
+        else:
+            default_state["preview_url"] = None
+
         return default_state
 
     @app.post('/api/dashboard/chat')
@@ -243,6 +272,76 @@ def install(app, server):
             "scene_plan": plan.model_dump(),
             "message": f"Scene plan created with {len(plan.scenes)} scenes in {req.language.upper()} and English!"
         }
+
+    @app.post('/api/dashboard/scenes/update')
+    def api_update_scene(req: dict[str, Any]):
+        job_id = req.get('job_id')
+        scene_index = req.get('scene_index', 0)
+        scene_data = req.get('scene', {})
+        if not job_id:
+            raise HTTPException(400, "Missing job_id")
+        
+        server.get_job(job_id)
+        folder = DATA / job_id
+        plan_file = folder / 'scene_plan.json'
+        
+        if not plan_file.is_file():
+            # Create minimal scene plan if none exists
+            from .dashboard_agent import ExplainerScenePlan, SceneItem
+            initial_scene = SceneItem(
+                scene_index=0,
+                template=scene_data.get('template', 'kinetic_text'),
+                start_seconds=0.0,
+                duration_seconds=float(scene_data.get('duration_seconds', 3.0)),
+                headline=scene_data.get('headline', 'Your Hook Headline'),
+                subtitle=scene_data.get('subtitle', ''),
+                voiceover_script_en=scene_data.get('voiceover_script_en', ''),
+                voiceover_script_hi=scene_data.get('voiceover_script_hi', ''),
+                assigned_asset=scene_data.get('assigned_asset', ''),
+                transition=scene_data.get('transition', 'cut')
+            )
+            plan = ExplainerScenePlan(
+                title="Explainer Video",
+                duration_seconds=initial_scene.duration_seconds,
+                scenes=[initial_scene]
+            )
+        else:
+            from .dashboard_agent import ExplainerScenePlan
+            plan = ExplainerScenePlan.model_validate_json(plan_file.read_text(encoding='utf-8'))
+            if 0 <= scene_index < len(plan.scenes):
+                target = plan.scenes[scene_index]
+                for k, v in scene_data.items():
+                    if hasattr(target, k):
+                        setattr(target, k, v)
+            elif len(plan.scenes) == 0:
+                from .dashboard_agent import SceneItem
+                new_scene = SceneItem(
+                    scene_index=0,
+                    template=scene_data.get('template', 'kinetic_text'),
+                    start_seconds=0.0,
+                    duration_seconds=float(scene_data.get('duration_seconds', 3.0)),
+                    headline=scene_data.get('headline', 'Your Hook Headline'),
+                    subtitle=scene_data.get('subtitle', ''),
+                    voiceover_script_en=scene_data.get('voiceover_script_en', ''),
+                    voiceover_script_hi=scene_data.get('voiceover_script_hi', ''),
+                    assigned_asset=scene_data.get('assigned_asset', ''),
+                    transition=scene_data.get('transition', 'cut')
+                )
+                plan.scenes.append(new_scene)
+        
+        plan_file.write_text(plan.model_dump_json(indent=2), encoding='utf-8')
+        
+        # Mirror to dashboard_project.json
+        dashboard_file = folder / 'dashboard_project.json'
+        if dashboard_file.is_file():
+            try:
+                state = json.loads(dashboard_file.read_text(encoding='utf-8'))
+                state['scene_plan'] = plan.model_dump()
+                dashboard_file.write_text(json.dumps(state, indent=2), encoding='utf-8')
+            except Exception:
+                pass
+                
+        return {"ok": True, "scene_plan": plan.model_dump(), "message": "Scene updated and persisted!"}
 
     @app.post('/api/dashboard/project/{id}/save')
     def api_save_dashboard_project(id: str, payload: dict[str, Any]):
@@ -371,10 +470,19 @@ def install(app, server):
                 input_bin = folder / 'input.bin'
                 try:
                     download(clean_ref_url, input_bin, cancel, lambda stage, pct: None)
+                    if not input_bin.exists() or input_bin.stat().st_size < 10240:
+                        raise ValueError("Downloaded file is empty or under 10KB. Link may be private or protected.")
                     meta, _ = prepare(input_bin, folder, cancel, lambda stage, pct: None, rebuild=True)
+                    if not (folder / 'source.mp4').exists() or (folder / 'source.mp4').stat().st_size < 10240:
+                        raise ValueError("Failed to extract valid MP4 from video link.")
                     thumbnail(folder / 'source.mp4', folder / 'thumbnail.jpg')
                 except Exception as e:
                     logger.warning(f"Initial URL download error: {e}")
+                    input_bin.unlink(missing_ok=True)
+                    shutil.rmtree(folder, ignore_errors=True)
+                    with server.LOCK:
+                        server.ACTIVE['id'] = None
+                    raise HTTPException(400, f"Could not download video from link. Platforms like Instagram often require login. Please upload your video file directly using the 'Upload MP4' button: {e}")
             
             job = {
                 'id': new_id,
