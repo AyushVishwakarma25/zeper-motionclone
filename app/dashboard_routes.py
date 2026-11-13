@@ -170,18 +170,27 @@ def install(app, server):
         server.get_job(req.job_id)
         folder = DATA / req.job_id
         
+        ref_video_path = folder / 'source.mp4'
         meta = {}
         if (folder / 'media.json').is_file():
             meta = json.loads((folder / 'media.json').read_text(encoding='utf-8'))
         elif (folder / 'temporal.json').is_file():
             meta = json.loads((folder / 'temporal.json').read_text(encoding='utf-8'))
+        elif ref_video_path.is_file():
+            from .media import probe
+            try:
+                meta = probe(ref_video_path)
+                (folder / 'media.json').write_text(json.dumps(meta, indent=2), encoding='utf-8')
+            except Exception:
+                meta = {"duration": 30.0, "fps": 30, "aspect": req.aspect}
         else:
             meta = {"duration": 30.0, "fps": 30, "aspect": req.aspect}
 
         blueprint = generate_blueprint_from_reference(
             reference_meta=meta,
             aspect=req.aspect,
-            brief_notes=req.notes
+            brief_notes=req.notes,
+            reference_video_path=ref_video_path if ref_video_path.is_file() else None
         )
 
         # Persist blueprint
@@ -282,13 +291,19 @@ def install(app, server):
             input_bin = folder / 'input.bin'
             try:
                 download(clean_url, input_bin, cancel, lambda stage, pct: None)
+                if not input_bin.exists() or input_bin.stat().st_size < 10240:
+                    raise ValueError("Downloaded file is empty or under 10KB. Link may be private or protected.")
                 meta, _ = prepare(input_bin, folder, cancel, lambda stage, pct: None, rebuild=True)
+                if not (folder / 'source.mp4').exists() or (folder / 'source.mp4').stat().st_size < 10240:
+                    raise ValueError("Failed to extract valid MP4 from video link.")
                 job['media'] = meta
                 job['url'] = clean_url
                 thumbnail(folder / 'source.mp4', folder / 'thumbnail.jpg')
             except Exception as e:
                 logger.error(f"URL download failed: {e}")
-                raise HTTPException(422, f"Could not download video from link: {e}")
+                # Clean up failed download artifacts
+                input_bin.unlink(missing_ok=True)
+                raise HTTPException(400, f"Could not download video from link: {e}")
 
         job['stage'] = 'Reference ready'
         job['status'] = 'draft'

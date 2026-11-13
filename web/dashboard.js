@@ -86,7 +86,7 @@
       if (dot && txt) {
         if (s.gemini) {
           dot.className = 'status-dot connected';
-          txt.textContent = 'Google Gemini 2.5 / 3.0 Ready';
+          txt.textContent = 'Google Gemini 3.8 / 3.1 Ready';
         } else {
           dot.className = 'status-dot';
           txt.textContent = 'Gemini Key Needed';
@@ -225,6 +225,9 @@
         player.src = src;
         player.load();
       }
+      if (hasVideo) {
+        player.style.display = 'block';
+      }
     }
 
     if (badgeDur && projectState?.scene_plan?.duration_seconds) {
@@ -341,6 +344,20 @@
 
     if (rulesList && bp && bp.rules) {
       rulesList.innerHTML = bp.rules.map(r => `<li>${escapeHtml(r)}</li>`).join('');
+    }
+
+    // Populate Inspector with Blueprint Shot Breakdown if no scene plan exists yet
+    if (bp && bp.shots && (!projectState?.scene_plan?.scenes || projectState.scene_plan.scenes.length === 0)) {
+      const heading = $('inspector-heading');
+      const badge = $('inspector-badge');
+      if (heading) heading.textContent = `Blueprint Structure (${bp.shots.length} Shots)`;
+      if (badge) badge.textContent = `Pacing: ~${(bp.target_duration_seconds / Math.max(1, bp.shots.length)).toFixed(1)}s/shot`;
+
+      const firstShot = bp.shots[0];
+      if ($('scene-template-select')) $('scene-template-select').value = 'kinetic_text';
+      if ($('scene-headline-input')) $('scene-headline-input').value = firstShot.visual_intent || '';
+      if ($('scene-subtitle-input')) $('scene-subtitle-input').value = `Camera: ${firstShot.camera_motion || 'zoom_in'} · Transition: ${firstShot.transition || 'cut'}`;
+      if ($('scene-duration-input')) $('scene-duration-input').value = firstShot.duration_seconds || 3.0;
     }
   }
 

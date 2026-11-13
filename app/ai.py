@@ -32,7 +32,7 @@ def codex_command():
 
 def get_model_for_tier(tier: str) -> str:
     """Returns the official active 2026 model ID mapped to the given task tier."""
-    return MODEL_TIERS.get(tier, 'gemini-2.5-flash')
+    return MODEL_TIERS.get(tier, 'gemini-3.8-flash')
 
 
 def get_gemini_config() -> dict:
@@ -40,7 +40,7 @@ def get_gemini_config() -> dict:
         'api_key': os.environ.get('GEMINI_API_KEY', '').strip(),
         'vertexai': os.environ.get('GOOGLE_GENAI_USE_VERTEXAI', '').lower() in ('1', 'true', 'yes'),
         'project': os.environ.get('GOOGLE_CLOUD_PROJECT') or os.environ.get('VERTEXAI_PROJECT') or '',
-        'location': os.environ.get('GOOGLE_CLOUD_LOCATION') or os.environ.get('VERTEXAI_LOCATION') or 'us-central1',
+        'location': os.environ.get('GOOGLE_CLOUD_LOCATION') or os.environ.get('VERTEXAI_LOCATION') or 'global',
         'model': os.environ.get('GEMINI_MODEL') or os.environ.get('FRAMEFORGE_MODEL') or MODEL_TIERS['vision_deconstruct'],
     }
     config_file = DATA_DIR / 'gemini_config.json'
@@ -76,7 +76,7 @@ def get_gemini_client(tier: Optional[str] = None):
 
     if cfg.get('vertexai'):
         project = cfg.get('project') or None
-        location = cfg.get('location') or 'us-central1'
+        location = cfg.get('location') or 'global'
         try:
             client = genai.Client(vertexai=True, project=project, location=location)
             return client, model, 'vertexai'
@@ -91,7 +91,7 @@ def get_gemini_client(tier: Optional[str] = None):
     else:
         # Check if Google Application Default Credentials (ADC) are active
         project = cfg.get('project') or os.environ.get('GOOGLE_CLOUD_PROJECT') or None
-        location = cfg.get('location') or os.environ.get('GOOGLE_CLOUD_LOCATION') or 'us-central1'
+        location = cfg.get('location') or os.environ.get('GOOGLE_CLOUD_LOCATION') or 'global'
         try:
             client = genai.Client(vertexai=True, project=project, location=location)
             return client, model, 'vertexai'
@@ -201,7 +201,6 @@ def analyze(folder, meta, brief, images, cancel, progress, *, previous=None, rev
         response_schema=target_schema,
         temperature=0.2,
         max_output_tokens=8192,
-        thinking_config=types.ThinkingConfig(thinking_budget=1024),
     )
 
     try:

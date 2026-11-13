@@ -138,13 +138,14 @@ class ExplainerScenePlan(Strict):
 def generate_blueprint_from_reference(
     reference_meta: dict[str, Any],
     aspect: str = "9:16",
-    brief_notes: str = ""
+    brief_notes: str = "",
+    reference_video_path: Path | None = None
 ) -> BlueprintStructure:
-    """Uses Gemini Pro to analyze reference temporal/media info and extract a reusable Blueprint."""
+    """Uses gemini-3.8-flash to analyze reference video/frames/metadata and extract a reusable Blueprint."""
     if not auth_status():
         raise ValueError("Google Gemini or Vertex AI is not configured. Configure in Settings.")
 
-    client, model, _ = get_gemini_client()
+    client, model, _ = get_gemini_client(tier='vision_deconstruct')
 
     prompt = (
         "You are an elite Commercial Video Director and Motion Graphics Specialist.\n"
@@ -161,6 +162,21 @@ def generate_blueprint_from_reference(
         "5. Output must conform to BlueprintStructure schema."
     )
 
+    contents = [prompt]
+
+    # Multimodal video ingestion: attach reference frames or video if present
+    if reference_video_path and Path(reference_video_path).is_file():
+        ref_p = Path(reference_video_path)
+        # If reference stills/contact sheets are available in the folder, attach them
+        parent_dir = ref_p.parent
+        stills = sorted(parent_dir.glob('reference-*.jpg'))
+        if stills:
+            for s in stills[:6]:
+                contents.append(types.Part.from_bytes(data=s.read_bytes(), mime_type='image/jpeg'))
+        elif ref_p.stat().st_size <= 20 * 1024 * 1024:
+            # Under 20MB, pass raw video bytes directly to multimodal gemini-3.8-flash
+            contents.append(types.Part.from_bytes(data=ref_p.read_bytes(), mime_type='video/mp4'))
+
     config = types.GenerateContentConfig(
         response_mime_type="application/json",
         response_schema=BlueprintStructure,
@@ -170,7 +186,7 @@ def generate_blueprint_from_reference(
 
     res = client.models.generate_content(
         model=model,
-        contents=[prompt],
+        contents=contents,
         config=config,
     )
 

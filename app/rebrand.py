@@ -684,26 +684,44 @@ def install(app, server):
         rebuild_assets = folder / 'rebuild/assets'
         rebuild_assets.mkdir(parents=True, exist_ok=True)
 
-        raw_name = Path(file.filename or 'screenshot.png').name
+        raw_name = Path(file.filename or 'asset.png').name
         safe_name = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', raw_name)
-        if not re.search(r'\.(png|jpg|jpeg|webp|svg|gif)$', safe_name, re.I):
+        if not re.search(r'\.(png|jpg|jpeg|webp|svg|gif|mp4|mov|webm)$', safe_name, re.I):
             safe_name += '.png'
 
         dest = assets_dir / safe_name
         contents = await file.read()
-        if len(contents) > 25 * 1024 * 1024:
-            raise HTTPException(413, 'Image must be under 25MB')
+        if len(contents) > 250 * 1024 * 1024:
+            raise HTTPException(413, 'File must be under 250MB')
         dest.write_bytes(contents)
 
         # Mirror to rebuild/assets
         (rebuild_assets / safe_name).write_bytes(contents)
 
+        # If a video is uploaded to assets, auto-wire it as the reference source.mp4
+        is_video = bool(re.search(r'\.(mp4|mov|webm)$', safe_name, re.I))
+        if is_video and len(contents) > 10240:
+            dest_source = folder / 'source.mp4'
+            dest_source.write_bytes(contents)
+            from .media import thumbnail, probe
+            try:
+                meta = probe(dest_source)
+                (folder / 'media.json').write_text(json.dumps(meta, indent=2), encoding='utf-8')
+                job = server.get_job(id)
+                job['media'] = meta
+                job['has_reference'] = True
+                job['stage'] = 'Reference ready'
+                thumbnail(dest_source, folder / 'thumbnail.jpg')
+            except Exception:
+                pass
+
         w, h = 1920, 1080
-        try:
-            with Image.open(dest) as im:
-                w, h = im.size
-        except Exception:
-            pass
+        if not is_video:
+            try:
+                with Image.open(dest) as im:
+                    w, h = im.size
+            except Exception:
+                pass
 
         return {
             'ok': True,
