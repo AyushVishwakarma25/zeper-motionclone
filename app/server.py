@@ -97,16 +97,16 @@ def get_job(id):
 async def local_boundary(request: Request, call_next):
     host=request.headers.get('host','')
     allowed={f'127.0.0.1:{PORT}',f'localhost:{PORT}','testserver'}
-    if host not in allowed:return JSONResponse({'detail':'Local access only.'},status_code=403)
+    if not HOSTED and host not in allowed:return JSONResponse({'detail':'Local access only.'},status_code=403)
     if request.method not in ('GET','HEAD','OPTIONS'):
         origin=request.headers.get('origin')
         allowed_origins={f'http://127.0.0.1:{PORT}',f'http://localhost:{PORT}'}
-        if origin and origin not in allowed_origins:
+        if not HOSTED and origin and origin not in allowed_origins:
             return JSONResponse({'detail':'Cross-origin requests are blocked.'},status_code=403)
         req_token = request.headers.get('x-frameforge-token')
         sec_site = request.headers.get('sec-fetch-site')
-        is_same_origin = (origin in allowed_origins) or (sec_site == 'same-origin') or (not origin and host in allowed)
-        if req_token != TOKEN and not is_same_origin:
+        is_same_origin = (origin in allowed_origins) or (sec_site == 'same-origin') or (not origin and host in allowed) or HOSTED
+        if not HOSTED and req_token != TOKEN and not is_same_origin:
             logger.warning(f"TOKEN MISMATCH on {request.url.path}: received {req_token!r} != expected {TOKEN!r}")
             return JSONResponse({'detail':'Refresh this page to reconnect.'},status_code=403)
         try:length=int(request.headers.get('content-length','0'))
