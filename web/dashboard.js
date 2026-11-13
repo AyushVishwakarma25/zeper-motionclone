@@ -197,11 +197,11 @@
     }
     const stageContainer = $('stage-viewport-container');
     if (stageContainer) {
-      stageContainer.className = `stage-viewport-inner aspect-${ratio.replace(':', '-')}`;
+      stageContainer.className = `stage-player-wrap aspect-${ratio.replace(':', '-')}`;
     }
     const badge = $('badge-active-ratio');
     if (badge) {
-      badge.textContent = ratio === '9:16' ? '9:16 Vertical Reel' : (ratio === '16:9' ? '16:9 Landscape' : '1:1 Square');
+      badge.textContent = ratio === '9:16' ? '9:16 Reel' : (ratio === '16:9' ? '16:9 Landscape' : '1:1 Square');
     }
     document.querySelectorAll('.aspect-pill').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.aspect === ratio);
@@ -729,15 +729,21 @@
   function showOverlay(title, desc) {
     const el = $('stage-render-overlay');
     if (el) {
-      $('stage-overlay-title').textContent = title;
-      $('stage-overlay-desc').textContent = desc;
+      const t = $('stage-overlay-title');
+      const d = $('stage-overlay-desc');
+      if (t) t.textContent = title;
+      if (d) d.textContent = desc;
       el.hidden = false;
+      el.style.display = 'flex';
     }
   }
 
   function hideOverlay() {
     const el = $('stage-render-overlay');
-    if (el) el.hidden = true;
+    if (el) {
+      el.hidden = true;
+      el.style.display = 'none';
+    }
   }
 
   // =========================================================================
@@ -1130,6 +1136,7 @@
   // App Bootstrapper
   // =========================================================================
   window.addEventListener('DOMContentLoaded', async () => {
+    hideOverlay();
     await checkEngineStatus();
     await loadMusicLibrary();
     await fetchJobs();
@@ -1137,7 +1144,18 @@
 
     if (activeJobId) {
       await loadProject(activeJobId);
+    } else {
+      try {
+        const fd = new FormData();
+        fd.append('name', 'Explainer Reference');
+        fd.append('aspect', activeAspect);
+        fd.append('language', activeLanguage);
+        const created = await callApi('/api/dashboard/create-project', { method: 'POST', body: fd });
+        await fetchJobs();
+        await loadProject(created.job_id);
+      } catch {}
     }
+    hideOverlay();
 
     // Greeting Message
     appendChatBubble('agent', '👋 Welcome to MotionClone: Reference-to-Video Explainer Studio! I am your AI Creative Director. Upload a reference video and tell me about your product to build an original 30-second 60 FPS motion graphics explainer.');

@@ -900,40 +900,47 @@ body.dashboard-body {
   justify-content: center;
   padding: 16px;
   min-height: 0;
+  overflow: hidden;
+  position: relative;
 }
 
-.stage-player-wrap {
-  position: relative;
-  background: #09090b;
+.stage-player-wrap,
+.stage-viewport-inner {
+  position: relative !important;
+  background: #09090b !important;
   border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: var(--shadow-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: auto;
-  max-width: 100%;
+  margin: 0 auto;
+  flex-shrink: 0;
 }
 
-.stage-player-wrap.aspect-9-16 {
-  aspect-ratio: 9 / 16;
-  max-height: calc(100vh - 290px);
-  width: auto;
-  max-width: 420px;
+.stage-player-wrap.aspect-9-16,
+.stage-viewport-inner.aspect-9-16 {
+  aspect-ratio: 9 / 16 !important;
+  height: min(calc(100vh - 280px), 520px) !important;
+  width: calc(min(calc(100vh - 280px), 520px) * 9 / 16) !important;
+  max-width: 320px !important;
 }
 
-.stage-player-wrap.aspect-16-9 {
-  aspect-ratio: 16 / 9;
-  width: 100%;
-  max-width: 780px;
-  max-height: calc(100vh - 290px);
+.stage-player-wrap.aspect-16-9,
+.stage-viewport-inner.aspect-16-9 {
+  aspect-ratio: 16 / 9 !important;
+  height: min(calc(100vh - 280px), 405px) !important;
+  width: calc(min(calc(100vh - 280px), 405px) * 16 / 9) !important;
+  max-width: 720px !important;
 }
 
-.stage-player-wrap.aspect-1-1 {
-  aspect-ratio: 1 / 1;
-  max-height: calc(100vh - 290px);
-  width: auto;
-  max-width: 480px;
+.stage-player-wrap.aspect-1-1,
+.stage-viewport-inner.aspect-1-1 {
+  aspect-ratio: 1 / 1 !important;
+  height: min(calc(100vh - 280px), 440px) !important;
+  width: min(calc(100vh - 280px), 440px) !important;
+  max-width: 440px !important;
+  max-height: 440px !important;
 }
 
 #dashboard-video-player {
@@ -1065,15 +1072,24 @@ body.dashboard-body {
 .stage-render-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(9, 9, 11, 0.92);
+  background: rgba(9, 9, 11, 0.94);
   color: #ffffff;
-  display: flex;
+  display: none;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 24px;
   text-align: center;
-  z-index: 20;
+  z-index: 50;
+  border-radius: var(--radius-lg);
+}
+
+.stage-render-overlay[hidden] {
+  display: none !important;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 .neon-spinner {
