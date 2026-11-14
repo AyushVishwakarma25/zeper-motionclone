@@ -320,3 +320,4 @@ def measure_loudness(file_path: Path) -> dict:
         'output_i': float(data.get('output_i', -14.0)),
         'target_offset': float(data.get('target_offset', 0.0))
     }
+

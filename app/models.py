@@ -6,14 +6,13 @@ MAX_DURATION = 120
 
 # Active 2026 Vertex AI & Generative Model Tiers
 MODEL_TIERS = {
-    'vision_deconstruct': 'gemini-3.8-flash',
-    'qa_gate': 'gemini-3.8-flash',
+    'vision_deconstruct': 'gemini-3-flash-preview',
+    'qa_gate': 'gemini-3-flash-preview',
     'code_synthesis': 'gemini-3.1-pro-preview',
     'image_composite_pro': 'gemini-3-pro-image',
     'image_composite_fast': 'gemini-3.1-flash-image',
     'video_motion': 'veo-3.1-generate-001',
-    'video_motion_lite': 'veo-3.1-lite',
-    'video_motion_seedance': 'seedance-2.5',
+    'video_motion_lite': 'veo-3.1-lite-generate-001',
 }
 
 
