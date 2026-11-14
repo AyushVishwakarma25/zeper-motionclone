@@ -293,14 +293,17 @@ def _fallback_blueprint(reference_meta: dict[str, Any], aspect: str = "9:16") ->
 
 def generate_scene_plan(
     blueprint: BlueprintStructure,
-    user_story: str,
-    brand_name: str,
-    brand_tagline: str,
+    user_story: str = "AI explainer video",
+    brand_name: str = "MotionClone",
+    brand_tagline: str = "Reference-to-Video AI",
     language: str = "en",
     aspect: str = "9:16",
-    uploaded_assets: list[str] = None
+    uploaded_assets: list[str] = None,
+    creative_brief: str = ""
 ) -> ExplainerScenePlan:
     """Adapts a Blueprint into an original Scene Plan using Remotion templates with English & Hindi scripts."""
+    if creative_brief and not user_story:
+        user_story = creative_brief
     if not auth_status():
         raise ValueError("Google Gemini or Vertex AI is not configured.")
 
@@ -436,6 +439,9 @@ def generate_scene_plan(
         duration_seconds=30.0,
         scenes=scenes
     )
+
+
+generate_scene_plan_from_blueprint = generate_scene_plan
 
 
 def export_scene_plan_to_remotion_plan(scene_plan: ExplainerScenePlan) -> Any:

@@ -84,3 +84,4 @@ def test_dashboard_css_aspect_ratio_containment():
     # Verify 16:9 height is constrained to prevent viewport overflow
     assert "max-height" in css_content
     assert "aspect-ratio: 16 / 9" in css_content
+

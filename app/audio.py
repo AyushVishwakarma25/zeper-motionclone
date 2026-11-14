@@ -283,7 +283,6 @@ def mux_final_video(video_path: Path, audio_path: Path, output_path: Path) -> Pa
         '-c:v', 'copy',
         '-c:a', 'aac',
         '-b:a', '192k',
-        '-shortest',
         '-movflags', '+faststart',
         str(out)
     ])
