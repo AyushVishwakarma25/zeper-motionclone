@@ -1,5 +1,6 @@
 """Trusted Remotion source and render bridge for validated editable layers."""
 import json
+import logging
 import math
 import shutil
 import subprocess
@@ -10,18 +11,20 @@ from pathlib import Path
 from .media import probe
 from .process import Cancelled, popen, run
 
+logger = logging.getLogger('motionclone.remotion')
+
 RUNTIME = Path(__file__).resolve().parents[1] / 'remotion'
 
 
-def write_project(folder, plan, brief):
+def write_project(folder, plan, brief, fps=None, *args, **kwargs):
     folder = Path(folder).resolve()
     dest = (folder / 'remotion' / 'public').resolve()
     dest.mkdir(parents=True, exist_ok=True)
 
     # 1. Determine Aspect Ratio and Dimensions
-    # 9:16 -> 1080x1920 @30fps
-    # 16:9 -> 1920x1080 @30fps
-    # 1:1  -> 1080x1080 @30fps
+    # 9:16 -> 1080x1920
+    # 16:9 -> 1920x1080
+    # 1:1  -> 1080x1080
     aspect = '9:16'
     dashboard_file = folder / 'dashboard_project.json'
     dashboard_data = {}
@@ -50,25 +53,23 @@ def write_project(folder, plan, brief):
     else:
         width, height = 1080, 1920  # Default 9:16 vertical reel
 
-    fps = 30
+    fps = int(fps or dashboard_data.get('fps') or scene_plan_data.get('fps') or 30)
 
-    # 2. Duration: strictly sum of scene durations (default 30s), not hard-coded 61.53s
-    scenes = scene_plan_data.get('scenes', []) or dashboard_data.get('scene_plan', {}).get('scenes', [])
-    if scenes:
-        duration = round(sum(float(s.get('duration_seconds', 0)) for s in scenes), 2)
-    elif scene_plan_data.get('duration_seconds'):
-        duration = float(scene_plan_data['duration_seconds'])
-    elif plan and hasattr(plan, 'tracks') and plan.tracks:
-        duration = max((t.end for t in plan.tracks), default=30.0)
-    else:
-        duration = 30.0
-
-    if duration <= 0:
-        duration = 30.0
+    # 2. Extract scenes and normalise duration fields
+    scenes = (
+        scene_plan_data.get('scenes', []) or
+        dashboard_data.get('scene_plan', {}).get('scenes', []) or
+        (getattr(plan, 'scenes', []) if plan else [])
+    )
+    for s in scenes:
+        if 'duration' in s and 'duration_seconds' not in s:
+            s['duration_seconds'] = float(s['duration'])
+        elif 'duration_seconds' in s and 'duration' not in s:
+            s['duration'] = float(s['duration_seconds'])
 
     # 2b. Voiceover and Audio Mix Generation if voiceover scripts or music are present
     has_narration = any(
-        s.get('voiceover_script') or s.get('voiceover_script_en') or s.get('voiceover_script_hi')
+        s.get('voiceover') or s.get('voiceover_script') or s.get('voiceover_script_en') or s.get('voiceover_script_hi')
         for s in scenes
     )
     lang = dashboard_data.get('language') or scene_plan_data.get('language') or 'en'
@@ -77,10 +78,23 @@ def write_project(folder, plan, brief):
 
     if has_narration and not (folder / 'voiceover.mp3').is_file():
         try:
-            audio.generate_scene_voiceovers(scenes, language=lang, output_dir=folder)
+            audio.generate_scene_voiceovers(scenes, language=lang, output_dir=folder, cancel=None)
         except Exception as exc:
             logger.error(f"Voiceover TTS synthesis failed: {exc}")
             raise RuntimeError(f"Voiceover TTS synthesis failed: {exc}") from exc
+
+    # 2c. Duration: strictly sum of scene durations (after voiceover timing)
+    if scenes:
+        duration = round(sum(float(s.get('duration_seconds') or s.get('duration') or 0) for s in scenes), 2)
+    elif scene_plan_data.get('duration_seconds') or scene_plan_data.get('duration'):
+        duration = float(scene_plan_data.get('duration_seconds') or scene_plan_data.get('duration'))
+    elif plan and hasattr(plan, 'tracks') and plan.tracks:
+        duration = max((t.end for t in plan.tracks), default=30.0)
+    else:
+        duration = 30.0
+
+    if duration <= 0:
+        duration = 30.0
 
     # Background music resolution
     music_id = dashboard_data.get('music_track') or 'tech_upbeat'
@@ -212,12 +226,12 @@ def export_project(folder, plan, brief):
     return dest
 
 
-def render(folder, plan, brief, cancel, progress, *, preview=False, format='mp4', composition='Motion'):
+def render(folder, plan, brief, cancel, progress, *, preview=False, format='mp4', composition='Motion', fps=None):
     folder = Path(folder).resolve()
     if not (RUNTIME/'node_modules/@remotion/renderer').exists():
         raise ValueError('Remotion is not installed. Run npm ci inside the remotion directory.')
 
-    public = write_project(folder, plan, brief)
+    public = write_project(folder, plan, brief, fps=fps)
 
     if format == 'prores':
         output = (folder / 'output.mov').resolve()

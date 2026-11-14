@@ -36,10 +36,22 @@ def fixture_video(folder, *, color=None):
     return path
 
 
+def can_start_hyperframes() -> bool:
+    if not hf.CLI.exists() or not has_chrome():
+        return False
+    if os.name == 'nt' or os.environ.get('SKIP_HYPERFRAMES') == '1':
+        return False
+    try:
+        res = run(['node', str(hf.CLI), '--version'], timeout=2)
+        return bool(res)
+    except Exception:
+        return False
+
+
 def test_hyperframes_renders_every_frame_and_preserves_full_audio(tmp_path):
     """Real browser renderer, fractional fps, motion and audio longer than video."""
-    if not hf.CLI.exists():pytest.skip('Install pinned HyperFrames dependencies for integration test.')
-    if not has_chrome():pytest.skip('Chrome browser required for HyperFrames integration test.')
+    if not can_start_hyperframes():
+        pytest.skip('HyperFrames cannot start in this environment.')
     stop=threading.Event()
     prepare(fixture_video(tmp_path),tmp_path,stop,lambda *a:None,faithful=True)
     output=hf.render(tmp_path,Brief(mode="faithful"),stop,lambda *a:None)

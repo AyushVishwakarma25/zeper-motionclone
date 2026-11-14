@@ -160,7 +160,8 @@ class Plan(Strict):
     observations: list[str] = Field(default_factory=list)
     background: str = Field(default='#101112', pattern=r'^#[0-9a-fA-F]{6}$')
     masks: list[Mask] = Field(default_factory=list)
-    tracks: list[Track] = Field(default_factory=list, min_length=1)
+    tracks: list[Track] = Field(default_factory=list)
+    scenes: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class Brief(Strict):

@@ -5,6 +5,7 @@ import os
 import re
 import secrets
 import shutil
+import sys
 import threading
 import time
 import uuid
@@ -48,8 +49,36 @@ else:
         TOKEN_FILE.write_text(TOKEN, encoding='utf-8')
     except Exception:
         pass
-if HOSTED and DATA==ROOT/'data':
-    raise RuntimeError('Hosted workers require isolated project directories.')
+if HOSTED:
+    if DATA == ROOT / 'data':
+        raise RuntimeError('Hosted workers require isolated project directories.')
+    allowed_emails_raw = os.environ.get('ALLOWED_EMAILS', '').strip()
+    firebase_web_api_key = os.environ.get('FIREBASE_WEB_API_KEY') or os.environ.get('FIREBASE_API_KEY')
+    firebase_app_id = os.environ.get('FIREBASE_APP_ID')
+    firebase_auth_domain = os.environ.get('FIREBASE_AUTH_DOMAIN')
+
+    missing_sec = []
+    if not allowed_emails_raw:
+        missing_sec.append('ALLOWED_EMAILS')
+    if not firebase_web_api_key:
+        missing_sec.append('FIREBASE_WEB_API_KEY (or FIREBASE_API_KEY)')
+    if not firebase_app_id:
+        missing_sec.append('FIREBASE_APP_ID')
+    if not firebase_auth_domain:
+        missing_sec.append('FIREBASE_AUTH_DOMAIN')
+
+    if missing_sec:
+        logger.critical(
+            f"FATAL: Hosted mode enabled (FRAMEFORGE_HOSTED=1) but missing required security configuration: "
+            f"{', '.join(missing_sec)}. Refusing to boot."
+        )
+        sys.exit(1)
+
+try:
+    from scripts.probe_models import run_probe_summary
+    logger.info(run_probe_summary())
+except Exception as _probe_err:
+    logger.debug(f"Model probe summary skipped: {_probe_err}")
 PORT=int(os.environ.get('FRAMEFORGE_PORT','4319'))
 POOL=ThreadPoolExecutor(max_workers=1)
 LOCK=threading.RLock()

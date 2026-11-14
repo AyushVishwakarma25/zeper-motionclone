@@ -133,7 +133,7 @@ For non-text tracks fill text='', font='sans', weight='regular', align='center',
 
 
 def analyze(folder, meta, brief, images, cancel, progress, *, previous=None, review=False):
-    """Core reference visual deconstruction and review loop using gemini-3.8-flash."""
+    """Core reference visual deconstruction and review loop using Google Gemini."""
     if not auth_status():
         raise ValueError('Connect Google Gemini or Vertex AI in Settings before generating.')
 
@@ -263,7 +263,7 @@ def synthesize_code(prompt: str, context: dict[str, Any]) -> str:
 
 
 def evaluate_qa_gate(reference_stills: list[Path], rendered_stills: list[Path], rules: list[str]) -> QAEvaluationCategory:
-    """Uses gemini-3.8-flash for comprehensive 10-category QA Gate evaluation."""
+    """Uses Google Gemini for comprehensive 10-category QA Gate evaluation."""
     client, model, _ = get_gemini_client(tier='qa_gate')
     prompt = (
         "You are an automated Quality Assurance Director inspecting rendered video stills against a reference.\n"

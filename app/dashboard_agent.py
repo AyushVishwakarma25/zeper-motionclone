@@ -146,7 +146,7 @@ def generate_blueprint_from_reference(
     brief_notes: str = "",
     reference_video_path: Path | None = None
 ) -> BlueprintStructure:
-    """Uses gemini-3.8-flash to analyze reference video/frames/metadata and extract a reusable Blueprint."""
+    """Uses Google Gemini to analyze reference video/frames/metadata and extract a reusable Blueprint."""
     if not auth_status():
         raise ValueError("Google Gemini or Vertex AI is not configured. Configure in Settings.")
 
@@ -179,7 +179,7 @@ def generate_blueprint_from_reference(
             for s in stills[:6]:
                 contents.append(types.Part.from_bytes(data=s.read_bytes(), mime_type='image/jpeg'))
         elif ref_p.stat().st_size <= 20 * 1024 * 1024:
-            # Under 20MB, pass raw video bytes directly to multimodal gemini-3.8-flash
+            # Under 20MB, pass raw video bytes directly to multimodal Google Gemini
             contents.append(types.Part.from_bytes(data=ref_p.read_bytes(), mime_type='video/mp4'))
 
     config = types.GenerateContentConfig(

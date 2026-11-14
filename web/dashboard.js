@@ -181,9 +181,9 @@
 
     try {
       const me = await callApi('/api/me');
-      if (me && me.email) {
+      if (me && me.hosted) {
         const userBadge = $('user-email-display');
-        if (userBadge) {
+        if (userBadge && me.email) {
           userBadge.textContent = me.email;
           userBadge.style.display = 'inline-flex';
         }
@@ -199,11 +199,16 @@
             window.location.href = '/login';
           };
         }
-        if (me.hosted) {
-          // Hide "Configure Gemini Key" button in hosted mode
-          const keyBtn = $('btn-configure-key');
-          if (keyBtn) keyBtn.style.display = 'none';
-        }
+        // Hide "Configure Gemini Key" button in hosted mode
+        const keyBtn = $('btn-configure-key');
+        if (keyBtn) keyBtn.style.display = 'none';
+      } else {
+        const userBadge = $('user-email-display');
+        if (userBadge) userBadge.style.display = 'none';
+        const signoutBtn = $('btn-signout');
+        if (signoutBtn) signoutBtn.style.display = 'none';
+        const keyBtn = $('btn-configure-key');
+        if (keyBtn) keyBtn.style.display = 'inline-flex';
       }
     } catch (e) {
       // If 401 in hosted mode, callApi redirects to /login
@@ -711,7 +716,7 @@
       return;
     }
 
-    showOverlay('Deconstructing Reference…', 'Gemini 3.8 Flash is analyzing pacing, cuts, and motion rules');
+    showOverlay('Deconstructing Reference…', 'Google Gemini is analyzing pacing, cuts, and motion rules');
     updatePipelineStep(2);
 
     try {
@@ -823,53 +828,77 @@
     }
   }
 
-  async function handleRenderPreview() {
-    if (!activeJobId) return;
+  async function triggerProjectGenerate({ useExistingScenePlan = true, fps = 60 } = {}) {
+    if (!activeJobId) {
+      alert('Please select or create an explainer project first.');
+      return;
+    }
 
-    showOverlay('Generating Explainer Video…', 'Synthesizing voiceover, mixing audio, and compiling 60 FPS Remotion scenes');
+    showOverlay(`Rendering ${fps} FPS Remotion Video…`, 'Synthesizing motion graphics, captions, sound effects, and music');
     updatePipelineStep(4);
-    showToast('🎬 Starting generation pipeline...', 'info');
+    showToast(`🎬 Rendering ${fps} FPS video...`, 'info');
 
     try {
+      const payload = {
+        brief: projectState?.name || "AI Explainer Video",
+        language: activeLang || projectState?.language || "en",
+        aspect: activeAspect || projectState?.aspect || "9:16",
+        music_track: activeMusic || projectState?.music_track || "tech_upbeat",
+        use_existing_scene_plan: Boolean(useExistingScenePlan),
+        fps: Number(fps) || 60
+      };
+
       await callApi(`/api/dashboard/project/${activeJobId}/generate`, {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
 
       const poll = setInterval(async () => {
         try {
-          const status = await callApi(`/api/dashboard/project/${activeJobId}/status`);
-          if (status.stage && status.state !== 'ready' && status.state !== 'failed') {
-            const overlayTitle = $('overlay-title');
-            const overlaySubtitle = $('overlay-subtitle');
-            if (overlayTitle) overlayTitle.textContent = status.stage + '…';
-            if (overlaySubtitle) overlaySubtitle.textContent = `Progress: ${status.progress || 0}%`;
+          const s = await callApi(`/api/dashboard/project/${activeJobId}/status`);
+          if (s.stage) {
+            const msgEl = $('overlay-submessage');
+            if (msgEl) msgEl.textContent = s.stage + (s.progress ? ` (${s.progress}%)` : '');
           }
-          if (status.state === 'ready') {
+          if (s.state === 'ready' || s.stage === 'Complete' || (s.output_url && s.progress === 100)) {
             clearInterval(poll);
             hideOverlay();
             updatePipelineStep(5);
             videoCacheKey = Date.now();
-            projectState.preview_url = `/media/${activeJobId}/output.mp4`;
-            
+            projectState.preview_url = s.output_url || `/media/${activeJobId}/output.mp4`;
+
             // Switch to Preview tab
             $('btn-view-rebuilt')?.click();
             showToast('🎉 Explainer Video Rendered Successfully!', 'success');
             renderVideoStage();
-            appendChatBubble('agent', '🎬 Your 60 FPS Explainer Video is ready! All QA checks and audio loudness passed.');
-          } else if (status.state === 'failed') {
+            appendChatBubble('agent', `🎬 Your ${fps} FPS Explainer Video is ready! Watch the preview in the center stage or download below.`);
+          } else if (s.state === 'failed' || s.state === 'error') {
             clearInterval(poll);
             hideOverlay();
-            showToast('Generation error: ' + (status.error || 'Check server logs'), 'error');
-            alert('Generation failed: ' + (status.error || 'Check server logs'));
+            const err = s.error || 'Check server logs';
+            showToast('Render error: ' + err, 'error');
+            alert('Render failed: ' + err);
           }
-        } catch {}
-      }, 2500);
+        } catch (err) {
+          console.warn('Status poll warning:', err);
+        }
+      }, 2000);
 
     } catch (e) {
       hideOverlay();
-      showToast('Render initiation error: ' + e.message, 'error');
-      alert('Render initiation error: ' + e.message);
+      if (e.status === 402 || e.message?.includes('402') || e.message?.includes('credits')) {
+        showToast('Insufficient credits to complete this generation.', 'error');
+        alert('Insufficient credits: ' + e.message);
+      } else {
+        showToast('Render initiation error: ' + e.message, 'error');
+        alert('Render initiation error: ' + e.message);
+      }
     }
+  }
+
+  async function handleRenderPreview() {
+    return triggerProjectGenerate({ useExistingScenePlan: true, fps: 60 });
   }
 
   async function handlePasteAndRender() {
@@ -1260,6 +1289,10 @@ export const ExplainerScene = () => {
       handleRenderPreview();
     });
 
+    $('btn-render-video')?.addEventListener('click', () => {
+      handleRenderPreview();
+    });
+
     // Save Scene Edits
     $('btn-save-scene-edits')?.addEventListener('click', async () => {
       const scenes = projectState?.scene_plan?.scenes;
@@ -1333,7 +1366,7 @@ export const ExplainerScene = () => {
               appendChatBubble('agent', `✓ Reference video successfully imported! Ready for Step 1.`, `
                 <div class="chat-card">
                   <div class="chat-card-title">⚡ Step 1: Deconstruct Video Blueprint</div>
-                  <p style="font-size:11px; margin:0 0 6px; color:var(--muted);">Gemini 3.8 Flash will deconstruct the pacing, cuts, and visual hierarchy.</p>
+                  <p style="font-size:11px; margin:0 0 6px; color:var(--muted);">Google Gemini will deconstruct the pacing, cuts, and visual hierarchy.</p>
                   <button type="button" class="chat-card-btn" id="btn-card-step1-url">⚡ Deconstruct Reference Video</button>
                 </div>
               `);
@@ -1357,7 +1390,7 @@ export const ExplainerScene = () => {
               appendChatBubble('agent', `✓ Reference video downloaded and loaded into player! Ready for Step 1.`, `
                 <div class="chat-card">
                   <div class="chat-card-title">⚡ Step 1: Deconstruct Video Blueprint</div>
-                  <p style="font-size:11px; margin:0 0 6px; color:var(--muted);">Gemini 3.8 Flash will deconstruct the pacing, cuts, and visual hierarchy.</p>
+                  <p style="font-size:11px; margin:0 0 6px; color:var(--muted);">Google Gemini will deconstruct the pacing, cuts, and visual hierarchy.</p>
                   <button type="button" class="chat-card-btn" id="btn-card-step1-attach">⚡ Deconstruct Reference Video</button>
                 </div>
               `);

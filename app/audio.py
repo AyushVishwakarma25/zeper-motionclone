@@ -100,6 +100,15 @@ def build_ssml_script(scenes: list[dict], language: str = 'en') -> str:
     return ''.join(ssml_parts)
 
 
+def has_cloud_tts() -> bool:
+    """Returns True if Google Cloud Text-to-Speech library is importable."""
+    try:
+        from google.cloud import texttospeech
+        return True
+    except Exception:
+        return False
+
+
 def synthesize_voiceover(
     text_or_ssml: str,
     language: str = 'en',
@@ -161,16 +170,107 @@ def synthesize_voiceover(
 def generate_scene_voiceovers(
     scenes: list[dict],
     language: str = 'en',
-    output_dir: Optional[Path] = None
+    output_dir: Optional[Path] = None,
+    cancel: Optional[Any] = None,
+    adjust_durations: bool = False
 ) -> Path:
-    """Generates aligned voiceover narration for all scenes matching scene timeline pacing."""
+    """Generates per-scene voiceover clips, sets scene duration to max(planned, clip + 0.3s),
+    and builds the final audio placing each clip at its scene start.
+    """
     folder = Path(output_dir).resolve() if output_dir else Path('data').resolve()
     folder.mkdir(parents=True, exist_ok=True)
     final_vo = folder / 'voiceover.mp3'
 
-    # Build SSML matching scene durations and pauses
-    ssml = build_ssml_script(scenes, language=language)
-    synthesize_voiceover(ssml, language=language, output_path=final_vo, is_ssml=True)
+    padded_clips = []
+    current_time = 0.0
+    scene_offsets = []
+
+    for idx, sc in enumerate(scenes):
+        planned_dur = float(sc.get('duration_seconds') or sc.get('duration') or 3.0)
+        text = (
+            sc.get('voiceover') or
+            sc.get('voiceover_script') or
+            sc.get('voiceover_script_en') or
+            sc.get('voiceover_script_hi') or
+            sc.get('headline') or
+            ''
+        ).strip()
+
+        clip_path = folder / f'scene_{idx}_raw.mp3'
+        padded_path = folder / f'scene_{idx}_padded.mp3'
+
+        if text:
+            synthesize_voiceover(text, language=language, output_path=clip_path, is_ssml=False)
+            try:
+                probe_res = json.loads(run([
+                    'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                    '-of', 'json', str(clip_path)
+                ]))
+                actual_clip_dur = float(probe_res['format']['duration'])
+            except Exception:
+                actual_clip_dur = planned_dur
+
+            if adjust_durations:
+                scene_dur = round(max(planned_dur, actual_clip_dur + 0.3), 2)
+            else:
+                scene_dur = round(planned_dur, 2)
+        else:
+            scene_dur = round(planned_dur, 2)
+            actual_clip_dur = 0.0
+
+        # Pad clip with silence to exact scene duration
+        if clip_path.is_file() and text:
+            run([
+                'ffmpeg', '-y', '-v', 'error',
+                '-i', str(clip_path),
+                '-af', f'apad=whole_dur={scene_dur}',
+                '-t', str(scene_dur),
+                '-c:a', 'libmp3lame', '-b:a', '192k',
+                str(padded_path)
+            ], cancel=cancel)
+        else:
+            run([
+                'ffmpeg', '-y', '-v', 'error',
+                '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
+                '-t', str(scene_dur),
+                '-c:a', 'libmp3lame', '-b:a', '192k',
+                str(padded_path)
+            ], cancel=cancel)
+
+        padded_clips.append(padded_path)
+        sc['start_seconds'] = round(current_time, 2)
+        sc['duration_seconds'] = scene_dur
+        sc['duration'] = scene_dur
+
+        scene_offsets.append({
+            'scene_id': sc.get('id', idx),
+            'start_seconds': sc['start_seconds'],
+            'duration_seconds': scene_dur,
+            'clip_duration': actual_clip_dur,
+            'text': text
+        })
+        current_time += scene_dur
+
+    # Save scene offsets for report.json / inspection
+    (folder / 'scene_offsets.json').write_text(json.dumps(scene_offsets, indent=2), encoding='utf-8')
+
+    # Concatenate all padded clips into final_vo
+    if padded_clips:
+        concat_list = folder / 'vo_concat.txt'
+        lines = [f"file '{p.name}'" for p in padded_clips]
+        concat_list.write_text('\n'.join(lines), encoding='utf-8')
+
+        run([
+            'ffmpeg', '-y', '-v', 'error',
+            '-f', 'concat', '-safe', '0',
+            '-i', str(concat_list),
+            '-c:a', 'libmp3lame', '-b:a', '192k',
+            str(final_vo)
+        ], cancel=cancel)
+    else:
+        # Fallback tone
+        synthesize_voiceover("Welcome to Zeper AI", language=language, output_path=final_vo)
+
     return final_vo
 
 

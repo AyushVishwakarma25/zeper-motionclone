@@ -1,20 +1,20 @@
 steps:
   # 1. Build container image in Google Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'build'
-      - '-t'
-      - '$_LOCATION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/motionclone-studio:$COMMIT_SHA'
-      - '-t'
-      - '$_LOCATION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/motionclone-studio:latest'
-      - '.'
+  args:
+    - 'build'
+    - '-t'
+    - '$_LOCATION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/motionclone-studio:$COMMIT_SHA'
+    - '-t'
+    - '$_LOCATION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/motionclone-studio:latest'
+    - '.'
 
   # 2. Push container image
   - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'push'
-      - '--all-tags'
-      - '$_LOCATION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/motionclone-studio'
+  args:
+    - 'push'
+    - '--all-tags'
+    - '$_LOCATION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/motionclone-studio'
 
   # 3. Deploy to Google Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -36,11 +36,15 @@ steps:
       - '--timeout'
       - '900'
       - '--set-env-vars'
-      - 'GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$_LOCATION,VERTEXAI_LOCATION_TEXT=global,VERTEXAI_LOCATION_VIDEO=us-central1,FRAMEFORGE_HOSTED=1'
+      - 'GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$_LOCATION,VERTEXAI_LOCATION_TEXT=global,VERTEXAI_LOCATION_VIDEO=us-central1,GEMINI_LOCATION=global,FRAMEFORGE_HOSTED=1,FIREBASE_WEB_API_KEY=$_FIREBASE_WEB_API_KEY,FIREBASE_APP_ID=$_FIREBASE_APP_ID,FIREBASE_AUTH_DOMAIN=$_FIREBASE_AUTH_DOMAIN,ALLOWED_EMAILS=$_ALLOWED_EMAILS'
 
 substitutions:
   _LOCATION: 'us-central1'
   _REPO_NAME: 'motionclone'
+  _FIREBASE_WEB_API_KEY: 'AIzaSyDemoPlaceholderKey'
+  _FIREBASE_APP_ID: '1:123456789:web:abcdef'
+  _FIREBASE_AUTH_DOMAIN: 'zeperai.firebaseapp.com'
+  _ALLOWED_EMAILS: 'owner@zeper.ai,admin@zeper.ai'
 
 images:
   - '$_LOCATION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/motionclone-studio:$COMMIT_SHA'

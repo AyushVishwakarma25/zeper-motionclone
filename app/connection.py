@@ -43,7 +43,7 @@ class Connection:
             project = cfg.get('project', '')
             has_api_key = bool(cfg.get('api_key'))
             auth_type = 'vertexai' if cfg.get('vertexai') or project else ('api_key' if has_api_key else 'vertexai')
-            model = cfg.get('model', 'gemini-3.8-flash')
+            model = cfg.get('model', 'gemini-3.1-pro-preview')
             
             identity = f"GCP: {project}" if project else ("Gemini API Key" if has_api_key else "Vertex AI (ADC)")
             

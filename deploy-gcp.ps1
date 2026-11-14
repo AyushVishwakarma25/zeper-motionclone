@@ -1,16 +1,36 @@
+param (
+    [switch]$DryRun
+)
+
 # Deploy MotionClone to Google Cloud Run with Vertex AI integration
 $ErrorActionPreference = 'Stop'
 
 $projectId = (& gcloud config get-value project 2>$null)
 if (-not $projectId) {
-    Write-Error "No GCP Project selected. Run 'gcloud config set project <PROJECT_ID>'"
-    exit 1
+    $projectId = "zeperai"
 }
 
 $region = if ($env:GOOGLE_CLOUD_LOCATION) { $env:GOOGLE_CLOUD_LOCATION } else { "us-central1" }
 $serviceName = "motionclone-studio"
+$geminiLoc = if ($env:GEMINI_LOCATION) { $env:GEMINI_LOCATION } else { "global" }
+$firebaseApiKey = if ($env:FIREBASE_WEB_API_KEY) { $env:FIREBASE_WEB_API_KEY } else { "AIzaSyDemoPlaceholderKey" }
+$firebaseAppId = if ($env:FIREBASE_APP_ID) { $env:FIREBASE_APP_ID } else { "1:123456789:web:abcdef" }
+$firebaseAuthDomain = if ($env:FIREBASE_AUTH_DOMAIN) { $env:FIREBASE_AUTH_DOMAIN } else { "$projectId.firebaseapp.com" }
+$allowedEmails = if ($env:ALLOWED_EMAILS) { $env:ALLOWED_EMAILS } else { "owner@zeper.ai,admin@zeper.ai" }
+
+$envVars = "GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$projectId,GOOGLE_CLOUD_LOCATION=$region,VERTEXAI_LOCATION_TEXT=$geminiLoc,VERTEXAI_LOCATION_VIDEO=us-central1,GEMINI_LOCATION=$geminiLoc,FRAMEFORGE_HOSTED=1,FIREBASE_WEB_API_KEY=$firebaseApiKey,FIREBASE_APP_ID=$firebaseAppId,FIREBASE_AUTH_DOMAIN=$firebaseAuthDomain,ALLOWED_EMAILS=$allowedEmails"
 
 Write-Host "Deploying MotionClone to Google Cloud Run in project: $projectId, region: $region..." -ForegroundColor Cyan
+
+if ($DryRun) {
+    Write-Host "--- DRY RUN MODE ---" -ForegroundColor Yellow
+    Write-Host "1. Would enable APIs:"
+    Write-Host "   gcloud services enable aiplatform.googleapis.com run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com texttospeech.googleapis.com"
+    Write-Host "2. Would deploy Cloud Run service:"
+    Write-Host "   gcloud run deploy $serviceName --source . --region $region --platform managed --memory 4Gi --cpu 2 --timeout 900 --set-env-vars `"$envVars`""
+    Write-Host "--- Dry run complete. No commands executed. ---" -ForegroundColor Green
+    exit 0
+}
 
 # 1. Enable required APIs
 Write-Host "Enabling Google Cloud APIs..." -ForegroundColor Yellow
@@ -25,6 +45,6 @@ Write-Host "Building container and deploying to Cloud Run..." -ForegroundColor Y
     --memory 4Gi `
     --cpu 2 `
     --timeout 900 `
-    --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$projectId,GOOGLE_CLOUD_LOCATION=$region,VERTEXAI_LOCATION_TEXT=global,VERTEXAI_LOCATION_VIDEO=us-central1,FRAMEFORGE_HOSTED=1"
+    --set-env-vars "$envVars"
 
 Write-Host "MotionClone successfully deployed to Google Cloud Run!" -ForegroundColor Green

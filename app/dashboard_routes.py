@@ -133,6 +133,16 @@ class PasteAndRenderRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class GenerateProjectRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    brief: str | None = None
+    language: str | None = "en"
+    aspect: str | None = "9:16"
+    music_track: str | None = "tech_upbeat"
+    use_existing_scene_plan: bool = False
+    fps: int = 30
+
+
 def install(app, server):
     @app.exception_handler(DomainError)
     def domain_error_handler(request: Request, exc: DomainError):
@@ -543,6 +553,15 @@ def install(app, server):
                     jsx_code = ""
             except Exception:
                 pass
+        elif jsx_code:
+            # Validate sandboxed JSX imports: must be restricted to 'remotion' and 'react'
+            for line in jsx_code.splitlines():
+                line_str = line.strip()
+                if line_str.startswith('import ') and not (
+                    "'remotion'" in line_str or '"remotion"' in line_str or
+                    "'react'" in line_str or '"react"' in line_str
+                ):
+                    raise HTTPException(400, "Sandboxed JSX compilation error: imports are restricted to 'remotion' and 'react'.")
 
         # 1. Save JSX code if provided (only when not JSON scene plan)
         if jsx_code:
@@ -574,6 +593,16 @@ def install(app, server):
             except Exception:
                 pass
 
+        # Normalise duration and duration_seconds across all scenes
+        for s in scenes:
+            if 'duration' in s and 'duration_seconds' not in s:
+                s['duration_seconds'] = float(s['duration'])
+            elif 'duration_seconds' in s and 'duration' not in s:
+                s['duration'] = float(s['duration_seconds'])
+            elif 'duration_seconds' not in s and 'duration' not in s:
+                s['duration_seconds'] = 3.0
+                s['duration'] = 3.0
+
         # Update dashboard_project.json
         dashboard_file = folder / 'dashboard_project.json'
         if dashboard_file.is_file():
@@ -590,12 +619,12 @@ def install(app, server):
         plan_file = folder / 'plan.json'
         if scenes:
             # When scenes exist, scene_plan is the single source of truth.
-            # Do NOT create plain text tracks from voiceover lines that duplicate headlines.
             total_dur = round(sum(float(s.get('duration_seconds', 3.0)) for s in scenes), 2)
             plan = Plan(
                 title=f"Explainer ({req.job_id})",
                 summary="Scene plan driven render",
                 tracks=[],
+                scenes=scenes,
                 background="#0a0a0f"
             )
             plan_file.write_text(plan.model_dump_json(indent=2), encoding='utf-8')
@@ -842,7 +871,14 @@ def install(app, server):
         }
 
     @app.post('/api/dashboard/project/{id}/generate')
-    def api_generate_project_video(id: str, background_tasks: BackgroundTasks):
+    def api_generate_project_video(
+        id: str,
+        background_tasks: BackgroundTasks,
+        request: Request,
+        req: GenerateProjectRequest | None = None
+    ):
+        if req is None:
+            req = GenerateProjectRequest()
         job = server.get_job(id)
         folder = server.DATA / id
         dashboard_file = folder / 'dashboard_project.json'
@@ -853,10 +889,54 @@ def install(app, server):
             except Exception:
                 pass
 
-        user_brief = project_state.get('name') or job.get('name') or "AI Explainer Video"
-        aspect = project_state.get('aspect') or '9:16'
-        language = project_state.get('language') or 'en'
-        music_track = project_state.get('music_track') or 'tech_upbeat'
+        user_brief = req.brief or project_state.get('name') or job.get('name') or "AI Explainer Video"
+        aspect = req.aspect or project_state.get('aspect') or '9:16'
+        language = req.language or project_state.get('language') or 'en'
+        music_track = req.music_track or project_state.get('music_track') or 'tech_upbeat'
+        fps = 60 if req.fps == 60 else 30
+
+        # User identification for credit gate
+        user = getattr(request.state, 'user', None) or {}
+        user_id = user.get('uid') or user.get('user_id') or user.get('email') or 'default_user'
+
+        # Preflight credit check
+        from . import credits, preflight
+        scenes = []
+        if req.use_existing_scene_plan:
+            if (folder / 'scene_plan.json').is_file():
+                try:
+                    sp_data = json.loads((folder / 'scene_plan.json').read_text(encoding='utf-8'))
+                    scenes = sp_data.get('scenes', [])
+                except Exception:
+                    pass
+            if not scenes and project_state.get('scene_plan', {}).get('scenes'):
+                scenes = project_state['scene_plan']['scenes']
+
+        cost = preflight.estimate_cost(scenes) if scenes else {'total_credits': 0, 'breakdown': []}
+        req_credits = cost.get('total_credits', 0)
+        user_balance = credits.get_balance(user_id)
+        if user_balance < req_credits:
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error": "Insufficient credits",
+                    "required_credits": req_credits,
+                    "available_credits": user_balance,
+                    "breakdown": cost.get('breakdown', [])
+                }
+            )
+
+        # Update dashboard_project.json
+        project_state.update({
+            'name': user_brief,
+            'aspect': aspect,
+            'language': language,
+            'music_track': music_track,
+            'fps': fps,
+            'stage': 'Generating video…',
+            'status': 'processing'
+        })
+        dashboard_file.write_text(json.dumps(project_state, indent=2), encoding='utf-8')
 
         from . import pipeline
 
@@ -868,6 +948,9 @@ def install(app, server):
                     aspect=aspect,
                     language=language,
                     music_track=music_track,
+                    use_existing_scene_plan=req.use_existing_scene_plan,
+                    fps=fps,
+                    user_id=user_id,
                     cancel=job.get('cancel')
                 )
             except Exception as e:
@@ -877,7 +960,7 @@ def install(app, server):
         return {
             "status": "started",
             "job_id": id,
-            "message": "Full generation pipeline started."
+            "message": f"Full generation pipeline started ({fps} FPS)."
         }
 
     @app.get('/api/dashboard/project/{id}/status')

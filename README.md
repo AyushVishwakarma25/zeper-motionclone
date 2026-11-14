@@ -98,18 +98,43 @@ Open **Settings → Connect Gemini**:
 
 MotionClone is containerized and ready for 1-command deployment to **Google Cloud Run**:
 
+### Dry run (validate commands & env vars without deploying)
+```bash
+./deploy-gcp.sh --dry-run
+```
+Or in PowerShell:
+```powershell
+.\deploy-gcp.ps1 -DryRun
+```
+
+### Deploy to Cloud Run
 ```powershell
 # Deploy from PowerShell
-.\deploy-gcp.ps1 -ProjectId "YOUR_GCP_PROJECT" -Region "us-central1"
+.\deploy-gcp.ps1
 ```
 
 Or using bash:
 ```bash
 chmod +x deploy-gcp.sh
-./deploy-gcp.sh YOUR_GCP_PROJECT us-central1
+./deploy-gcp.sh
 ```
 
-For complete technical specifications and migration details, see the [Gemini & Vertex AI PRD](docs/PRD-GEMINI-VERTEX-AI.md).
+### Required Hosted Environment Variables
+When running in hosted mode (`FRAMEFORGE_HOSTED=1`), MotionClone operates in fail-closed mode:
+- `ALLOWED_EMAILS`: Comma-separated list of approved Google accounts (e.g. `owner@zeper.ai,admin@zeper.ai`).
+- `FIREBASE_WEB_API_KEY`: Firebase web API key for client-side authentication.
+- `FIREBASE_APP_ID`: Firebase Web App ID.
+- `FIREBASE_AUTH_DOMAIN`: Firebase Auth domain (e.g. `zeperai.firebaseapp.com`).
+- `GEMINI_LOCATION`: Text/vision model endpoint location (`global`).
+- `GOOGLE_CLOUD_LOCATION`: Region for regional services (`us-central1`).
+
+At startup in hosted mode, MotionClone verifies all required security environment variables and will refuse to boot (`sys.exit(1)`) if `ALLOWED_EMAILS` or Firebase web configuration is missing.
+
+### Probe Models
+You can probe connected Vertex AI, Gemini models, and Cloud TTS voices at any time:
+```bash
+python scripts/probe_models.py
+```
 
 ## Build a sequence in the Editor
 

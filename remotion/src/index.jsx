@@ -40,11 +40,15 @@ function resolveDimensions(props) {
 
   const fps = props?.media?.fps || props?.fps || 30;
 
-  let durationSec = 30.0;
-  if (props?.scene_plan?.scenes && Array.isArray(props.scene_plan.scenes) && props.scene_plan.scenes.length > 0) {
-    durationSec = props.scene_plan.scenes.reduce((sum, s) => sum + (Number(s.duration_seconds) || 0), 0);
-  } else if (props?.scenes && Array.isArray(props.scenes) && props.scenes.length > 0) {
-    durationSec = props.scenes.reduce((sum, s) => sum + (Number(s.duration_seconds) || 0), 0);
+  const allScenes = (props?.scene_plan?.scenes && Array.isArray(props.scene_plan.scenes) && props.scene_plan.scenes.length > 0)
+    ? props.scene_plan.scenes
+    : (Array.isArray(props?.scenes) && props.scenes.length > 0 ? props.scenes : null);
+
+  let durationSec = 0;
+  if (allScenes && allScenes.length > 0) {
+    durationSec = allScenes.reduce((sum, s) => sum + (Number(s.duration_seconds) || Number(s.duration) || 0), 0);
+  } else if (props?.duration_seconds || props?.duration) {
+    durationSec = Number(props.duration_seconds || props.duration);
   } else if (props?.media?.duration) {
     durationSec = Number(props.media.duration);
   }

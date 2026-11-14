@@ -41,7 +41,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
-from . import ai, audio, dashboard_agent, media, preflight, remotion
+from . import ai, audio, credits, dashboard_agent, media, preflight, remotion
 from .dashboard_agent import BlueprintStructure, ExplainerScenePlan, SceneItem
 from .models import QAEvaluationCategory
 from .process import Cancelled, run
@@ -192,7 +192,9 @@ def step_plan(
 
 def step_router_and_credit_gate(
     scene_plan_dict: dict[str, Any],
-    scenes: list[dict[str, Any]]
+    scenes: list[dict[str, Any]],
+    user_id: str = "default_user",
+    job_id: str = ""
 ) -> dict[str, Any]:
     """Step 3: Route visual sources and enforce preflight credit gate."""
     # Strict owner constraint: Only compose, image, and capture are allowed.
@@ -202,10 +204,24 @@ def step_router_and_credit_gate(
             sc['source'] = 'compose'
 
     est = preflight.estimate_cost(scenes)
-    gate = preflight.enforce_credit_gate(scenes, user_credits=100.0)
+    req_credits = est.get('total_credits', 0)
+    user_balance = credits.get_balance(user_id)
+    if user_balance < req_credits:
+        raise ValueError(
+            f"Insufficient credits: {req_credits} required, but only {user_balance} available."
+        )
+    if req_credits > 0:
+        credits.check_and_deduct_credits(
+            user_id=user_id,
+            required_credits=req_credits,
+            description="Pipeline Video Generation",
+            job_id=job_id
+        )
+
     return {
         'estimate': est,
-        'credit_gate': gate
+        'user_balance': credits.get_balance(user_id),
+        'credits_charged': req_credits
     }
 
 
@@ -216,7 +232,7 @@ def step_assets(
     cancel: threading.Event | None = None,
     progress_cb: Callable[[str, int], None] | None = None
 ) -> Path:
-    """Step 4: Generate assets. Voice-over sets scene durations."""
+    """Step 4: Generate assets. Image generation + Voice-over sets scene durations."""
     if progress_cb:
         progress_cb("Synthesizing voice-over narration...", 40)
 
@@ -225,15 +241,23 @@ def step_assets(
         scenes=scenes,
         language=language,
         output_dir=project_dir,
-        cancel=cancel
+        cancel=cancel,
+        adjust_durations=True
     )
 
     if not vo_path.is_file() or vo_path.stat().st_size < 100:
         raise RuntimeError("Voiceover generation failed: output file is empty or missing.")
 
     # 2. Probe VO duration and adjust scene durations if needed
-    vo_probe = media.probe(vo_path)
-    vo_dur = vo_probe.get('duration', 0.0)
+    vo_dur = 0.0
+    try:
+        probe_res = json.loads(run([
+            'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+            '-of', 'json', str(vo_path)
+        ], cancel=cancel))
+        vo_dur = float(probe_res.get('format', {}).get('duration', 0.0))
+    except Exception:
+        pass
 
     # Ensure total duration matches
     total_planned = sum(float(sc.get('duration_seconds', 3.0)) for sc in scenes)
@@ -243,6 +267,30 @@ def step_assets(
         for sc in scenes:
             orig = float(sc.get('duration_seconds', 3.0))
             sc['duration_seconds'] = round(orig * ratio, 2)
+            sc['duration'] = sc['duration_seconds']
+
+    # 3. Generate image assets for scenes with source="image"
+    assets_dir = project_dir / "assets"
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    for sc in scenes:
+        src = sc.get('source') or sc.get('visual_source')
+        if src == 'image':
+            prompt = sc.get('prompt') or sc.get('visual_notes') or sc.get('headline') or 'modern digital illustration'
+            prompt_hash = hashlib.sha256(prompt.encode('utf-8')).hexdigest()[:16]
+            cached_image = assets_dir / f"image_{prompt_hash}.png"
+            if cached_image.is_file() and cached_image.stat().st_size > 100:
+                sc['assigned_asset'] = f"assets/{cached_image.name}"
+                sc['image'] = f"assets/{cached_image.name}"
+            else:
+                try:
+                    if ai.auth_status():
+                        img_bytes = ai.generate_image_composite(prompt)
+                        if img_bytes:
+                            cached_image.write_bytes(img_bytes)
+                            sc['assigned_asset'] = f"assets/{cached_image.name}"
+                            sc['image'] = f"assets/{cached_image.name}"
+                except Exception as e:
+                    logger.warning(f"Image generation failed for scene {sc.get('id')}: {e}")
 
     return vo_path
 
@@ -253,12 +301,13 @@ def step_assemble(
     vo_path: Path,
     music_track_id: str = "tech_upbeat",
     aspect: str = "9:16",
+    fps: int = 30,
     cancel: threading.Event | None = None,
     progress_cb: Callable[[str, int], None] | None = None
 ) -> Path:
     """Step 5: Render with Remotion, mix ducked audio with normalisation (-14.0 LUFS)."""
     if progress_cb:
-        progress_cb("Rendering Remotion visual sequences...", 60)
+        progress_cb(f"Rendering Remotion visual sequences ({fps} FPS)...", 60)
 
     # Audio mix
     audio.ensure_music_library()
@@ -290,7 +339,8 @@ def step_assemble(
         'aspect': aspect,
         'duration_seconds': total_duration,
         'scenes': scenes,
-        'music_track_id': music_track_id
+        'music_track_id': music_track_id,
+        'fps': fps
     }
     (project_dir / 'scene_plan.json').write_text(json.dumps(scene_plan_dict, indent=2), encoding='utf-8')
 
@@ -303,7 +353,8 @@ def step_assemble(
         progress=progress_cb or (lambda msg, pct: None),
         preview=False,
         format="mp4",
-        composition="Motion"
+        composition="Motion",
+        fps=fps
     )
     return output_mp4
 
@@ -366,10 +417,13 @@ def run_pipeline(
     aspect: str = "9:16",
     language: str = "en",
     music_track: str = "tech_upbeat",
+    use_existing_scene_plan: bool = False,
+    fps: int = 30,
+    user_id: str = "default_user",
     cancel: threading.Event | None = None,
     progress_cb: Callable[[str, int], None] | None = None
 ) -> dict[str, Any]:
-    """Runs the full 8-step pipeline loop with resumption, credit gate, QA and report."""
+    """Runs the full pipeline loop with resumption, credit gate, QA and report."""
     start_time = time.monotonic()
     project_dir.mkdir(parents=True, exist_ok=True)
     status_file = project_dir / "pipeline_status.json"
@@ -387,35 +441,53 @@ def run_pipeline(
             progress_cb(stage, pct)
 
     try:
-        # 1. Deconstruction
-        write_status("Deconstructing reference structure", 10)
-        source_video = project_dir / "source.mp4"
-        bp_dict = step_deconstruct(
-            project_dir=project_dir,
-            source_video=source_video if source_video.is_file() else None,
-            brief_notes=user_brief,
-            aspect=aspect,
-            cancel=cancel,
-            progress_cb=progress_cb
-        )
+        bp_dict = {}
+        scenes = []
+        if (project_dir / "blueprint.json").is_file():
+            try:
+                bp_dict = json.loads((project_dir / "blueprint.json").read_text(encoding="utf-8"))
+            except Exception:
+                pass
 
-        # 2. Plan
-        write_status("Generating scene plan", 25)
-        plan_dict = step_plan(
-            project_dir=project_dir,
-            blueprint_dict=bp_dict,
-            creative_brief=user_brief,
-            brand_name=brand_name,
-            language=language,
-            aspect=aspect,
-            cancel=cancel,
-            progress_cb=progress_cb
-        )
-        scenes = plan_dict.get('scenes', [])
+        if use_existing_scene_plan and (project_dir / "scene_plan.json").is_file():
+            try:
+                plan_dict = json.loads((project_dir / "scene_plan.json").read_text(encoding="utf-8"))
+                scenes = plan_dict.get('scenes', [])
+            except Exception:
+                plan_dict = {}
+        else:
+            plan_dict = {}
+
+        if not scenes:
+            # 1. Deconstruction
+            write_status("Deconstructing reference structure", 10)
+            source_video = project_dir / "source.mp4"
+            bp_dict = step_deconstruct(
+                project_dir=project_dir,
+                source_video=source_video if source_video.is_file() else None,
+                brief_notes=user_brief,
+                aspect=aspect,
+                cancel=cancel,
+                progress_cb=progress_cb
+            )
+
+            # 2. Plan
+            write_status("Generating scene plan", 25)
+            plan_dict = step_plan(
+                project_dir=project_dir,
+                blueprint_dict=bp_dict,
+                creative_brief=user_brief,
+                brand_name=brand_name,
+                language=language,
+                aspect=aspect,
+                cancel=cancel,
+                progress_cb=progress_cb
+            )
+            scenes = plan_dict.get('scenes', [])
 
         # 3. Source Router & Credit Gate
         write_status("Evaluating credit preflight gate", 35)
-        gate_info = step_router_and_credit_gate(plan_dict, scenes)
+        gate_info = step_router_and_credit_gate(plan_dict, scenes, user_id=user_id, job_id=project_dir.name)
 
         # 4. Generate Assets
         write_status("Synthesizing voice-over", 45)
@@ -428,13 +500,14 @@ def run_pipeline(
         )
 
         # 5. Assemble
-        write_status("Assembling and rendering 60 FPS MP4", 65)
+        write_status(f"Assembling and rendering {fps} FPS MP4", 65)
         output_mp4 = step_assemble(
             project_dir=project_dir,
             scenes=scenes,
             vo_path=vo_path,
             music_track_id=music_track,
             aspect=aspect,
+            fps=fps,
             cancel=cancel,
             progress_cb=progress_cb
         )
@@ -460,15 +533,24 @@ def run_pipeline(
             except Exception:
                 pass
 
+        offsets_file = project_dir / "scene_offsets.json"
+        scene_offsets = []
+        if offsets_file.is_file():
+            try:
+                scene_offsets = json.loads(offsets_file.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+
         elapsed = time.monotonic() - start_time
         report = {
             'status': 'ready' if verif.get('audio_valid', True) else 'needs_attention',
             'elapsed_seconds': round(elapsed, 2),
-            'credit_cost': gate_info['estimate']['estimated_cost_usd'],
+            'credit_cost': gate_info['estimate']['total_credits'],
             'output_mp4': str(output_mp4.name),
             'verification': verif,
             'qa_verdict': qa_report.verdict,
-            'qa_score': qa_report.overall_score
+            'qa_score': qa_report.overall_score,
+            'scene_offsets': scene_offsets
         }
         (project_dir / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
         write_status("Complete", 100, state="ready")

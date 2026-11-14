@@ -118,7 +118,7 @@ export function MotionComposition(props) {
           const startSec = (scene.start_seconds !== undefined && scene.start_seconds !== null)
             ? Number(scene.start_seconds)
             : accumulatedSec;
-          const durSec = Number(scene.duration_seconds) || 3;
+          const durSec = Number(scene.duration_seconds) || Number(scene.duration) || 3;
           accumulatedSec = startSec + durSec;
           const startFrame = Math.round(startSec * fps);
           const durationFrames = Math.max(1, Math.round(durSec * fps));
@@ -619,11 +619,14 @@ export function SceneSwitch({scene = {}, logo = null}) {
         />
       );
     case 'fact_card':
+      const statVal = subtitle || (headline.length <= 15 ? headline : '10x Faster');
+      const titleVal = subtitle ? headline : (scene.title && scene.title !== 'Fact' ? scene.title : headline);
+      const subVal = scene.voiceover || scene.voiceover_script_en || scene.voiceover_script || '';
       return (
         <FactCard
-          title={headline}
-          stat={subtitle || '10x Faster'}
-          subtitle={scene.voiceover_script_en || ''}
+          title={titleVal}
+          stat={statVal}
+          subtitle={subVal}
           accent={accent}
           bg={bg}
         />
