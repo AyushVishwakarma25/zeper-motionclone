@@ -67,8 +67,10 @@
 
   async function callApi(path, options = {}) {
     let token = await getValidToken();
+    const fbToken = localStorage.getItem('firebase_id_token') || sessionStorage.getItem('firebase_id_token');
     const reqHeaders = {
       'X-Frameforge-Token': token,
+      ...(fbToken ? { 'Authorization': `Bearer ${fbToken}` } : {}),
       ...(options.headers || {})
     };
     let res = await fetch(path, {

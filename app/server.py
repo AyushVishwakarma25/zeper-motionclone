@@ -15,6 +15,16 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+from .auth import HostedAuthMiddleware, is_hosted
+from .security import (
+    MAX_UPLOAD_MB,
+    MAX_UPLOAD_BYTES,
+    ALLOWED_AUDIO_EXTENSIONS,
+    ALLOWED_VIDEO_EXTENSIONS,
+    ALLOWED_IMAGE_EXTENSIONS,
+    ALLOWED_ASSET_EXTENSIONS,
+    validate_and_save_upload,
+)
 logger = logging.getLogger('motionclone')
 from PIL import Image, UnidentifiedImageError
 from .ai import analyze, auth_status
@@ -47,6 +57,7 @@ JOBS={}
 ACTIVE={'id':None}
 AUTH={'ok':False,'checked':0.0}
 app=FastAPI(title='MotionClone Studio',docs_url=None,redoc_url=None)
+app.add_middleware(HostedAuthMiddleware)
 CONNECTION=Connection()
 
 
@@ -122,16 +133,24 @@ async def local_boundary(request: Request, call_next):
             return JSONResponse({'detail':'Cross-origin requests are blocked.'},status_code=403)
         try:length=int(request.headers.get('content-length','0'))
         except ValueError:return JSONResponse({'detail':'Invalid request size.'},status_code=400)
-        if length>MAX_BYTES+12*1024*1024:
-            return JSONResponse({'detail':'Upload exceeds 250 MB.'},status_code=413)
+        if length > MAX_UPLOAD_BYTES + 1024*1024:
+            return JSONResponse({'detail': f'Upload exceeds {MAX_UPLOAD_MB} MB.'}, status_code=413)
         if HOSTED and request.url.path.startswith('/api/jobs') and request.url.path.rsplit('/',1)[-1] in ('jobs','retry','render'):
             try:connected=await asyncio.to_thread(auth_status)
             except Exception:connected=False
-            if not connected:return JSONResponse({'detail':'Connect your own ChatGPT account before rebuilding a video.'},status_code=401)
+            if not connected:return JSONResponse({'detail':'Connect your own Gemini account before rebuilding a video.'},status_code=401)
     response=await call_next(request)
     response.headers.update({'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY',
         'Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'"})
     return response
+
+
+@app.get('/login')
+def login_page():
+    login_file = ROOT / 'web/login.html'
+    if login_file.is_file():
+        return HTMLResponse(login_file.read_text(encoding='utf-8'))
+    return HTMLResponse("<h1>Login Page</h1>")
 
 
 @app.get('/')
@@ -206,6 +225,10 @@ def api_connection_state():
 
 @app.post('/api/account/connect')
 async def account_connect(request: Request):
+    if HOSTED:
+        # In hosted mode, never allow client request to overwrite server-side Gemini/Vertex config.
+        # Use server-side Cloud Run service account / ADC.
+        return CONNECTION.state(initialize=True)
     with LOCK:
         if ACTIVE['id']:raise HTTPException(409,'Wait for your video to finish before changing accounts.')
         try:
@@ -219,6 +242,9 @@ async def account_connect(request: Request):
 
 @app.post('/api/account/disconnect')
 def account_disconnect():
+    if HOSTED:
+        # In hosted mode, disconnecting server ADC is not permitted.
+        return {'status': 'connected', 'message': 'Hosted mode uses server service account credentials.'}
     with LOCK:
         if ACTIVE['id']:raise HTTPException(409,'Wait for your video to finish before disconnecting.')
         try:
@@ -336,9 +362,10 @@ async def create_job(video:UploadFile|None=File(None),logo:UploadFile|None=File(
         id=uuid.uuid4().hex[:12];ACTIVE['id']=id
     folder=DATA/id;folder.mkdir()
     try:
-        if video:await save_upload(video,folder/'input.bin',MAX_BYTES)
+        if video:
+            await validate_and_save_upload(video, folder/'input.bin', ALLOWED_VIDEO_EXTENSIONS, MAX_UPLOAD_MB)
         if logo:
-            await save_upload(logo,folder/'logo-upload.bin',10*1024*1024)
+            await validate_and_save_upload(logo, folder/'logo-upload.bin', ALLOWED_IMAGE_EXTENSIONS, min(10, MAX_UPLOAD_MB))
             try:
                 with Image.open(folder/'logo-upload.bin') as im:
                     if im.width*im.height>25_000_000:raise ValueError()

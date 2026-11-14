@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login · MotionClone Studio</title>
+  <link rel="stylesheet" href="/web/style.css">
+  <link rel="stylesheet" href="/web/dashboard.css">
+  <style>
+    body.login-body {
+      background: #09090b;
+      color: #f4f4f5;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    .login-card {
+      background: #121218;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 36px 32px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      text-align: center;
+    }
+    .login-brand {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+    .login-brand span {
+      color: #00f2fe;
+    }
+    .login-subtitle {
+      font-size: 13px;
+      color: #a1a1aa;
+      margin-bottom: 28px;
+    }
+    .form-group {
+      text-align: left;
+      margin-bottom: 16px;
+    }
+    .form-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #a1a1aa;
+      margin-bottom: 6px;
+      display: block;
+    }
+    .form-input {
+      width: 100%;
+      box-sizing: border-box;
+      background: #181822;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: #fff;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .form-input:focus {
+      border-color: #00f2fe;
+    }
+    .btn-login {
+      width: 100%;
+      background: #0066ff;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 13.5px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: background 0.15s;
+    }
+    .btn-login:hover {
+      background: #0052cc;
+    }
+    .login-footer {
+      font-size: 11px;
+      color: #71717a;
+      margin-top: 24px;
+    }
+  </style>
+</head>
+<body class="login-body">
+  <div class="login-card">
+    <div class="login-brand">Motion<span>Clone</span></div>
+    <div class="login-subtitle">Hosted AI Explainer Video Studio</div>
+
+    <form id="login-form">
+      <div class="form-group">
+        <label for="token-input" class="form-label">Firebase ID Token</label>
+        <input type="password" id="token-input" class="form-input" placeholder="Paste your Firebase Bearer ID token..." required>
+      </div>
+      <button type="submit" class="btn-login" id="btn-submit">Sign In to Dashboard</button>
+    </form>
+
+    <div class="login-footer">
+      Protected with Firebase Authentication & Vertex AI
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('login-form');
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const token = document.getElementById('token-input').value.trim();
+      if (!token) return;
+      localStorage.setItem('firebase_id_token', token);
+      sessionStorage.setItem('firebase_id_token', token);
+      window.location.href = '/dashboard';
+    });
+  </script>
+</body>
+</html>
+

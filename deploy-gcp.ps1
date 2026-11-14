@@ -22,7 +22,6 @@ Write-Host "Building container and deploying to Cloud Run..." -ForegroundColor Y
     --source . `
     --region $region `
     --platform managed `
-    --allow-unauthenticated `
     --memory 4Gi `
     --cpu 2 `
     --timeout 900 `

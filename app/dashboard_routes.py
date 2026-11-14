@@ -20,6 +20,13 @@ from .dashboard_agent import (
     generate_scene_plan,
     process_dashboard_chat_turn,
 )
+from .security import (
+    MAX_UPLOAD_MB,
+    ALLOWED_AUDIO_EXTENSIONS,
+    ALLOWED_VIDEO_EXTENSIONS,
+    ALLOWED_ASSET_EXTENSIONS,
+    validate_and_save_upload,
+)
 
 logger = logging.getLogger('motionclone.dashboard.routes')
 
@@ -468,7 +475,7 @@ def install(app, server):
 
         if video and video.filename:
             # Direct video file upload
-            await server.save_upload(video, folder / 'source.mp4', server.MAX_BYTES)
+            await validate_and_save_upload(video, folder / 'source.mp4', ALLOWED_VIDEO_EXTENSIONS)
             from .media import thumbnail, probe
             try:
                 meta = probe(folder / 'source.mp4')
@@ -552,7 +559,7 @@ def install(app, server):
         try:
             clean_ref_url = reference_url.strip()
             if reference_file and reference_file.filename:
-                await server.save_upload(reference_file, folder / 'source.mp4', server.MAX_BYTES)
+                await validate_and_save_upload(reference_file, folder / 'source.mp4', ALLOWED_VIDEO_EXTENSIONS)
                 from .media import thumbnail, probe
                 try:
                     meta = probe(folder / 'source.mp4')
@@ -624,12 +631,8 @@ def install(app, server):
         assets_dir.mkdir(parents=True, exist_ok=True)
 
         safe_name = "custom_music_" + re.sub(r'[^a-zA-Z0-9_\-\.]', '_', file.filename or 'track.mp3')
-        if not re.search(r'\.(mp3|wav|m4a|aac|ogg)$', safe_name, re.I):
-            safe_name += '.mp3'
-
         dest = assets_dir / safe_name
-        contents = await file.read()
-        dest.write_bytes(contents)
+        await validate_and_save_upload(file, dest, ALLOWED_AUDIO_EXTENSIONS)
 
         return {
             "ok": True,

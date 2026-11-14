@@ -29,7 +29,6 @@ steps:
       - '$_LOCATION'
       - '--platform'
       - 'managed'
-      - '--allow-unauthenticated'
       - '--memory'
       - '4Gi'
       - '--cpu'

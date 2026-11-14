@@ -21,6 +21,11 @@ from .hyperframes import run_cli, frame_info, probe
 from .models import Strict, MAX_DURATION
 from .process import Cancelled, run
 from .rebuild_author import STYLE_PROPERTIES, SceneProject, Layer, Pose
+from .security import (
+    MAX_UPLOAD_MB,
+    ALLOWED_ASSET_EXTENSIONS,
+    validate_and_save_upload,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -698,19 +703,17 @@ def install(app, server):
             safe_name += '.png'
 
         dest = assets_dir / safe_name
-        contents = await file.read()
-        if len(contents) > 250 * 1024 * 1024:
-            raise HTTPException(413, 'File must be under 250MB')
-        dest.write_bytes(contents)
+        await validate_and_save_upload(file, dest, ALLOWED_ASSET_EXTENSIONS, MAX_UPLOAD_MB)
 
         # Mirror to rebuild/assets
-        (rebuild_assets / safe_name).write_bytes(contents)
+        shutil.copy2(dest, rebuild_assets / safe_name)
+        contents_len = dest.stat().st_size
 
         # If a video is uploaded to assets, auto-wire it as the reference source.mp4
         is_video = bool(re.search(r'\.(mp4|mov|webm)$', safe_name, re.I)) or is_video_hint
-        if is_video and len(contents) > 10240:
+        if is_video and contents_len > 10240:
             dest_source = folder / 'source.mp4'
-            dest_source.write_bytes(contents)
+            shutil.copy2(dest, dest_source)
             from .media import thumbnail, probe
             try:
                 meta = probe(dest_source)
