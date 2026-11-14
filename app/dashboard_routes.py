@@ -9,19 +9,19 @@ import uuid
 from pathlib import Path
 from typing import Any, Literal
 from fastapi import File, Form, HTTPException, Request, UploadFile
-from pydantic import BaseModel, Field
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field
+from starlette.concurrency import run_in_threadpool
 
+from . import dashboard_agent
 from .dashboard_agent import (
     ASPECT_RATIOS,
     ROYALTY_FREE_MUSIC_TRACKS,
     BlueprintStructure,
     ExplainerScenePlan,
-    generate_blueprint_from_reference,
-    generate_scene_plan,
-    process_dashboard_chat_turn,
+    SceneItem,
 )
 from .security import (
-    MAX_UPLOAD_MB,
     ALLOWED_AUDIO_EXTENSIONS,
     ALLOWED_VIDEO_EXTENSIONS,
     ALLOWED_ASSET_EXTENSIONS,
@@ -31,6 +31,30 @@ from .security import (
 logger = logging.getLogger('motionclone.dashboard.routes')
 
 
+# --- Domain Errors (Phase 2 Specification) ---
+class DomainError(HTTPException):
+    def __init__(self, message: str, code: str = "DOMAIN_ERROR", status_code: int = 400, hint: str = ""):
+        detail: dict[str, Any] = {"error": message, "code": code}
+        if hint:
+            detail["hint"] = hint
+        super().__init__(status_code=status_code, detail=detail)
+
+
+class GeminiNotConfiguredError(DomainError):
+    def __init__(
+        self,
+        message: str = "Gemini not configured",
+        hint: str = "Set GEMINI_API_KEY or configure Vertex AI in Settings."
+    ):
+        super().__init__(message=message, code="GEMINI_NOT_CONFIGURED", status_code=400, hint=hint)
+
+
+class UpstreamAIError(DomainError):
+    def __init__(self, message: str):
+        super().__init__(message=message, code="UPSTREAM_AI_ERROR", status_code=502)
+
+
+# --- Request and Response Schemas ---
 class ChatRequest(BaseModel):
     message: str
     job_id: str = ""
@@ -40,13 +64,13 @@ class ChatRequest(BaseModel):
 
 
 class BlueprintGenerateRequest(BaseModel):
-    job_id: str = ""
+    job_id: str
     aspect: str = "9:16"
     notes: str = ""
 
 
 class ScenePlanGenerateRequest(BaseModel):
-    job_id: str = ""
+    job_id: str
     user_story: str = ""
     brand_name: str = ""
     brand_tagline: str = ""
@@ -56,6 +80,7 @@ class ScenePlanGenerateRequest(BaseModel):
 
 
 class PreflightEstimateRequest(BaseModel):
+    job_id: str = ""
     engine_type: str = "REMOTION_CODE_SCENE"
     resolution: str = "1080p"
     duration_sec: float = 5.0
@@ -66,26 +91,124 @@ class PreflightEstimateResponse(BaseModel):
     engine_type: str
     credits_required: int
     is_free: bool
+    total_credits: int
     description: str
+    breakdown: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class SceneUpdateRequest(BaseModel):
+    job_id: str
+    id: int | str | None = None
+    shot_index: int | None = None
+    scene_index: int | None = None
+    title: str | None = None
+    scene: dict[str, Any] | None = None
+    model_config = ConfigDict(extra="allow")
+
+
+class DashboardProjectSaveRequest(BaseModel):
+    job_id: str | None = None
+    name: str | None = None
+    aspect: str | None = "9:16"
+    language: str | None = "en"
+    stage: str | None = None
+    status: str | None = None
+    reference_url: str | None = None
+    has_reference: bool | None = None
+    blueprint: BlueprintStructure | None = None
+    scene_plan: ExplainerScenePlan | None = None
+    music_track: str | None = None
+    assets: list[Any] | None = None
+    preview_url: str | None = None
+    source_url: str | None = None
+    model_config = ConfigDict(extra="allow")
+
+
+class PasteAndRenderRequest(BaseModel):
+    job_id: str
+    jsx_code: str = ""
+    voiceover_script: str = ""
+    scene_plan_json: str = ""
+    aspect: str = "9:16"
+    model_config = ConfigDict(extra="allow")
 
 
 def install(app, server):
-    DATA: Path = server.DATA
+    @app.exception_handler(DomainError)
+    def domain_error_handler(request: Request, exc: DomainError):
+        return JSONResponse(status_code=exc.status_code, content=exc.detail)
+
+    @app.middleware("http")
+    async def dashboard_error_boundary(request: Request, call_next):
+        if not request.url.path.startswith("/api/dashboard"):
+            return await call_next(request)
+        try:
+            return await call_next(request)
+        except HTTPException:
+            raise
+        except DomainError as de:
+            return JSONResponse(status_code=de.status_code, content=de.detail)
+        except Exception as exc:
+            msg = str(exc)
+            logger.exception(f"Unhandled error on dashboard route {request.url.path}: {exc}")
+            if "not configured" in msg.lower() or ("gemini" in msg.lower() and "key" in msg.lower()):
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": "Gemini not configured",
+                        "code": "GEMINI_NOT_CONFIGURED",
+                        "hint": "Set GEMINI_API_KEY or configure Vertex AI in Settings."
+                    }
+                )
+            req_id = uuid.uuid4().hex[:8]
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": msg or "Internal server error",
+                    "code": "INTERNAL_SERVER_ERROR",
+                    "request_id": req_id
+                }
+            )
 
     @app.post('/api/dashboard/preflight-estimate')
     def api_preflight_estimate(req: PreflightEstimateRequest):
-        from .preflight import estimate_cost
-        cost = estimate_cost(
-            engine_type=req.engine_type,
-            resolution=req.resolution,
-            duration_sec=req.duration_sec,
-            quality_preset=req.quality_preset
-        )
+        # Pass real scene plan saved on the project if job_id is provided
+        if req.job_id:
+            server.get_job(req.job_id)
+            folder = server.DATA / req.job_id
+            plan_file = folder / 'scene_plan.json'
+            if plan_file.is_file():
+                try:
+                    plan_data = json.loads(plan_file.read_text(encoding='utf-8'))
+                    cost_info = dashboard_agent.estimate_cost(plan_data)
+                    credits = cost_info['total_credits']
+                    return {
+                        "job_id": req.job_id,
+                        "engine_type": req.engine_type,
+                        "credits_required": credits,
+                        "is_free": credits == 0,
+                        "total_credits": credits,
+                        "breakdown": cost_info.get('breakdown', []),
+                        "description": "Zero credit execution" if credits == 0 else f"{credits} credits required for high-fidelity generation"
+                    }
+                except Exception as e:
+                    logger.warning(f"Error estimating cost from project scene plan: {e}")
+
+        # Fallback to single shot / synthetic shot plan with requested parameters
+        cost_info = dashboard_agent.estimate_cost([{
+            'engine': req.engine_type,
+            'duration_seconds': req.duration_sec,
+            'resolution': req.resolution,
+            'quality_preset': req.quality_preset
+        }])
+        credits = cost_info['total_credits']
         return {
             "engine_type": req.engine_type,
-            "credits_required": cost,
-            "is_free": cost == 0,
-            "description": "Zero credit execution" if cost == 0 else f"{cost} credits required for high-fidelity generation"
+            "credits_required": credits,
+            "is_free": credits == 0,
+            "total_credits": credits,
+            "breakdown": cost_info.get('breakdown', []),
+            "description": "Zero credit execution" if credits == 0 else f"{credits} credits required for high-fidelity generation"
         }
 
     @app.get('/api/dashboard/music-library')
@@ -97,8 +220,9 @@ def install(app, server):
 
     @app.get('/api/dashboard/project/{id}')
     def get_dashboard_project(id: str):
+        # Pure read-only, side-effect free: NO file copying, probing, or thumbnail generation on read.
         job = server.get_job(id)
-        folder = DATA / id
+        folder = server.DATA / id
         dashboard_file = folder / 'dashboard_project.json'
         
         default_state = {
@@ -109,13 +233,13 @@ def install(app, server):
             "stage": job.get("stage", "Reference imported"),
             "status": job.get("status", "draft"),
             "reference_url": job.get("url", ""),
-            "has_reference": (folder / "source.mp4").is_file(),
+            "has_reference": False,
             "blueprint": None,
             "scene_plan": None,
             "music_track": "tech_upbeat",
             "assets": [],
-            "preview_url": f"/media/{id}/output.mp4" if (folder / "output.mp4").is_file() else None,
-            "source_url": f"/media/{id}/source.mp4" if (folder / "source.mp4").is_file() else None,
+            "preview_url": None,
+            "source_url": None,
         }
 
         if dashboard_file.is_file():
@@ -125,21 +249,21 @@ def install(app, server):
             except Exception:
                 pass
 
-        # Check for blueprint.json
+        # Blueprint on disk
         if (folder / 'blueprint.json').is_file() and not default_state.get('blueprint'):
             try:
                 default_state['blueprint'] = json.loads((folder / 'blueprint.json').read_text(encoding='utf-8'))
             except Exception:
                 pass
 
-        # Check for scene_plan.json
+        # Scene plan on disk
         if (folder / 'scene_plan.json').is_file() and not default_state.get('scene_plan'):
             try:
                 default_state['scene_plan'] = json.loads((folder / 'scene_plan.json').read_text(encoding='utf-8'))
             except Exception:
                 pass
 
-        # List assets
+        # Assets drawer listing
         assets_dir = folder / 'assets'
         if assets_dir.is_dir():
             default_state['assets'] = [
@@ -151,22 +275,8 @@ def install(app, server):
                 for p in assets_dir.glob('*') if p.is_file() and not p.name.startswith('.')
             ]
 
-        # Filesystem truth overrides stale JSON state
+        # Read-only reference inspection (no copying)
         source_p = folder / "source.mp4"
-        if not source_p.is_file() and assets_dir.is_dir():
-            # Check if any video was uploaded to assets drawer (e.g. WhatsApp_Video)
-            for p in sorted(assets_dir.glob('*'), key=lambda x: x.stat().st_mtime, reverse=True):
-                if p.is_file() and (re.search(r'\.(mp4|mov|webm)$', p.name, re.I) or 'video' in p.name.lower()) and p.stat().st_size > 10240:
-                    try:
-                        shutil.copy2(p, source_p)
-                        from .media import thumbnail, probe
-                        meta = probe(source_p)
-                        (folder / 'media.json').write_text(json.dumps(meta, indent=2), encoding='utf-8')
-                        thumbnail(source_p, folder / 'thumbnail.jpg')
-                        break
-                    except Exception:
-                        pass
-
         if source_p.is_file() and source_p.stat().st_size > 10240:
             default_state["has_reference"] = True
             default_state["source_url"] = f"/media/{id}/source.mp4"
@@ -184,6 +294,10 @@ def install(app, server):
 
     @app.post('/api/dashboard/chat')
     def api_dashboard_chat(req: ChatRequest):
+        from .ai import auth_status
+        if not auth_status():
+            raise GeminiNotConfiguredError()
+
         project_state = {}
         if req.job_id:
             try:
@@ -191,20 +305,30 @@ def install(app, server):
             except Exception:
                 pass
 
-        response = process_dashboard_chat_turn(
-            message=req.message,
-            history=req.history,
-            project_state=project_state
-        )
-        return response
+        try:
+            response = dashboard_agent.process_dashboard_chat_turn(
+                message=req.message,
+                history=req.history,
+                project_state=project_state
+            )
+            return response
+        except ValueError as ve:
+            if "not configured" in str(ve).lower():
+                raise GeminiNotConfiguredError(str(ve))
+            raise UpstreamAIError(str(ve))
+        except Exception as e:
+            if "not configured" in str(e).lower():
+                raise GeminiNotConfiguredError(str(e))
+            raise UpstreamAIError(f"Chat processing failed: {e}")
 
     @app.post('/api/dashboard/blueprint')
     def api_generate_blueprint(req: BlueprintGenerateRequest):
-        if not req.job_id:
-            raise HTTPException(400, "Missing job_id")
-        
         server.get_job(req.job_id)
-        folder = DATA / req.job_id
+        folder = server.DATA / req.job_id
+
+        from .ai import auth_status
+        if not auth_status():
+            raise GeminiNotConfiguredError()
         
         ref_video_path = folder / 'source.mp4'
         meta = {}
@@ -222,12 +346,21 @@ def install(app, server):
         else:
             meta = {"duration": 30.0, "fps": 30, "aspect": req.aspect}
 
-        blueprint = generate_blueprint_from_reference(
-            reference_meta=meta,
-            aspect=req.aspect,
-            brief_notes=req.notes,
-            reference_video_path=ref_video_path if ref_video_path.is_file() else None
-        )
+        try:
+            blueprint = dashboard_agent.generate_blueprint_from_reference(
+                reference_meta=meta,
+                aspect=req.aspect,
+                brief_notes=req.notes,
+                reference_video_path=ref_video_path if ref_video_path.is_file() else None
+            )
+        except ValueError as ve:
+            if "not configured" in str(ve).lower():
+                raise GeminiNotConfiguredError(str(ve))
+            raise UpstreamAIError(str(ve))
+        except Exception as e:
+            if "not configured" in str(e).lower():
+                raise GeminiNotConfiguredError(str(e))
+            raise UpstreamAIError(f"Upstream blueprint generation failed: {e}")
 
         # Persist blueprint
         (folder / 'blueprint.json').write_text(blueprint.model_dump_json(indent=2), encoding='utf-8')
@@ -240,19 +373,23 @@ def install(app, server):
 
     @app.post('/api/dashboard/scene-plan')
     def api_generate_scene_plan(req: ScenePlanGenerateRequest):
-        if not req.job_id:
-            raise HTTPException(400, "Missing job_id")
-
         server.get_job(req.job_id)
-        folder = DATA / req.job_id
+        folder = server.DATA / req.job_id
+
+        from .ai import auth_status
+        if not auth_status():
+            raise GeminiNotConfiguredError()
 
         # Load blueprint
         blueprint_file = folder / 'blueprint.json'
         if not blueprint_file.is_file():
             raise HTTPException(400, "Please generate a blueprint from the reference first.")
 
-        blueprint_data = json.loads(blueprint_file.read_text(encoding='utf-8'))
-        blueprint = BlueprintStructure.model_validate(blueprint_data)
+        try:
+            blueprint_data = json.loads(blueprint_file.read_text(encoding='utf-8'))
+            blueprint = BlueprintStructure.model_validate(blueprint_data)
+        except Exception as e:
+            raise HTTPException(400, f"Corrupted blueprint file: {e}")
 
         # List user assets
         assets = []
@@ -260,22 +397,30 @@ def install(app, server):
         if assets_dir.is_dir():
             assets = [p.name for p in assets_dir.glob('*') if p.is_file() and not p.name.startswith('.')]
 
-        plan = generate_scene_plan(
-            blueprint=blueprint,
-            user_story=req.user_story,
-            brand_name=req.brand_name,
-            brand_tagline=req.brand_tagline,
-            language=req.language,
-            aspect=req.aspect,
-            uploaded_assets=assets
-        )
-        plan.music_track_id = req.music_track_id
+        try:
+            plan = dashboard_agent.generate_scene_plan(
+                blueprint=blueprint,
+                user_story=req.user_story,
+                brand_name=req.brand_name,
+                brand_tagline=req.brand_tagline,
+                language=req.language,
+                aspect=req.aspect,
+                uploaded_assets=assets
+            )
+            plan.music_track_id = req.music_track_id
+        except ValueError as ve:
+            if "not configured" in str(ve).lower():
+                raise GeminiNotConfiguredError(str(ve))
+            raise UpstreamAIError(str(ve))
+        except Exception as e:
+            if "not configured" in str(e).lower():
+                raise GeminiNotConfiguredError(str(e))
+            raise UpstreamAIError(f"Upstream scene plan generation failed: {e}")
 
         # Persist scene plan & Remotion plan
         (folder / 'scene_plan.json').write_text(plan.model_dump_json(indent=2), encoding='utf-8')
         try:
-            from .dashboard_agent import export_scene_plan_to_remotion_plan
-            remotion_plan = export_scene_plan_to_remotion_plan(plan)
+            remotion_plan = dashboard_agent.export_scene_plan_to_remotion_plan(plan)
             (folder / 'plan.json').write_text(remotion_plan.model_dump_json(indent=2), encoding='utf-8')
         except Exception as e:
             logger.warning(f"Could not convert scene plan to plan.json: {e}")
@@ -287,61 +432,80 @@ def install(app, server):
         }
 
     @app.post('/api/dashboard/scenes/update')
-    def api_update_scene(req: dict[str, Any]):
-        job_id = req.get('job_id')
-        scene_index = req.get('scene_index', 0)
-        scene_data = req.get('scene', {})
-        if not job_id:
-            raise HTTPException(400, "Missing job_id")
-        
-        server.get_job(job_id)
-        folder = DATA / job_id
+    def api_update_scene(req: SceneUpdateRequest):
+        server.get_job(req.job_id)
+        folder = server.DATA / req.job_id
         plan_file = folder / 'scene_plan.json'
         
         if not plan_file.is_file():
-            # Create minimal scene plan if none exists
-            from .dashboard_agent import ExplainerScenePlan, SceneItem
-            initial_scene = SceneItem(
-                scene_index=0,
-                template=scene_data.get('template', 'kinetic_text'),
-                start_seconds=0.0,
-                duration_seconds=float(scene_data.get('duration_seconds', 3.0)),
-                headline=scene_data.get('headline', 'Your Hook Headline'),
-                subtitle=scene_data.get('subtitle', ''),
-                voiceover_script_en=scene_data.get('voiceover_script_en', ''),
-                voiceover_script_hi=scene_data.get('voiceover_script_hi', ''),
-                assigned_asset=scene_data.get('assigned_asset', ''),
-                transition=scene_data.get('transition', 'cut')
+            raise HTTPException(
+                status_code=404,
+                detail=f"Scene plan not found for project '{req.job_id}'. Please generate a scene plan first."
             )
-            plan = ExplainerScenePlan(
-                title="Explainer Video",
-                duration_seconds=initial_scene.duration_seconds,
-                scenes=[initial_scene]
-            )
-        else:
-            from .dashboard_agent import ExplainerScenePlan
+
+        try:
             plan = ExplainerScenePlan.model_validate_json(plan_file.read_text(encoding='utf-8'))
-            if 0 <= scene_index < len(plan.scenes):
-                target = plan.scenes[scene_index]
-                for k, v in scene_data.items():
-                    if hasattr(target, k):
-                        setattr(target, k, v)
-            elif len(plan.scenes) == 0:
-                from .dashboard_agent import SceneItem
-                new_scene = SceneItem(
-                    scene_index=0,
-                    template=scene_data.get('template', 'kinetic_text'),
-                    start_seconds=0.0,
-                    duration_seconds=float(scene_data.get('duration_seconds', 3.0)),
-                    headline=scene_data.get('headline', 'Your Hook Headline'),
-                    subtitle=scene_data.get('subtitle', ''),
-                    voiceover_script_en=scene_data.get('voiceover_script_en', ''),
-                    voiceover_script_hi=scene_data.get('voiceover_script_hi', ''),
-                    assigned_asset=scene_data.get('assigned_asset', ''),
-                    transition=scene_data.get('transition', 'cut')
-                )
-                plan.scenes.append(new_scene)
-        
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid scene plan file on project '{req.job_id}': {e}")
+
+        if not plan.scenes:
+            raise HTTPException(status_code=404, detail=f"No scenes found in project '{req.job_id}'.")
+
+        target_scene: SceneItem | None = None
+        target_idx: int | None = None
+
+        # 1. Primary lookup by scene id
+        if req.id is not None:
+            for idx, s in enumerate(plan.scenes):
+                if str(s.id) == str(req.id):
+                    target_scene = s
+                    target_idx = idx
+                    break
+
+        # 2. Fallback lookup by shot_index or scene_index
+        if target_scene is None:
+            cand = req.shot_index if req.shot_index is not None else req.scene_index
+            if cand is None and req.id is not None:
+                try:
+                    cand = int(req.id)
+                except (ValueError, TypeError):
+                    cand = None
+
+            if cand is not None:
+                if 0 <= cand < len(plan.scenes):
+                    target_scene = plan.scenes[cand]
+                    target_idx = cand
+                elif 1 <= cand <= len(plan.scenes):
+                    target_scene = plan.scenes[cand - 1]
+                    target_idx = cand - 1
+
+        # 3. Not found -> 404 with helpful error message
+        if target_scene is None:
+            available = [s.id for s in plan.scenes]
+            raise HTTPException(
+                status_code=404,
+                detail=f"Scene with id='{req.id}' (index={req.shot_index or req.scene_index}) not found in project '{req.job_id}'. Available scene IDs: {available}."
+            )
+
+        # Update scene title
+        scene_dict = req.scene or {}
+        new_title = req.title or scene_dict.get('title') or scene_dict.get('name')
+        if new_title:
+            target_scene.title = str(new_title)
+
+        # Update other fields
+        updatable_fields = [
+            'template', 'start_seconds', 'duration_seconds', 'headline',
+            'subtitle', 'voiceover_script_en', 'voiceover_script_hi',
+            'assigned_asset', 'transition', 'accent_color', 'background_color'
+        ]
+        for f in updatable_fields:
+            if f in scene_dict:
+                setattr(target_scene, f, scene_dict[f])
+            elif hasattr(req, f) and getattr(req, f) is not None:
+                setattr(target_scene, f, getattr(req, f))
+
+        # Persist scene plan
         plan_file.write_text(plan.model_dump_json(indent=2), encoding='utf-8')
         
         # Mirror to dashboard_project.json
@@ -354,20 +518,21 @@ def install(app, server):
             except Exception:
                 pass
                 
-        return {"ok": True, "scene_plan": plan.model_dump(), "message": "Scene updated and persisted!"}
+        return {
+            "ok": True,
+            "scene_plan": plan.model_dump(),
+            "updated_scene": target_scene.model_dump(),
+            "message": f"Scene '{target_scene.title}' (ID {target_scene.id}) updated successfully."
+        }
 
     @app.post('/api/dashboard/paste-and-render')
-    def api_paste_and_render(req: dict[str, Any]):
-        job_id = req.get('job_id')
-        if not job_id:
-            raise HTTPException(400, "Missing job_id")
-        
-        server.get_job(job_id)
-        folder = DATA / job_id
-        jsx_code = req.get('jsx_code', '').strip()
-        voiceover_script = req.get('voiceover_script', '').strip()
-        scene_plan_str = req.get('scene_plan_json', '').strip()
-        aspect = req.get('aspect', '9:16')
+    def api_paste_and_render(req: PasteAndRenderRequest):
+        server.get_job(req.job_id)
+        folder = server.DATA / req.job_id
+        jsx_code = req.jsx_code.strip()
+        voiceover_script = req.voiceover_script.strip()
+        scene_plan_str = req.scene_plan_json.strip()
+        aspect = req.aspect
 
         # 1. Save JSX code if provided
         if jsx_code:
@@ -380,7 +545,7 @@ def install(app, server):
         if voiceover_script:
             (folder / 'voiceover.txt').write_text(voiceover_script, encoding='utf-8')
 
-        # 3. Save or generate scene plan
+        # 3. Save scene plan if provided
         if scene_plan_str:
             try:
                 parsed_plan = json.loads(scene_plan_str)
@@ -399,7 +564,7 @@ def install(app, server):
             except Exception:
                 pass
 
-        # 4. Ensure plan.json exists for Remotion runner with dynamic tracks from voiceover or fallback
+        # 4. Ensure plan.json exists for Remotion runner with dynamic tracks
         plan_file = folder / 'plan.json'
         if not plan_file.is_file():
             from .models import Plan, Track, Keyframe
@@ -429,7 +594,7 @@ def install(app, server):
                     Track(id="main_title", kind="text", text="Autonomous AI Platform", start=0.0, end=5.0, color="#ffffff", keyframes=[Keyframe(t=0.0, opacity=1.0)])
                 ]
             fallback_plan = Plan(
-                title=f"Custom Explainer ({job_id})",
+                title=f"Custom Explainer ({req.job_id})",
                 summary="User custom JSX & voiceover merge",
                 tracks=tracks,
                 background="#0a0a0f"
@@ -439,7 +604,7 @@ def install(app, server):
         # Trigger Remotion render
         from .rebrand import trigger_remotion_render
         comp = 'DashboardShowcase' if aspect == '16:9' else 'Motion'
-        render_res = trigger_remotion_render(job_id, format='mp4', composition=comp)
+        render_res = trigger_remotion_render(req.job_id, format='mp4', composition=comp)
         return {
             "ok": True,
             "message": "Custom JSX & voiceover merged successfully! Remotion 60 FPS render started.",
@@ -447,16 +612,18 @@ def install(app, server):
         }
 
     @app.post('/api/dashboard/project/{id}/save')
-    def api_save_dashboard_project(id: str, payload: dict[str, Any]):
+    def api_save_dashboard_project(id: str, payload: DashboardProjectSaveRequest):
+        # Validates with Pydantic; invalid scene_plan or blueprint schemas return 422 with field-level errors
         server.get_job(id)
-        folder = DATA / id
+        folder = server.DATA / id
         dashboard_file = folder / 'dashboard_project.json'
-        dashboard_file.write_text(json.dumps(payload, indent=2), encoding='utf-8')
+        save_data = payload.model_dump(exclude_none=True)
+        dashboard_file.write_text(json.dumps(save_data, indent=2), encoding='utf-8')
         
-        if 'blueprint' in payload and payload['blueprint']:
-            (folder / 'blueprint.json').write_text(json.dumps(payload['blueprint'], indent=2), encoding='utf-8')
-        if 'scene_plan' in payload and payload['scene_plan']:
-            (folder / 'scene_plan.json').write_text(json.dumps(payload['scene_plan'], indent=2), encoding='utf-8')
+        if payload.blueprint:
+            (folder / 'blueprint.json').write_text(payload.blueprint.model_dump_json(indent=2), encoding='utf-8')
+        if payload.scene_plan:
+            (folder / 'scene_plan.json').write_text(payload.scene_plan.model_dump_json(indent=2), encoding='utf-8')
 
         return {"ok": True, "message": "Dashboard project saved to disk."}
 
@@ -467,7 +634,7 @@ def install(app, server):
         url: str = Form("")
     ):
         job = server.get_job(id)
-        folder = DATA / id
+        folder = server.DATA / id
         clean_url = url.strip()
 
         if not video and not clean_url:
@@ -478,10 +645,10 @@ def install(app, server):
             await validate_and_save_upload(video, folder / 'source.mp4', ALLOWED_VIDEO_EXTENSIONS)
             from .media import thumbnail, probe
             try:
-                meta = probe(folder / 'source.mp4')
+                meta = await run_in_threadpool(probe, folder / 'source.mp4')
                 (folder / 'media.json').write_text(json.dumps(meta, indent=2), encoding='utf-8')
                 job['media'] = meta
-                thumbnail(folder / 'source.mp4', folder / 'thumbnail.jpg')
+                await run_in_threadpool(thumbnail, folder / 'source.mp4', folder / 'thumbnail.jpg')
             except Exception as e:
                 logger.warning(f"Metadata probe failed on uploaded reference: {e}")
             job['has_reference'] = True
@@ -492,18 +659,17 @@ def install(app, server):
             cancel = threading.Event()
             input_bin = folder / 'input.bin'
             try:
-                download(clean_url, input_bin, cancel, lambda stage, pct: None)
+                await run_in_threadpool(download, clean_url, input_bin, cancel, lambda stage, pct: None)
                 if not input_bin.exists() or input_bin.stat().st_size < 10240:
                     raise ValueError("Downloaded file is empty or under 10KB. Link may be private or protected.")
-                meta, _ = prepare(input_bin, folder, cancel, lambda stage, pct: None, rebuild=True)
+                meta, _ = await run_in_threadpool(prepare, input_bin, folder, cancel, lambda stage, pct: None, True)
                 if not (folder / 'source.mp4').exists() or (folder / 'source.mp4').stat().st_size < 10240:
                     raise ValueError("Failed to extract valid MP4 from video link.")
                 job['media'] = meta
                 job['url'] = clean_url
-                thumbnail(folder / 'source.mp4', folder / 'thumbnail.jpg')
+                await run_in_threadpool(thumbnail, folder / 'source.mp4', folder / 'thumbnail.jpg')
             except Exception as e:
                 logger.error(f"URL download failed: {e}")
-                # Clean up failed download artifacts
                 input_bin.unlink(missing_ok=True)
                 raise HTTPException(400, f"Could not download video from link: {e}")
 
@@ -552,7 +718,7 @@ def install(app, server):
             new_id = uuid.uuid4().hex[:12]
             server.ACTIVE['id'] = new_id
 
-        folder = DATA / new_id
+        folder = server.DATA / new_id
         folder.mkdir(parents=True, exist_ok=True)
         (folder / 'assets').mkdir(exist_ok=True)
 
@@ -562,9 +728,9 @@ def install(app, server):
                 await validate_and_save_upload(reference_file, folder / 'source.mp4', ALLOWED_VIDEO_EXTENSIONS)
                 from .media import thumbnail, probe
                 try:
-                    meta = probe(folder / 'source.mp4')
+                    meta = await run_in_threadpool(probe, folder / 'source.mp4')
                     (folder / 'media.json').write_text(json.dumps(meta, indent=2), encoding='utf-8')
-                    thumbnail(folder / 'source.mp4', folder / 'thumbnail.jpg')
+                    await run_in_threadpool(thumbnail, folder / 'source.mp4', folder / 'thumbnail.jpg')
                 except Exception:
                     pass
             elif clean_ref_url:
@@ -572,20 +738,20 @@ def install(app, server):
                 cancel = threading.Event()
                 input_bin = folder / 'input.bin'
                 try:
-                    download(clean_ref_url, input_bin, cancel, lambda stage, pct: None)
+                    await run_in_threadpool(download, clean_ref_url, input_bin, cancel, lambda stage, pct: None)
                     if not input_bin.exists() or input_bin.stat().st_size < 10240:
                         raise ValueError("Downloaded file is empty or under 10KB. Link may be private or protected.")
-                    meta, _ = prepare(input_bin, folder, cancel, lambda stage, pct: None, rebuild=True)
+                    meta, _ = await run_in_threadpool(prepare, input_bin, folder, cancel, lambda stage, pct: None, True)
                     if not (folder / 'source.mp4').exists() or (folder / 'source.mp4').stat().st_size < 10240:
                         raise ValueError("Failed to extract valid MP4 from video link.")
-                    thumbnail(folder / 'source.mp4', folder / 'thumbnail.jpg')
+                    await run_in_threadpool(thumbnail, folder / 'source.mp4', folder / 'thumbnail.jpg')
                 except Exception as e:
                     logger.warning(f"Initial URL download error: {e}")
                     input_bin.unlink(missing_ok=True)
                     shutil.rmtree(folder, ignore_errors=True)
                     with server.LOCK:
                         server.ACTIVE['id'] = None
-                    raise HTTPException(400, f"Could not download video from link. Platforms like Instagram often require login. Please upload your video file directly using the 'Upload MP4' button: {e}")
+                    raise HTTPException(400, f"Could not download video from link: {e}")
             
             job = {
                 'id': new_id,
@@ -611,7 +777,7 @@ def install(app, server):
                 "language": language,
                 "stage": "Reference loaded",
                 "status": "draft",
-                "reference_url": reference_url.strip(),
+                "reference_url": clean_ref_url,
                 "has_reference": (folder / "source.mp4").is_file(),
                 "music_track": "tech_upbeat",
                 "assets": []
@@ -626,7 +792,7 @@ def install(app, server):
     @app.post('/api/dashboard/upload-custom-music/{id}')
     async def api_upload_custom_music(id: str, file: UploadFile = File(...)):
         server.get_job(id)
-        folder = DATA / id
+        folder = server.DATA / id
         assets_dir = folder / 'assets'
         assets_dir.mkdir(parents=True, exist_ok=True)
 
@@ -640,4 +806,3 @@ def install(app, server):
             "url": f"/media/{id}/assets/{safe_name}",
             "name": f"User Upload: {Path(file.filename or 'audio').stem}"
         }
-

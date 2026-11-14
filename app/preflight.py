@@ -107,11 +107,15 @@ def estimate_cost(shot_plan: Any) -> dict[str, Any]:
     """
     shots_data = []
     if isinstance(shot_plan, dict):
-        shots_data = shot_plan.get('shots', [shot_plan])
+        shots_data = shot_plan.get('shots') or shot_plan.get('scenes') or [shot_plan]
     elif isinstance(shot_plan, list):
         shots_data = shot_plan
     elif hasattr(shot_plan, 'shots'):
         shots_data = [s.model_dump() if hasattr(s, 'model_dump') else s for s in shot_plan.shots]
+    elif hasattr(shot_plan, 'scenes'):
+        shots_data = [s.model_dump() if hasattr(s, 'model_dump') else s for s in shot_plan.scenes]
+    else:
+        shots_data = [shot_plan]
 
     total_credits = 0
     free_count = 0
@@ -119,11 +123,21 @@ def estimate_cost(shot_plan: Any) -> dict[str, Any]:
     breakdown = []
 
     for i, shot in enumerate(shots_data):
-        engine = shot.get('engine', 'REMOTION_CODE_SCENE') if isinstance(shot, dict) else getattr(shot, 'engine', 'REMOTION_CODE_SCENE')
+        if isinstance(shot, dict):
+            engine = shot.get('engine') or ('REMOTION_CODE_SCENE' if shot.get('template') else 'REMOTION_CODE_SCENE')
+            title = shot.get('title') or shot.get('headline') or f'Shot {i + 1}'
+            assigned_slot = shot.get('assigned_slot')
+            assigned_asset = shot.get('assigned_asset')
+        else:
+            engine = getattr(shot, 'engine', None) or ('REMOTION_CODE_SCENE' if hasattr(shot, 'template') else 'REMOTION_CODE_SCENE')
+            title = getattr(shot, 'title', None) or getattr(shot, 'headline', None) or f'Shot {i + 1}'
+            assigned_slot = getattr(shot, 'assigned_slot', None)
+            assigned_asset = getattr(shot, 'assigned_asset', None)
+
         rate = CREDIT_RATES.get(engine, 0)
         
         # If user provided a clean asset for hybrid scene, visual gen is not required
-        if engine == 'HYBRID_ANNOTATED_SCENE' and (shot.get('assigned_slot') not in ('', 'none') or shot.get('assigned_asset')):
+        if engine == 'HYBRID_ANNOTATED_SCENE' and (assigned_slot not in ('', 'none', None) or assigned_asset):
             rate = 0
 
         total_credits += rate
@@ -134,7 +148,7 @@ def estimate_cost(shot_plan: Any) -> dict[str, Any]:
 
         breakdown.append({
             'shot_index': i + 1,
-            'title': shot.get('title', f'Shot {i + 1}') if isinstance(shot, dict) else getattr(shot, 'title', f'Shot {i + 1}'),
+            'title': title,
             'engine': engine,
             'credits': rate,
             'is_free': (rate == 0)

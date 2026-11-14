@@ -13,12 +13,13 @@ import re
 import time
 from pathlib import Path
 from typing import Any, Literal
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from google.genai import types
 
 from .ai import auth_status, get_gemini_client
 from .models import Strict
+from .preflight import estimate_cost
 
 logger = logging.getLogger('motionclone.dashboard')
 
@@ -70,7 +71,8 @@ ASPECT_RATIOS = {
 }
 
 
-class BlueprintShot(Strict):
+class BlueprintShot(BaseModel):
+    model_config = ConfigDict(extra='ignore')
     t_start: float
     t_end: float
     shot_type: str = Field(description="e.g. b-roll, product close-up, screen demo, typography card, call to action")
@@ -80,7 +82,8 @@ class BlueprintShot(Strict):
     text_overlay_style: str = Field(default="bold headline", description="on-screen typography style")
 
 
-class BlueprintStructure(Strict):
+class BlueprintStructure(BaseModel):
+    model_config = ConfigDict(extra='ignore')
     hook_seconds: float = Field(default=3.0)
     body_seconds: float = Field(default=22.0)
     cta_seconds: float = Field(default=5.0)
@@ -102,9 +105,10 @@ class BlueprintStructure(Strict):
     music_mood: str = Field(default="Upbeat modern tech, ducked under voice-over")
 
 
-class SceneItem(Strict):
-    id: int
-    title: str
+class SceneItem(BaseModel):
+    model_config = ConfigDict(extra='ignore')
+    id: int | str = 0
+    title: str = "Scene"
     template: Literal[
         "kinetic_text",
         "dashboard_3d_float",
@@ -114,9 +118,9 @@ class SceneItem(Strict):
         "lower_third",
         "transparent_callout"
     ] = "kinetic_text"
-    start_seconds: float
-    duration_seconds: float
-    headline: str
+    start_seconds: float = 0.0
+    duration_seconds: float = 3.0
+    headline: str = "Headline"
     subtitle: str = ""
     voiceover_script_en: str = ""
     voiceover_script_hi: str = ""
@@ -126,7 +130,8 @@ class SceneItem(Strict):
     background_color: str = "#0e0e13"
 
 
-class ExplainerScenePlan(Strict):
+class ExplainerScenePlan(BaseModel):
+    model_config = ConfigDict(extra='ignore')
     title: str = "AI Explainer Video"
     aspect: Literal["9:16", "16:9", "1:1"] = "9:16"
     language: Literal["en", "hi", "bilingual"] = "en"
