@@ -5,7 +5,7 @@ from pathlib import Path
 
 REMOTION_BIN = Path(__file__).resolve().parents[1] / 'remotion' / 'node_modules' / '@remotion' / 'compositor-win32-x64-msvc'
 if REMOTION_BIN.is_dir() and str(REMOTION_BIN) not in os.environ.get('PATH', ''):
-    os.environ['PATH'] = str(REMOTION_BIN) + os.pathsep + os.environ.get('PATH', '')
+    os.environ['PATH'] = os.environ.get('PATH', '') + os.pathsep + str(REMOTION_BIN)
 
 
 class Cancelled(Exception): pass

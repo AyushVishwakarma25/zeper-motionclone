@@ -66,6 +66,48 @@ def write_project(folder, plan, brief):
     if duration <= 0:
         duration = 30.0
 
+    # 2b. Voiceover and Audio Mix Generation if voiceover scripts or music are present
+    has_narration = any(
+        s.get('voiceover_script') or s.get('voiceover_script_en') or s.get('voiceover_script_hi')
+        for s in scenes
+    )
+    lang = dashboard_data.get('language') or scene_plan_data.get('language') or 'en'
+    from . import audio
+    audio.ensure_music_library()
+
+    if has_narration and not (folder / 'voiceover.mp3').is_file():
+        try:
+            audio.generate_scene_voiceovers(scenes, language=lang, output_dir=folder)
+        except Exception:
+            pass
+
+    # Background music resolution
+    music_id = dashboard_data.get('music_track') or 'tech_upbeat'
+    music_file = audio.STATIC_MUSIC_DIR / f'{music_id}.mp3'
+    if not music_file.is_file():
+        for p in (folder / 'assets').glob('*') if (folder / 'assets').is_dir() else []:
+            if p.suffix.lower() in ('.mp3', '.wav', '.m4a', '.aac'):
+                music_file = p
+                break
+
+    if (folder / 'voiceover.mp3').is_file() and not (folder / 'final_mix.mp3').is_file():
+        try:
+            cut_times = []
+            curr = 0.0
+            for s in scenes[:-1]:
+                curr += float(s.get('duration_seconds') or 3.0)
+                cut_times.append(curr)
+            audio.duck_and_mix_audio(
+                voiceover_path=folder / 'voiceover.mp3',
+                music_path=music_file if music_file.is_file() else audio.STATIC_MUSIC_DIR / 'tech_upbeat.mp3',
+                output_path=folder / 'final_mix.mp3',
+                sfx_transitions=cut_times,
+                target_lufs=-14.0,
+                duration=duration
+            )
+        except Exception:
+            pass
+
     # Audio check
     audio_file_name = None
     audio_candidates = [
@@ -243,6 +285,18 @@ def render(folder, plan, brief, cancel, progress, *, preview=False, format='mp4'
     pending.replace(output)
 
     if not preview and format == 'mp4':
+        # Mux high-fidelity ducked mix with -14 LUFS audio if produced
+        final_mix = folder / 'final_mix.mp3'
+        if final_mix.is_file() and final_mix.stat().st_size > 1024:
+            from . import audio
+            temp_mux = folder / 'muxed_output.mp4'
+            try:
+                audio.mux_final_video(output, final_mix, temp_mux)
+                if temp_mux.is_file() and temp_mux.stat().st_size > 1024:
+                    temp_mux.replace(output)
+            except Exception:
+                pass
+
         progress('Verifying frames and audio', 97)
         run(['ffmpeg', '-v', 'error', '-i', str(output), '-c', 'copy', '-f', 'null', '-'], timeout=120, cancel=cancel)
         actual = probe(output)
