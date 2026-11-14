@@ -78,8 +78,9 @@ def write_project(folder, plan, brief):
     if has_narration and not (folder / 'voiceover.mp3').is_file():
         try:
             audio.generate_scene_voiceovers(scenes, language=lang, output_dir=folder)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.error(f"Voiceover TTS synthesis failed: {exc}")
+            raise RuntimeError(f"Voiceover TTS synthesis failed: {exc}") from exc
 
     # Background music resolution
     music_id = dashboard_data.get('music_track') or 'tech_upbeat'
@@ -305,9 +306,38 @@ def render(folder, plan, brief, cancel, progress, *, preview=False, format='mp4'
         count = int(run(['ffprobe', '-v', 'error', '-count_frames', '-select_streams', 'v:0', '-show_entries',
             'stream=nb_read_frames', '-of', 'default=nw=1:nk=1', str(output)]))
         expected = math.ceil(media['duration'] * media['fps'])
-        report = dict(decoded=True, expected_frames=expected, actual_frames=count, audio_present=actual['audio'],
-            dimensions=[actual['width'], actual['height']], fps=actual['fps'], duration=actual['duration'],
-            mode='rebuild', renderer='remotion')
-        (folder/'verification.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
+
+        # Robust Loudness and Audio Verification using measure_loudness
+        from . import audio
+        integrated_lufs = -70.0
+        if actual['audio']:
+            try:
+                loudness_info = audio.measure_loudness(output)
+                integrated_lufs = float(loudness_info.get('integrated_lufs', -70.0))
+            except Exception as e:
+                logger.warning(f"Loudness measurement error: {e}")
+
+        # Target: -14 LUFS, tolerance: 2 LU (-16.0 <= LUFS <= -12.0)
+        is_loudness_compliant = (-16.0 <= integrated_lufs <= -12.0)
+        is_silent = (integrated_lufs <= -60.0)
+        duration_matches_plan = abs(actual['duration'] - media['duration']) <= 0.3
+        audio_valid = actual['audio'] and not is_silent and is_loudness_compliant
+
+        report = dict(
+            decoded=True,
+            expected_frames=expected,
+            actual_frames=count,
+            audio_present=actual['audio'],
+            integrated_lufs=integrated_lufs,
+            loudness_compliant=is_loudness_compliant,
+            duration_matches_plan=duration_matches_plan,
+            audio_valid=audio_valid,
+            dimensions=[actual['width'], actual['height']],
+            fps=actual['fps'],
+            duration=actual['duration'],
+            mode='rebuild',
+            renderer='remotion'
+        )
+        (folder / 'verification.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
 
     return output

@@ -65,9 +65,24 @@
     return '';
   }
 
+  async function getFirebaseToken() {
+    if (window.firebase && firebase.auth && firebase.auth().currentUser) {
+      try {
+        const refreshed = await firebase.auth().currentUser.getIdToken(false);
+        if (refreshed) {
+          localStorage.setItem('firebase_id_token', refreshed);
+          return refreshed;
+        }
+      } catch (e) {
+        console.warn('Firebase token refresh error:', e);
+      }
+    }
+    return localStorage.getItem('firebase_id_token') || sessionStorage.getItem('firebase_id_token') || '';
+  }
+
   async function callApi(path, options = {}) {
     let token = await getValidToken();
-    const fbToken = localStorage.getItem('firebase_id_token') || sessionStorage.getItem('firebase_id_token');
+    const fbToken = await getFirebaseToken();
     const reqHeaders = {
       'X-Frameforge-Token': token,
       ...(fbToken ? { 'Authorization': `Bearer ${fbToken}` } : {}),
@@ -77,6 +92,14 @@
       ...options,
       headers: reqHeaders
     });
+    if (res.status === 401) {
+      if (window.IS_HOSTED || localStorage.getItem('frameforge_hosted') === '1') {
+        localStorage.removeItem('firebase_id_token');
+        sessionStorage.removeItem('firebase_id_token');
+        window.location.href = '/login';
+        return;
+      }
+    }
     if (res.status === 403) {
       try {
         const s = await fetch('/api/status').then(r => r.json());
@@ -109,14 +132,14 @@
       if (dot && txt) {
         if (s.status === 'connected' || s.ok) {
           dot.className = 'status-dot connected';
-          txt.textContent = 'Google Gemini 3.8 / 3.1 Ready';
+          txt.textContent = s.model ? `Gemini ${s.model} Ready` : 'Google Gemini Connected';
           badge.className = 'status-badge';
-          badge.title = 'Vertex AI Active: gemini-3.8-flash & gemini-3.1-pro-preview';
+          badge.title = `AI Engine: ${s.model || 'Gemini'} (${s.auth_type || 'Vertex AI'})`;
         } else {
           dot.className = 'status-dot';
           txt.textContent = 'Configure Gemini Key';
           badge.className = 'status-badge warning';
-          badge.title = 'Click to connect Google Gemini or Vertex AI';
+          badge.title = s.error || 'Click to connect Google Gemini or Vertex AI';
           badge.onclick = () => window.open('/?workspace=1&settings=1', '_blank');
         }
       }
@@ -127,9 +150,63 @@
         const txt = $('ai-status-text');
         if (dot && txt) {
           dot.className = s.gemini ? 'status-dot connected' : 'status-dot';
-          txt.textContent = s.gemini ? 'Google Gemini 3.8 / 3.1 Ready' : 'Gemini Key Needed';
+          txt.textContent = s.gemini ? 'Google Gemini Connected' : 'Gemini Key Needed';
         }
       } catch {}
+    }
+  }
+
+  // Initialize Firebase Auth and current user profile
+  async function initFirebaseAndUser() {
+    try {
+      const cfgRes = await fetch('/api/auth/config').then(r => r.json()).catch(() => null);
+      if (cfgRes && cfgRes.hosted) {
+        window.IS_HOSTED = true;
+        localStorage.setItem('frameforge_hosted', '1');
+      }
+      if (window.firebase && cfgRes && cfgRes.projectId) {
+        const config = {
+          apiKey: cfgRes.apiKey || 'AIzaSyFakeKeyForLocalDev123',
+          authDomain: cfgRes.authDomain || (cfgRes.projectId + '.firebaseapp.com'),
+          projectId: cfgRes.projectId,
+          appId: cfgRes.appId || '1:123456789:web:abcdef'
+        };
+        if (!firebase.apps.length) {
+          firebase.initializeApp(config);
+        }
+      }
+    } catch (e) {
+      console.warn('Auth init warning:', e);
+    }
+
+    try {
+      const me = await callApi('/api/me');
+      if (me && me.email) {
+        const userBadge = $('user-email-display');
+        if (userBadge) {
+          userBadge.textContent = me.email;
+          userBadge.style.display = 'inline-flex';
+        }
+        const signoutBtn = $('btn-signout');
+        if (signoutBtn) {
+          signoutBtn.style.display = 'inline-flex';
+          signoutBtn.onclick = async () => {
+            if (window.firebase && firebase.auth) {
+              await firebase.auth().signOut().catch(() => {});
+            }
+            localStorage.removeItem('firebase_id_token');
+            sessionStorage.removeItem('firebase_id_token');
+            window.location.href = '/login';
+          };
+        }
+        if (me.hosted) {
+          // Hide "Configure Gemini Key" button in hosted mode
+          const keyBtn = $('btn-configure-key');
+          if (keyBtn) keyBtn.style.display = 'none';
+        }
+      }
+    } catch (e) {
+      // If 401 in hosted mode, callApi redirects to /login
     }
   }
 
@@ -749,20 +826,25 @@
   async function handleRenderPreview() {
     if (!activeJobId) return;
 
-    showOverlay('Rendering 60 FPS Remotion Video…', 'Synthesizing motion graphics, captions, sound effects, and music');
+    showOverlay('Generating Explainer Video…', 'Synthesizing voiceover, mixing audio, and compiling 60 FPS Remotion scenes');
     updatePipelineStep(4);
-    showToast('🎬 Rendering 60 FPS video...', 'info');
+    showToast('🎬 Starting generation pipeline...', 'info');
 
     try {
-      const comp = activeAspect === '16:9' ? 'DashboardShowcase' : 'Motion';
-      await callApi(`/api/jobs/${activeJobId}/render-remotion?format=mp4&composition=${comp}`, {
+      await callApi(`/api/dashboard/project/${activeJobId}/generate`, {
         method: 'POST'
       });
 
       const poll = setInterval(async () => {
         try {
-          const j = await callApi(`/api/jobs/${activeJobId}`);
-          if (j.status === 'complete') {
+          const status = await callApi(`/api/dashboard/project/${activeJobId}/status`);
+          if (status.stage && status.state !== 'ready' && status.state !== 'failed') {
+            const overlayTitle = $('overlay-title');
+            const overlaySubtitle = $('overlay-subtitle');
+            if (overlayTitle) overlayTitle.textContent = status.stage + '…';
+            if (overlaySubtitle) overlaySubtitle.textContent = `Progress: ${status.progress || 0}%`;
+          }
+          if (status.state === 'ready') {
             clearInterval(poll);
             hideOverlay();
             updatePipelineStep(5);
@@ -773,12 +855,12 @@
             $('btn-view-rebuilt')?.click();
             showToast('🎉 Explainer Video Rendered Successfully!', 'success');
             renderVideoStage();
-            appendChatBubble('agent', '🎬 Your 60 FPS Explainer Video is ready! Watch the preview in the center stage or download below.');
-          } else if (j.status === 'error') {
+            appendChatBubble('agent', '🎬 Your 60 FPS Explainer Video is ready! All QA checks and audio loudness passed.');
+          } else if (status.state === 'failed') {
             clearInterval(poll);
             hideOverlay();
-            showToast('Render error: ' + (j.error || 'Check server logs'), 'error');
-            alert('Render failed: ' + (j.error || 'Check server logs'));
+            showToast('Generation error: ' + (status.error || 'Check server logs'), 'error');
+            alert('Generation failed: ' + (status.error || 'Check server logs'));
           }
         } catch {}
       }, 2500);
@@ -1428,6 +1510,7 @@ export const ExplainerScene = () => {
   // =========================================================================
   window.addEventListener('DOMContentLoaded', async () => {
     hideOverlay();
+    await initFirebaseAndUser();
     await checkEngineStatus();
     await loadMusicLibrary();
     await fetchJobs();

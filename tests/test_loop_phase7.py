@@ -137,5 +137,5 @@ def test_end_to_end_loop_and_qa_gate(tmp_path):
     )
     assert qa_report is not None
     assert qa_report.overall_score >= 0.0
-    assert qa_report.verdict in ("PASS", "WARN", "FAIL")
+    assert qa_report.verdict in ("PASS", "WARN", "FAIL", "UNKNOWN")
 

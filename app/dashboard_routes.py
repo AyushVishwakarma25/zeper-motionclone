@@ -8,7 +8,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any, Literal
-from fastapi import File, Form, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
@@ -534,7 +534,17 @@ def install(app, server):
         scene_plan_str = req.scene_plan_json.strip()
         aspect = req.aspect
 
-        # 1. Save JSX code if provided
+        # Detect if JSON scene plan was pasted into the code box
+        if jsx_code.startswith(('{', '[')) and not scene_plan_str:
+            try:
+                parsed = json.loads(jsx_code)
+                if isinstance(parsed, dict) and ('scenes' in parsed or 'shots' in parsed):
+                    scene_plan_str = jsx_code
+                    jsx_code = ""
+            except Exception:
+                pass
+
+        # 1. Save JSX code if provided (only when not JSON scene plan)
         if jsx_code:
             rebuild_dir = folder / 'rebuild'
             rebuild_dir.mkdir(parents=True, exist_ok=True)
@@ -545,13 +555,24 @@ def install(app, server):
         if voiceover_script:
             (folder / 'voiceover.txt').write_text(voiceover_script, encoding='utf-8')
 
-        # 3. Save scene plan if provided
+        # 3. Save scene plan if provided (Single source of truth)
+        scenes = []
         if scene_plan_str:
             try:
                 parsed_plan = json.loads(scene_plan_str)
+                scenes = parsed_plan.get('scenes', []) or parsed_plan.get('shots', [])
+                parsed_plan['aspect'] = aspect
                 (folder / 'scene_plan.json').write_text(json.dumps(parsed_plan, indent=2), encoding='utf-8')
             except Exception as e:
                 logger.warning(f"Failed to parse pasted scene plan JSON: {e}")
+
+        # Check existing scene_plan.json if not provided in request
+        if not scenes and (folder / 'scene_plan.json').is_file():
+            try:
+                existing_sp = json.loads((folder / 'scene_plan.json').read_text(encoding='utf-8'))
+                scenes = existing_sp.get('scenes', []) or existing_sp.get('shots', [])
+            except Exception:
+                pass
 
         # Update dashboard_project.json
         dashboard_file = folder / 'dashboard_project.json'
@@ -564,10 +585,22 @@ def install(app, server):
             except Exception:
                 pass
 
-        # 4. Ensure plan.json exists for Remotion runner with dynamic tracks
+        # 4. Single Source of Truth: ensure plan.json strictly aligns with scene_plan
+        from .models import Plan, Track, Keyframe
         plan_file = folder / 'plan.json'
-        if not plan_file.is_file():
-            from .models import Plan, Track, Keyframe
+        if scenes:
+            # When scenes exist, scene_plan is the single source of truth.
+            # Do NOT create plain text tracks from voiceover lines that duplicate headlines.
+            total_dur = round(sum(float(s.get('duration_seconds', 3.0)) for s in scenes), 2)
+            plan = Plan(
+                title=f"Explainer ({req.job_id})",
+                summary="Scene plan driven render",
+                tracks=[],
+                background="#0a0a0f"
+            )
+            plan_file.write_text(plan.model_dump_json(indent=2), encoding='utf-8')
+        elif not plan_file.is_file():
+            # Fallback only when there is NO scene plan
             tracks = []
             if voiceover_script:
                 lines = [l.strip() for l in voiceover_script.splitlines() if l.strip() and not l.strip().startswith(('#', '//'))]
@@ -601,13 +634,12 @@ def install(app, server):
             )
             plan_file.write_text(fallback_plan.model_dump_json(indent=2), encoding='utf-8')
 
-        # Trigger Remotion render
+        # Trigger Remotion render using the universal Motion multi-scene composition
         from .rebrand import trigger_remotion_render
-        comp = 'DashboardShowcase' if aspect == '16:9' else 'Motion'
-        render_res = trigger_remotion_render(req.job_id, format='mp4', composition=comp)
+        render_res = trigger_remotion_render(req.job_id, format='mp4', composition='Motion')
         return {
             "ok": True,
-            "message": "Custom JSX & voiceover merged successfully! Remotion 60 FPS render started.",
+            "message": "Scene plan merged successfully! Remotion render started.",
             "render": render_res
         }
 
@@ -706,12 +738,14 @@ def install(app, server):
 
     @app.post('/api/dashboard/create-project')
     async def api_create_dashboard_project(
-        name: str = Form("New Explainer Project"),
+        name: str = Form(""),
+        title: str = Form(""),
         aspect: str = Form("9:16"),
         language: str = Form("en"),
         reference_url: str = Form(""),
         reference_file: UploadFile | None = File(None)
     ):
+        project_name = (title or name or "New Explainer Project").strip()
         with server.LOCK:
             if server.ACTIVE['id']:
                 raise HTTPException(409, 'Another project is processing. Please wait.')
@@ -756,12 +790,12 @@ def install(app, server):
             job = {
                 'id': new_id,
                 'created': time.time(),
-                'name': name.strip() or 'Explainer Project',
+                'name': project_name,
                 'status': 'draft',
                 'stage': 'Reference loaded',
                 'progress': 100,
                 'cancel': threading.Event(),
-                'brief': {'brand': name, 'instructions': '', 'mode': 'rebuild', 'accent': '#00f2fe'},
+                'brief': {'brand': project_name, 'instructions': '', 'mode': 'rebuild', 'accent': '#00f2fe'},
                 'url': clean_ref_url,
                 'events': [],
                 'error': None
@@ -772,7 +806,7 @@ def install(app, server):
 
             dashboard_state = {
                 "job_id": new_id,
-                "name": name,
+                "name": project_name,
                 "aspect": aspect,
                 "language": language,
                 "stage": "Reference loaded",
@@ -806,3 +840,71 @@ def install(app, server):
             "url": f"/media/{id}/assets/{safe_name}",
             "name": f"User Upload: {Path(file.filename or 'audio').stem}"
         }
+
+    @app.post('/api/dashboard/project/{id}/generate')
+    def api_generate_project_video(id: str, background_tasks: BackgroundTasks):
+        job = server.get_job(id)
+        folder = server.DATA / id
+        dashboard_file = folder / 'dashboard_project.json'
+        project_state = {}
+        if dashboard_file.is_file():
+            try:
+                project_state = json.loads(dashboard_file.read_text(encoding='utf-8'))
+            except Exception:
+                pass
+
+        user_brief = project_state.get('name') or job.get('name') or "AI Explainer Video"
+        aspect = project_state.get('aspect') or '9:16'
+        language = project_state.get('language') or 'en'
+        music_track = project_state.get('music_track') or 'tech_upbeat'
+
+        from . import pipeline
+
+        def _run_pipeline_bg():
+            try:
+                pipeline.run_pipeline(
+                    project_dir=folder,
+                    user_brief=user_brief,
+                    aspect=aspect,
+                    language=language,
+                    music_track=music_track,
+                    cancel=job.get('cancel')
+                )
+            except Exception as e:
+                logger.error(f"Background pipeline failed for project {id}: {e}")
+
+        background_tasks.add_task(_run_pipeline_bg)
+        return {
+            "status": "started",
+            "job_id": id,
+            "message": "Full generation pipeline started."
+        }
+
+    @app.get('/api/dashboard/project/{id}/status')
+    def api_get_project_status(id: str):
+        server.get_job(id)
+        folder = server.DATA / id
+        status_file = folder / 'pipeline_status.json'
+        status_data = {
+            "stage": "idle",
+            "progress": 0,
+            "state": "idle",
+            "error": None
+        }
+        if status_file.is_file():
+            try:
+                status_data.update(json.loads(status_file.read_text(encoding='utf-8')))
+            except Exception:
+                pass
+
+        report_file = folder / 'report.json'
+        if report_file.is_file():
+            try:
+                status_data['report'] = json.loads(report_file.read_text(encoding='utf-8'))
+            except Exception:
+                pass
+
+        if (folder / 'output.mp4').is_file():
+            status_data['output_url'] = f"/media/{id}/output.mp4"
+
+        return status_data

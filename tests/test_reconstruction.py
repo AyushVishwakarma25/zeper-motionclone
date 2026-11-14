@@ -1,12 +1,29 @@
 import json
+import os
+import shutil
 import threading
 import zipfile
+from pathlib import Path
 import pytest
 import cv2
-from app import reconstruction as rebuild, rebuild_author as author, server
+from app import hyperframes as hf, reconstruction as rebuild, rebuild_author as author, server
 from app.models import Brief
 from app.media import prepare
 from app.process import run
+
+
+def has_chrome():
+    candidates = [
+        shutil.which('google-chrome'),
+        shutil.which('chrome'),
+        shutil.which('chromium'),
+        shutil.which('google-chrome-stable'),
+        os.environ.get('CHROME_PATH'),
+        os.environ.get('PUPPETEER_EXECUTABLE_PATH'),
+        r'C:\Program Files\Google\Chrome\Application\chrome.exe',
+        r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
+    ]
+    return any(c and Path(c).is_file() for c in candidates)
 
 
 def test_generated_styles_cannot_load_source_or_execute_code():
@@ -22,6 +39,8 @@ def test_source_replay_rejected(tmp_path):
 
 
 def test_real_independent_render_and_honest_comparison(tmp_path,monkeypatch):
+    if not hf.CLI.exists(): pytest.skip('HyperFrames CLI missing')
+    if not has_chrome(): pytest.skip('Chrome browser required for HyperFrames integration test.')
     source=tmp_path/'input.mp4'
     run(['ffmpeg','-y','-v','error','-f','lavfi','-i','color=c=red:s=160x90:r=30:d=0.4','-c:v','libx264','-pix_fmt','yuv420p',str(source)])
     stop=threading.Event();meta,_=prepare(source,tmp_path,stop,lambda *a:None,faithful=True)

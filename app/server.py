@@ -15,7 +15,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from .auth import HostedAuthMiddleware, is_hosted
+from .auth import HostedAuthMiddleware, is_hosted, get_current_user
 from .security import (
     MAX_UPLOAD_MB,
     MAX_UPLOAD_BYTES,
@@ -140,8 +140,23 @@ async def local_boundary(request: Request, call_next):
             except Exception:connected=False
             if not connected:return JSONResponse({'detail':'Connect your own Gemini account before rebuilding a video.'},status_code=401)
     response=await call_next(request)
-    response.headers.update({'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY',
-        'Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'"})
+    csp = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com data:; "
+        "img-src 'self' blob: data: https://*.googleusercontent.com https://www.gstatic.com; "
+        "media-src 'self' blob:; "
+        "connect-src 'self' https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://*.firebaseio.com; "
+        "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com; "
+        "frame-ancestors 'none'"
+    )
+    response.headers.update({
+        'X-Content-Type-Options':'nosniff',
+        'X-Frame-Options':'DENY',
+        'Referrer-Policy':'no-referrer',
+        'Content-Security-Policy': csp
+    })
     return response
 
 
@@ -213,14 +228,37 @@ def account_state():
     except ValueError as exc:raise HTTPException(503,str(exc)) from None
 
 
+@app.get('/api/auth/config')
+def api_auth_config():
+    from .auth import FIREBASE_PROJECT_ID
+    return {
+        'hosted': HOSTED,
+        'apiKey': os.environ.get('FIREBASE_WEB_API_KEY', os.environ.get('FIREBASE_API_KEY', '')),
+        'authDomain': os.environ.get('FIREBASE_AUTH_DOMAIN', f"{FIREBASE_PROJECT_ID}.firebaseapp.com"),
+        'projectId': FIREBASE_PROJECT_ID,
+        'appId': os.environ.get('FIREBASE_APP_ID', '')
+    }
+
+
+@app.get('/api/me')
+async def api_current_user(request: Request):
+    user = await get_current_user(request)
+    return {
+        'uid': user.get('uid', ''),
+        'email': user.get('email', ''),
+        'name': user.get('name', ''),
+        'hosted': HOSTED
+    }
+
+
 @app.get('/api/connection')
 def api_connection_state():
     try:
         result = CONNECTION.state(initialize=True)
         AUTH.update(ok=result.get('status') == 'connected', checked=time.monotonic())
         return result
-    except Exception:
-        return {'status': 'connected', 'ok': True, 'provider': 'gemini', 'model': 'gemini-3.8-flash'}
+    except Exception as exc:
+        return {'status': 'disconnected', 'ok': False, 'provider': 'gemini', 'error': str(exc)}
 
 
 @app.post('/api/account/connect')
@@ -599,6 +637,7 @@ from .recording_routes import install as install_recording_exports
 install_recording_exports(app, DATA, get_job, PORT)
 
 app.mount('/static',StaticFiles(directory=ROOT/'web'),name='static')
+app.mount('/web',StaticFiles(directory=ROOT/'web'),name='web')
 
 from .editor import install as install_editor
 import sys

@@ -4,15 +4,13 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 MAX_DURATION = 120
 
-# Active 2026 Vertex AI & Generative Model Tiers
+# Active 2026 Vertex AI Model Tiers (Visual sources: compose, image, capture)
 MODEL_TIERS = {
     'vision_deconstruct': 'gemini-3-flash-preview',
     'qa_gate': 'gemini-3-flash-preview',
     'code_synthesis': 'gemini-3.1-pro-preview',
     'image_composite_pro': 'gemini-3-pro-image',
     'image_composite_fast': 'gemini-3.1-flash-image',
-    'video_motion': 'veo-3.1-generate-001',
-    'video_motion_lite': 'veo-3.1-lite-generate-001',
 }
 
 
@@ -33,12 +31,11 @@ class CameraMotion(Strict):
     strength: float = Field(default=1.0, ge=0.0, le=10.0)
 
 
-# 4 Universal Execution Engines
+# Universal Execution Engines (Remotion code, hybrid asset annotation, capture/speaker crop)
 ShotEngineType = Literal[
     'REMOTION_CODE_SCENE',
     'HYBRID_ANNOTATED_SCENE',
-    'FFMPEG_SPEAKER_TRACKER',
-    'GENERATIVE_I2V_MOTION'
+    'FFMPEG_SPEAKER_TRACKER'
 ]
 
 
@@ -56,18 +53,18 @@ class UniversalContextSlots(Strict):
 
 # 10-Category QA Evaluation Gate Schema
 class QAEvaluationCategory(Strict):
-    pacing_score: float = Field(default=9.5, ge=0.0, le=10.0)
-    framing_score: float = Field(default=9.0, ge=0.0, le=10.0)
-    text_contrast_score: float = Field(default=9.8, ge=0.0, le=10.0)
-    cut_smoothness_score: float = Field(default=9.2, ge=0.0, le=10.0)
-    audio_ducking_score: float = Field(default=9.5, ge=0.0, le=10.0)
-    brand_consistency_score: float = Field(default=9.6, ge=0.0, le=10.0)
-    motion_blur_score: float = Field(default=9.0, ge=0.0, le=10.0)
-    temporal_coherence_score: float = Field(default=9.4, ge=0.0, le=10.0)
-    artifact_level_score: float = Field(default=9.7, ge=0.0, le=10.0)
-    cta_prominence_score: float = Field(default=9.5, ge=0.0, le=10.0)
-    overall_score: float = Field(default=9.4, ge=0.0, le=10.0)
-    verdict: Literal['PASS', 'WARN', 'FAIL'] = 'PASS'
+    pacing_score: float = Field(default=0.0, ge=0.0, le=10.0)
+    framing_score: float = Field(default=0.0, ge=0.0, le=10.0)
+    text_contrast_score: float = Field(default=0.0, ge=0.0, le=10.0)
+    cut_smoothness_score: float = Field(default=0.0, ge=0.0, le=10.0)
+    audio_ducking_score: float = Field(default=0.0, ge=0.0, le=10.0)
+    brand_consistency_score: float = Field(default=0.0, ge=0.0, le=10.0)
+    motion_blur_score: float = Field(default=0.0, ge=0.0, le=10.0)
+    temporal_coherence_score: float = Field(default=0.0, ge=0.0, le=10.0)
+    artifact_level_score: float = Field(default=0.0, ge=0.0, le=10.0)
+    cta_prominence_score: float = Field(default=0.0, ge=0.0, le=10.0)
+    overall_score: float = Field(default=0.0, ge=0.0, le=10.0)
+    verdict: Literal['PASS', 'WARN', 'FAIL', 'UNKNOWN'] = 'UNKNOWN'
     critique_notes: list[str] = Field(default_factory=list)
 
 

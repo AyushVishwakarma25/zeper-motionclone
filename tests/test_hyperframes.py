@@ -1,6 +1,8 @@
 import json
 import threading
 import time
+import shutil
+import os
 import zipfile
 from pathlib import Path
 
@@ -10,6 +12,20 @@ from app import hyperframes as hf, server
 from app.media import prepare
 from app.models import Brief
 from app.process import run
+
+
+def has_chrome():
+    candidates = [
+        shutil.which('google-chrome'),
+        shutil.which('chrome'),
+        shutil.which('chromium'),
+        shutil.which('google-chrome-stable'),
+        os.environ.get('CHROME_PATH'),
+        os.environ.get('PUPPETEER_EXECUTABLE_PATH'),
+        r'C:\Program Files\Google\Chrome\Application\chrome.exe',
+        r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
+    ]
+    return any(c and Path(c).is_file() for c in candidates)
 
 
 def fixture_video(folder, *, color=None):
@@ -23,6 +39,7 @@ def fixture_video(folder, *, color=None):
 def test_hyperframes_renders_every_frame_and_preserves_full_audio(tmp_path):
     """Real browser renderer, fractional fps, motion and audio longer than video."""
     if not hf.CLI.exists():pytest.skip('Install pinned HyperFrames dependencies for integration test.')
+    if not has_chrome():pytest.skip('Chrome browser required for HyperFrames integration test.')
     stop=threading.Event()
     prepare(fixture_video(tmp_path),tmp_path,stop,lambda *a:None,faithful=True)
     output=hf.render(tmp_path,Brief(mode="faithful"),stop,lambda *a:None)

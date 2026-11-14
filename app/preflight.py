@@ -17,17 +17,13 @@ DATA_DIR = Path(os.environ.get('FRAMEFORGE_DATA', str(ROOT / 'data'))).resolve()
 CACHE_DIR = DATA_DIR / 'preflight_cache'
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-# Credit pricing structure
+# Credit pricing structure (Visual sources: compose, image, capture)
 CREDIT_RATES = {
     'REMOTION_CODE_SCENE': 0,        # Zero credits (deterministic Remotion JSX/SVG)
     'FFMPEG_SPEAKER_TRACKER': 0,     # Zero credits (deterministic face tracking & crop)
     'HYBRID_ANNOTATED_SCENE': 5,     # 5 credits for pro visual synthesis & composite
     'gemini-3.1-flash-image': 1,     # 1 credit for fast preview image
     'gemini-3-pro-image': 5,         # 5 credits for 4K relighting/composite
-    'veo-3.1-lite': 15,              # 15 credits
-    'veo-3.1-generate-001': 30,      # 30 credits (full quality video generation)
-    'seedance-2.5': 25,              # 25 credits
-    'GENERATIVE_I2V_MOTION': 30,     # Standard generative I2V motion
 }
 
 VALID_ASPECTS = {'9:16', '16:9', '1:1', '4:5', '21:9'}
@@ -93,10 +89,10 @@ def validate_params(engine: str, params: dict[str, Any]) -> tuple[bool, str]:
         if m_id and m_id not in VALID_CAMERA_MOTIONS:
             return False, f"Invalid camera motion '{m_id}'. Must be one of {VALID_CAMERA_MOTIONS}."
 
-    if engine in ('GENERATIVE_I2V_MOTION', 'veo-3.1-generate-001', 'seedance-2.5'):
+    if engine == 'HYBRID_ANNOTATED_SCENE':
         prompt = params.get('prompt', '')
         if not prompt and not params.get('source_image'):
-            return False, "Generative video motion requires either a text prompt or input keyframe."
+            return False, "Hybrid annotated scene requires either a text prompt or input keyframe."
 
     return True, "Parameters valid."
 

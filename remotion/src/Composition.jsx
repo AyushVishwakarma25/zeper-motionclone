@@ -134,8 +134,8 @@ export function MotionComposition(props) {
         });
       })()}
 
-      {/* Render overlay tracks from plan (animated text, graphics, subtitles) */}
-      {plan?.tracks && plan.tracks.map((track, index) => (
+      {/* Render overlay tracks from plan ONLY when there are no structured scenes (prevents double-drawing) */}
+      {(!allScenes || allScenes.length === 0) && plan?.tracks && plan.tracks.map((track, index) => (
         <Layer key={`${index}-${track.id}`} track={track} time={frame / fps} logo={logo} />
       ))}
     </AbsoluteFill>
@@ -438,22 +438,55 @@ export function LowerThird({name = 'Alex Morgan', role = 'Founder & CEO · Linea
 }
 
 // 5. Kinetic Text (RANGY.AI Part 1 4c)
-export function KineticText({words = ['Design.', 'Build.', 'Ship.'], accent = '#00f2fe', bg = '#09090e'}) {
+export function KineticText({words = ['Design.', 'Build.', 'Ship.'], headline = '', accent = '#00f2fe', bg = '#09090e'}) {
   const frame = useCurrentFrame();
-  const {fps, height} = useVideoConfig();
+  const {fps, width, height} = useVideoConfig();
+
+  const wordList = Array.isArray(words) && words.length > 0
+    ? words
+    : (headline ? headline.split(' ').filter(Boolean) : ['Design.', 'Build.', 'Ship.']);
+
+  // Dynamic responsive font size: adapts to word count and viewport dimensions with safe margins
+  const minDim = Math.min(width, height);
+  const isVertical = height > width;
+  const scaleFactor = wordList.length > 8 ? 0.045 : (wordList.length > 4 ? 0.055 : 0.07);
+  const fontSize = Math.max(28, Math.min(Math.round(minDim * scaleFactor * (isVertical ? 1.3 : 1.0)), 110));
 
   return (
-    <AbsoluteFill style={{backgroundColor: bg, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Inter, sans-serif'}}>
-      <div style={{display:'flex', gap:'20px'}}>
-        {words.map((word, i) => {
-          const sp = spring({frame: frame - i * 12, fps, config: {damping: 10, mass: 0.7, stiffness: 140}});
+    <AbsoluteFill style={{
+      backgroundColor: bg,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontFamily: 'Inter, -apple-system, sans-serif',
+      padding: `${Math.round(height * 0.1)}px ${Math.round(width * 0.1)}px`,
+      boxSizing: 'border-box',
+      overflow: 'hidden'
+    }}>
+      <div style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: `${Math.round(fontSize * 0.3)}px`,
+        maxWidth: '85%',
+        textAlign: 'center',
+        lineHeight: 1.25,
+        wordBreak: 'break-word',
+        boxSizing: 'border-box'
+      }}>
+        {wordList.map((word, i) => {
+          const sp = spring({frame: frame - i * 8, fps, config: {damping: 12, mass: 0.6, stiffness: 150}});
+          const isAccent = (i === wordList.length - 1) || (wordList.length > 4 && i % 3 === 0);
           return (
             <span key={i} style={{
-              color: i === words.length - 1 ? accent : '#ffffff',
-              fontSize: `${Math.round(height * 0.07)}px`,
+              color: isAccent ? accent : '#ffffff',
+              fontSize: `${fontSize}px`,
               fontWeight: 900,
-              transform: `scale(${sp}) translateY(${interpolate(sp, [0, 1], [40, 0])}px)`,
-              opacity: sp
+              letterSpacing: '-0.5px',
+              transform: `scale(${sp}) translateY(${interpolate(sp, [0, 1], [30, 0])}px)`,
+              opacity: sp,
+              display: 'inline-block'
             }}>
               {word}
             </span>
@@ -620,10 +653,13 @@ export function SceneSwitch({scene = {}, logo = null}) {
           accent={accent}
         />
       );
+    case 'kinetic_text':
+    case 'kinetic-text':
     default:
       return (
         <KineticText
-          words={headline.split(' ').filter(Boolean)}
+          headline={headline}
+          words={headline ? headline.split(' ').filter(Boolean) : ['Design.', 'Build.', 'Ship.']}
           accent={accent}
           bg={bg}
         />

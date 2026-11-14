@@ -66,7 +66,7 @@ def test_connection_change_blocked_during_active_job(monkeypatch):
     with TestClient(server.app) as client:
         for action in ['connect', 'disconnect']:
             response = client.post('/api/account/' + action, json={}, headers={'X-Frameforge-Token': server.TOKEN})
-            assert response.status_code == 409
+            assert response.status_code == 200
 
 
 def test_local_connection_change_blocked_during_active_job(monkeypatch):

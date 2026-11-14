@@ -76,7 +76,7 @@ def get_gemini_client(tier: Optional[str] = None, location: Optional[str] = None
     cfg = get_gemini_config()
     model = get_model_for_tier(tier) if tier else (cfg.get('model') or MODEL_TIERS['vision_deconstruct'])
 
-    # Location separation: global for text & multimodal Gemini, us-central1 for Veo and Image generation
+    # Location separation: global for text & multimodal Gemini, us-central1 for Image generation
     if not location:
         if tier in ('video_motion', 'video_motion_lite', 'image_composite_pro', 'image_composite_fast'):
             location = cfg.get('location_video') or 'us-central1'
@@ -241,7 +241,7 @@ def analyze(folder, meta, brief, images, cancel, progress, *, previous=None, rev
 
 
 # ==============================================================================
-# Active 2026 Vertex AI Multi-Engine Generators (Remotion JSX, Gemini 3, Veo 3.1)
+# Active 2026 Vertex AI Multi-Engine Generators (Remotion JSX, Gemini 3 Image Synthesis)
 # ==============================================================================
 
 def synthesize_code(prompt: str, context: dict[str, Any]) -> str:
@@ -293,7 +293,11 @@ def evaluate_qa_gate(reference_stills: list[Path], rendered_stills: list[Path], 
             return QAEvaluationCategory.model_validate_json(res.text.strip())
     except Exception as e:
         logger.warning(f"QA Gate evaluation fallback due to: {e}")
-    return QAEvaluationCategory()
+        return QAEvaluationCategory(
+            verdict='UNKNOWN',
+            critique_notes=[f"QA Gate automated evaluation unavailable: {e}"]
+        )
+    return QAEvaluationCategory(verdict='UNKNOWN', critique_notes=["Empty QA response from model"])
 
 
 def generate_image_composite(prompt: str, reference_images: list[Path] = None, pro_mode: bool = False) -> bytes:
@@ -320,106 +324,8 @@ def generate_image_composite(prompt: str, reference_images: list[Path] = None, p
     return b''
 
 
-def dispatch_video_motion(
-    image_bytes: bytes,
-    prompt: str,
-    camera_motions: list[dict[str, Any]] = None,
-    duration_s: float = 4.0,
-    engine: str = 'veo-3.1-lite-generate-001'
-) -> dict[str, Any]:
-    """Adapter for veo-3.1-generate-001 and veo-3.1-lite-generate-001."""
-    target_engine = MODEL_TIERS.get(engine, engine)
-    logger.info(f"Dispatching video motion generation to {target_engine} for {duration_s}s...")
-
-    operation_id = f"gen_video_{int(time.time()*1000)}"
-    return {
-        "ok": True,
-        "operation_id": operation_id,
-        "engine": target_engine,
-        "duration_seconds": duration_s,
-        "camera_motions": camera_motions or [{'id': 'zoom_in', 'strength': 1.0}],
-        "status": "completed",
-        "mock_frame_generated": True
-    }
-
-
-def generate_veo_clip(
-    prompt: str,
-    duration_seconds: int = 4,
-    aspect: str = "9:16",
-    resolution: str = "720p",
-    image_path: Optional[Path] = None,
-    output_path: Optional[Path] = None
-) -> Path:
-    """Generates a high-fidelity video clip using Veo 3.1 Lite (veo-3.1-lite-generate-001) in us-central1.
-    
-    Supported:
-    - Durations: 4, 6, 8 seconds
-    - Aspect: 9:16 or 16:9
-    - Resolution: 720p or 1080p
-    - Native Audio & Image-to-Video
-    """
-    dest = Path(output_path).resolve() if output_path else (Path('data') / f"veo_{int(time.time())}.mp4").resolve()
-    dest.parent.mkdir(parents=True, exist_ok=True)
-
-    # Validate duration strictly in (4, 6, 8)
-    if duration_seconds <= 4:
-        valid_duration = 4
-    elif duration_seconds <= 6:
-        valid_duration = 6
-    else:
-        valid_duration = 8
-
-    valid_aspect = '16:9' if aspect == '16:9' else '9:16'
-    valid_resolution = '1080p' if resolution == '1080p' else '720p'
-
-    client, model, auth_type = get_gemini_client(tier='video_motion_lite', location='us-central1')
-
-    ref_images = None
-    if image_path and Path(image_path).is_file():
-        p = Path(image_path)
-        mime = 'image/png' if p.suffix.lower() == '.png' else 'image/jpeg'
-        ref_images = [types.Image(image_bytes=p.read_bytes(), mime_type=mime)]
-
-    config = types.GenerateVideosConfig(
-        duration_seconds=valid_duration,
-        aspect_ratio=valid_aspect,
-        resolution=valid_resolution,
-        generate_audio=True
-    )
-
-    try:
-        operation = client.models.generate_videos(
-            model=model,
-            prompt=prompt,
-            config=config
-        )
-        if hasattr(operation, 'result'):
-            result = operation.result()
-            if hasattr(result, 'generated_videos') and result.generated_videos:
-                video_bytes = result.generated_videos[0].video.video_bytes
-                dest.write_bytes(video_bytes)
-                return dest
-    except Exception as exc:
-        logger.warning(f"Veo 3.1 generation fallback ({exc}). Synthesizing video clip via ffmpeg.")
-        w, h = (1080, 1920) if valid_aspect == '9:16' else (1920, 1080)
-        from .process import run
-        run([
-            'ffmpeg', '-y', '-v', 'error',
-            '-f', 'lavfi', '-i', f'color=c=#0f172a:s={w}x{h}:r=30:d={valid_duration}',
-            '-f', 'lavfi', '-i', f'sine=frequency=440:duration={valid_duration}',
-            '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
-            '-c:a', 'aac', '-b:a', '192k',
-            '-movflags', '+faststart',
-            str(dest)
-        ])
-        return dest
-
-    return dest
-
-
 def stitch_video_clips(clip_paths: list[Path], output_path: Path) -> Path:
-    """Stitches multiple Veo / scene video clips into a single continuous video with ffmpeg concat."""
+    """Stitches multiple scene video clips into a single continuous video with ffmpeg concat."""
     out = Path(output_path).resolve()
     out.parent.mkdir(parents=True, exist_ok=True)
     if not clip_paths:

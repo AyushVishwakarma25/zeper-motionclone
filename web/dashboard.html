@@ -7,6 +7,8 @@
   <meta name="description" content="Reference-to-Video AI Explainer Studio powered by Google Gemini, Vertex AI, and Remotion.">
   <link rel="icon" href="/static/assets/motionclone-icon-color.svg">
   <link rel="stylesheet" href="/static/dashboard.css?v=3">
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="/static/ui.js?v=3" defer></script>
   <script src="/static/dashboard.js?v=3" defer></script>
 </head>
@@ -55,19 +57,27 @@
         <button type="button" class="lang-pill" data-lang="en_hi" title="Bilingual English + Hindi">EN + HI</button>
       </div>
 
+      <!-- Signed-in user email badge -->
+      <span class="user-email-badge" id="user-email-display" style="display:none;"></span>
+
       <!-- Live Gemini AI Connection Badge -->
       <div class="gemini-status-badge" id="ai-status-badge" title="AI Engine Status">
         <span class="status-dot connected" id="ai-status-dot"></span>
-        <span id="ai-status-text">Google Gemini 3.8 / 3.1 Ready</span>
+        <span id="ai-status-text">Google Gemini Ready</span>
       </div>
 
-      <!-- Settings Icon Link -->
-      <a class="btn-icon-settings" href="/?workspace=1&settings=1" target="_blank" title="Settings & API Keys">
+      <!-- Settings Icon Link (Hidden in hosted mode) -->
+      <a class="btn-icon-settings" id="btn-configure-key" href="/?workspace=1&settings=1" target="_blank" title="Settings & API Keys">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="3"/>
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
         </svg>
       </a>
+
+      <!-- Sign Out Button -->
+      <button type="button" class="btn-signout" id="btn-signout" title="Sign Out of Session" style="display:none;">
+        Sign Out
+      </button>
     </div>
   </header>
 

@@ -60,11 +60,18 @@ def verify_token(id_token: str) -> dict[str, Any]:
         logger.warning("Token verification failed: %s", exc)
         raise HTTPException(status_code=401, detail=f"Invalid or expired authentication token: {exc}") from exc
 
-    allowed = get_allowed_emails()
-    email = (decoded_token.get('email') or '').strip().lower()
-    if allowed and email not in allowed:
-        logger.warning("User email '%s' is not in ALLOWED_EMAILS", email)
-        raise HTTPException(status_code=403, detail=f"Access denied: email '{email}' is not in the allowed users list.")
+    if is_hosted():
+        allowed = get_allowed_emails()
+        email = (decoded_token.get('email') or '').strip().lower()
+        if not allowed:
+            logger.warning("Hosted mode requires ALLOWED_EMAILS to be set. Rejecting user '%s' (fail-closed).", email)
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: ALLOWED_EMAILS is not configured in hosted mode. Access is restricted (fail-closed)."
+            )
+        if email not in allowed:
+            logger.warning("User email '%s' is not in ALLOWED_EMAILS", email)
+            raise HTTPException(status_code=403, detail=f"Access denied: email '{email}' is not in the allowed users list.")
 
     return decoded_token
 
@@ -103,14 +110,19 @@ class HostedAuthMiddleware(BaseHTTPMiddleware):
         '/login.html',
     )
     
-    # Exact public endpoints (login, health, root page)
+    # Exact public endpoints (login, health, root page, dashboard HTML shell, auth config)
     PUBLIC_EXACT = {
         '/',
         '/index.html',
         '/login',
         '/login.html',
+        '/dashboard',
+        '/dashboard.html',
+        '/terms',
+        '/privacy',
         '/favicon.ico',
         '/favicon.svg',
+        '/api/auth/config',
     }
 
     async def dispatch(self, request: Request, call_next):
@@ -120,12 +132,12 @@ class HostedAuthMiddleware(BaseHTTPMiddleware):
             # Local dev mode: allow all requests without authentication
             return await call_next(request)
 
-        # Allow public static paths and login page
+        # Allow public static paths, HTML shells, and auth config endpoint
         if path in self.PUBLIC_EXACT or any(path.startswith(prefix) for prefix in self.PUBLIC_PREFIXES):
             return await call_next(request)
 
-        # Protect all /api/* and /dashboard routes
-        if path.startswith('/api/') or path == '/dashboard' or path.startswith('/dashboard/'):
+        # In hosted mode, protect all /api/* routes (page navigation routes are public shells)
+        if path.startswith('/api/'):
             auth_header = request.headers.get('Authorization', '')
             if not auth_header.startswith('Bearer '):
                 return JSONResponse(

@@ -39,9 +39,9 @@ def test_hosted_requires_bearer_token_on_protected_routes(monkeypatch):
         assert r_disconnect.status_code == 401
         assert "Authentication required" in r_disconnect.json()['detail']
 
-        # 4. /dashboard page
+        # 4. /dashboard page is a public HTML shell in Phase 8 (JS manages client auth)
         r_dash = client.get('/dashboard')
-        assert r_dash.status_code == 401
+        assert r_dash.status_code == 200
 
 
 def test_public_routes_remain_accessible_without_auth(monkeypatch):
