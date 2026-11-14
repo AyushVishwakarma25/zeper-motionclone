@@ -1,5 +1,5 @@
 import React, {useLayoutEffect, useRef, useState} from 'react';
-import {AbsoluteFill, Audio, Img, interpolate, Sequence, spring, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
+import {AbsoluteFill, Audio, Img, interpolate, OffthreadVideo, Sequence, spring, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 import {stateAt} from './motion.mjs';
 
 const families = {sans: 'Inter, Arial, sans-serif', serif: 'Georgia, serif', mono: 'Consolas, monospace'};
@@ -96,12 +96,48 @@ function Layer({track, time, logo}) {
 }
 
 // 1. Full Motion Reconstructed Composition
-export function MotionComposition({plan, audio, logo}) {
-  const frame = useCurrentFrame(), {fps} = useVideoConfig();
+export function MotionComposition(props) {
+  const {plan, audio, logo, scene_plan, scenes} = props;
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+
+  const allScenes = (scene_plan?.scenes && scene_plan.scenes.length > 0)
+    ? scene_plan.scenes
+    : (scenes && scenes.length > 0 ? scenes : null);
+
+  const bg = plan?.background || '#0a0a0f';
+
   return (
-    <AbsoluteFill style={{backgroundColor: plan.background, overflow: 'hidden'}}>
-      {audio ? <Audio src={staticFile(audio)}/> : null}
-      {plan.tracks.map((track, index) => <Layer key={`${index}-${track.id}`} track={track} time={frame/fps} logo={logo}/>)}
+    <AbsoluteFill style={{backgroundColor: bg, overflow: 'hidden'}}>
+      {audio ? <Audio src={audio.startsWith('http') ? audio : staticFile(audio)} /> : null}
+
+      {/* Render scene sequence when scenes exist */}
+      {(() => {
+        let accumulatedSec = 0;
+        return allScenes && allScenes.map((scene, idx) => {
+          const startSec = (scene.start_seconds !== undefined && scene.start_seconds !== null)
+            ? Number(scene.start_seconds)
+            : accumulatedSec;
+          const durSec = Number(scene.duration_seconds) || 3;
+          accumulatedSec = startSec + durSec;
+          const startFrame = Math.round(startSec * fps);
+          const durationFrames = Math.max(1, Math.round(durSec * fps));
+          return (
+            <Sequence
+              key={`scene-${idx}-${scene.id || idx}`}
+              from={startFrame}
+              durationInFrames={durationFrames}
+            >
+              <SceneSwitch scene={scene} logo={logo} />
+            </Sequence>
+          );
+        });
+      })()}
+
+      {/* Render overlay tracks from plan (animated text, graphics, subtitles) */}
+      {plan?.tracks && plan.tracks.map((track, index) => (
+        <Layer key={`${index}-${track.id}`} track={track} time={frame / fps} logo={logo} />
+      ))}
     </AbsoluteFill>
   );
 }
@@ -456,6 +492,145 @@ export function TransparentOverlay({badgeText = 'FEATURED PRODUCT', stat = '10x 
   );
 }
 
+// 6b. High-Impact Fact / Metric Card
+export function FactCard({
+  title = 'Autonomous Video Engine',
+  stat = '10x Faster',
+  subtitle = 'Engineered for High-Conversion Explainer Videos',
+  accent = '#00f2fe',
+  bg = '#09090e'
+}) {
+  const frame = useCurrentFrame();
+  const {fps, width, height} = useVideoConfig();
+
+  const enter = spring({frame, fps, config: {damping: 12, mass: 0.8}});
+  const scale = 0.9 + enter * 0.1;
+  const opacity = enter;
+
+  return (
+    <AbsoluteFill style={{backgroundColor: bg, justifyContent: 'center', alignItems: 'center', fontFamily: 'Inter, system-ui, sans-serif'}}>
+      <div style={{
+        position: 'absolute',
+        width: '600px',
+        height: '600px',
+        background: `radial-gradient(circle, ${accent}25 0%, transparent 70%)`,
+        filter: 'blur(80px)',
+        pointerEvents: 'none'
+      }} />
+      <div style={{
+        transform: `scale(${scale})`,
+        opacity,
+        background: 'rgba(20, 20, 30, 0.85)',
+        backdropFilter: 'blur(20px)',
+        border: `1px solid ${accent}40`,
+        borderRadius: '24px',
+        padding: '48px 56px',
+        textAlign: 'center',
+        maxWidth: '85%',
+        boxShadow: `0 30px 80px rgba(0,0,0,0.6), 0 0 40px ${accent}20`
+      }}>
+        <div style={{fontSize: `${Math.round(height * 0.07)}px`, fontWeight: 900, color: accent, letterSpacing: '-1px', marginBottom: '16px'}}>
+          {stat}
+        </div>
+        <div style={{fontSize: `${Math.round(height * 0.035)}px`, fontWeight: 700, color: '#ffffff', marginBottom: '12px', lineHeight: 1.2}}>
+          {title}
+        </div>
+        {subtitle && (
+          <div style={{fontSize: `${Math.round(height * 0.02)}px`, color: '#a1a1aa', fontWeight: 500}}>
+            {subtitle}
+          </div>
+        )}
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+// Universal Scene Switch Component for Explainer Sequences
+export function SceneSwitch({scene = {}, logo = null}) {
+  const template = (scene.template || 'kinetic_text').toLowerCase();
+  const headline = scene.headline || scene.title || '';
+  const subtitle = scene.subtitle || '';
+  const accent = scene.accent_color || '#00f2fe';
+  const bg = scene.background_color || '#09090e';
+  const asset = scene.assigned_asset || logo;
+
+  switch (template) {
+    case 'kinetic_text':
+      return (
+        <KineticText
+          words={headline.split(' ').filter(Boolean)}
+          accent={accent}
+          bg={bg}
+        />
+      );
+    case 'dashboard_3d_float':
+      return (
+        <DashboardShowcase
+          title={headline}
+          subtitle={subtitle}
+          image={asset}
+          accentColor={accent}
+          backgroundColor={bg}
+        />
+      );
+    case 'interactive_cursor_click':
+      return (
+        <DashboardShowcase
+          title={headline}
+          subtitle={subtitle}
+          image={asset}
+          clickX={0.72}
+          clickY={0.42}
+          accentColor={accent}
+          backgroundColor={bg}
+        />
+      );
+    case 'fact_card':
+      return (
+        <FactCard
+          title={headline}
+          stat={subtitle || '10x Faster'}
+          subtitle={scene.voiceover_script_en || ''}
+          accent={accent}
+          bg={bg}
+        />
+      );
+    case 'title_card':
+      return (
+        <TitleCard
+          title={headline}
+          subtitle={subtitle}
+          accent={accent}
+          bg={bg}
+        />
+      );
+    case 'lower_third':
+      return (
+        <LowerThird
+          name={headline}
+          role={subtitle}
+          accent={accent}
+        />
+      );
+    case 'transparent_callout':
+      return (
+        <TransparentOverlay
+          badgeText={headline}
+          stat={subtitle || 'Verified'}
+          accent={accent}
+        />
+      );
+    default:
+      return (
+        <KineticText
+          words={headline.split(' ').filter(Boolean)}
+          accent={accent}
+          bg={bg}
+        />
+      );
+  }
+}
+
 // 7. KATANA 4-ENGINE: Annotated Visual Scene (Before/After Wipe Slider + SVG Callouts)
 export function AnnotatedVisualScene({
   beforeImage,
@@ -520,7 +695,7 @@ export function SpeakerTrackerScene({
   return (
     <AbsoluteFill style={{backgroundColor: '#09090b', overflow: 'hidden'}}>
       {videoSrc && (
-        <video
+        <OffthreadVideo
           src={videoSrc.startsWith('http') ? videoSrc : staticFile(videoSrc)}
           style={{
             position: 'absolute',
@@ -554,7 +729,7 @@ export function SplitScreenComparison({referenceVideo, rebuiltVideo, showCannyOv
         <div style={{position: 'absolute', top: 12, left: 12, zIndex: 10, padding: '4px 8px', background: 'rgba(0,0,0,0.7)', borderRadius: '4px', color: '#a1a1aa', fontSize: '11px', fontFamily: 'monospace'}}>
           ORIGINAL REFERENCE
         </div>
-        {referenceVideo && <video src={referenceVideo} style={{width: '100%', height: '100%', objectFit: 'contain'}} autoPlay muted playsInline />}
+        {referenceVideo && <OffthreadVideo src={referenceVideo} style={{width: '100%', height: '100%', objectFit: 'contain'}} autoPlay muted playsInline />}
         {showCannyOverlay && cannySrc && (
           <Img src={cannySrc} style={{position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', mixBlendMode: 'screen', opacity: 0.8}} />
         )}
@@ -564,7 +739,7 @@ export function SplitScreenComparison({referenceVideo, rebuiltVideo, showCannyOv
         <div style={{position: 'absolute', top: 12, left: 12, zIndex: 10, padding: '4px 8px', background: 'rgba(0,0,0,0.7)', borderRadius: '4px', color: '#00f2fe', fontSize: '11px', fontFamily: 'monospace'}}>
           KATANA RECONSTRUCTION
         </div>
-        {rebuiltVideo && <video src={rebuiltVideo} style={{width: '100%', height: '100%', objectFit: 'contain'}} autoPlay muted playsInline />}
+        {rebuiltVideo && <OffthreadVideo src={rebuiltVideo} style={{width: '100%', height: '100%', objectFit: 'contain'}} autoPlay muted playsInline />}
       </div>
     </AbsoluteFill>
   );

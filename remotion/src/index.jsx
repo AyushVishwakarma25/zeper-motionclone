@@ -1,84 +1,259 @@
 import React from 'react';
-import {Composition, registerRoot, delayRender, continueRender, cancelRender, staticFile} from 'remotion';
+import {Composition, registerRoot} from 'remotion';
 import {
   MotionComposition,
   DashboardShowcase,
   TitleCard,
   LowerThird,
   KineticText,
-  TransparentOverlay
+  TransparentOverlay,
+  FactCard,
+  SceneSwitch
 } from './Composition.jsx';
 
+/**
+ * Derives width, height, fps, and durationInFrames from inputProps.
+ * Supports:
+ * - 9:16 (1080x1920)
+ * - 16:9 (1920x1080)
+ * - 1:1  (1080x1080)
+ * Default: 30 fps.
+ * Duration: strictly sum of scene durations (default 30s).
+ */
+function resolveDimensions(props) {
+  const aspect = props?.media?.aspect || props?.aspect || '9:16';
+  let width = props?.media?.width;
+  let height = props?.media?.height;
+
+  if (!width || !height) {
+    if (aspect === '16:9') {
+      width = 1920;
+      height = 1080;
+    } else if (aspect === '1:1') {
+      width = 1080;
+      height = 1080;
+    } else {
+      width = 1080;
+      height = 1920; // Default 9:16 vertical reel
+    }
+  }
+
+  const fps = props?.media?.fps || props?.fps || 30;
+
+  let durationSec = 30.0;
+  if (props?.scene_plan?.scenes && Array.isArray(props.scene_plan.scenes) && props.scene_plan.scenes.length > 0) {
+    durationSec = props.scene_plan.scenes.reduce((sum, s) => sum + (Number(s.duration_seconds) || 0), 0);
+  } else if (props?.scenes && Array.isArray(props.scenes) && props.scenes.length > 0) {
+    durationSec = props.scenes.reduce((sum, s) => sum + (Number(s.duration_seconds) || 0), 0);
+  } else if (props?.media?.duration) {
+    durationSec = Number(props.media.duration);
+  }
+  if (!durationSec || durationSec <= 0) {
+    durationSec = 30.0;
+  }
+
+  const durationInFrames = Math.max(1, Math.ceil(durationSec * fps));
+  return {width, height, fps, durationInFrames};
+}
+
 function Root() {
-  const [handle] = React.useState(() => delayRender('Loading saved motion'));
-  const [project, setProject] = React.useState(null);
-
-  React.useEffect(() => {
-    fetch(staticFile('project.json'))
-      .then(r => {
-        if (!r.ok) throw new Error('Project not found');
-        return r.json();
-      })
-      .then(data => {
-        setProject(data);
-        continueRender(handle);
-      })
-      .catch(cancelRender);
-  }, [handle]);
-
-  const defaultWidth = project?.media?.width || 1920;
-  const defaultHeight = project?.media?.height || 1080;
-  const defaultFps = project?.media?.fps || 30;
-  const defaultDuration = project?.media?.duration ? Math.ceil(project.media.duration * defaultFps) : 150;
+  const defaultMeta = resolveDimensions({aspect: '9:16'});
 
   return (
     <>
-      {/* 1. Main Reconstructed Motion Graphic */}
-      {project && (
-        <Composition
-          id="Motion"
-          component={MotionComposition}
-          width={project.media.width}
-          height={project.media.height}
-          fps={project.media.fps}
-          durationInFrames={Math.ceil(project.media.duration * project.media.fps)}
-          defaultProps={project}
-          calculateMetadata={({props}) => ({
-            width: props.media.width,
-            height: props.media.height,
-            fps: props.media.fps,
-            durationInFrames: Math.ceil(props.media.duration * props.media.fps)
-          })}
-        />
-      )}
-
-      {/* 2. Website & Dashboard Screenshot Animator Showcase */}
+      {/* 1. Main Reconstructed Explainer & Layer Composition */}
       <Composition
-        id="DashboardShowcase"
+        id="Motion"
+        component={MotionComposition}
+        width={defaultMeta.width}
+        height={defaultMeta.height}
+        fps={defaultMeta.fps}
+        durationInFrames={defaultMeta.durationInFrames}
+        calculateMetadata={async ({props}) => {
+          const meta = resolveDimensions(props);
+          return {
+            width: meta.width,
+            height: meta.height,
+            fps: meta.fps,
+            durationInFrames: meta.durationInFrames,
+            props: {
+              ...props,
+              media: {
+                ...(props?.media || {}),
+                width: meta.width,
+                height: meta.height,
+                fps: meta.fps,
+                duration: meta.durationInFrames / meta.fps
+              }
+            }
+          };
+        }}
+        defaultProps={{
+          media: {width: 1080, height: 1920, fps: 30, duration: 30.0},
+          plan: {title: 'MotionClone Explainer', background: '#0a0a0f', tracks: []}
+        }}
+      />
+
+      {/* 2. Registered Scene Templates (kebab-case & PascalCase aliases) */}
+      
+      {/* A. kinetic-text / KineticText */}
+      <Composition
+        id="kinetic-text"
+        component={KineticText}
+        width={defaultMeta.width}
+        height={defaultMeta.height}
+        fps={defaultMeta.fps}
+        durationInFrames={90}
+        calculateMetadata={async ({props}) => resolveDimensions(props)}
+        defaultProps={{
+          words: ['Capture.', 'Animate.', 'Export.'],
+          accent: '#00f2fe',
+          bg: '#09090e'
+        }}
+      />
+      <Composition
+        id="KineticText"
+        component={KineticText}
+        width={defaultMeta.width}
+        height={defaultMeta.height}
+        fps={defaultMeta.fps}
+        durationInFrames={90}
+        calculateMetadata={async ({props}) => resolveDimensions(props)}
+        defaultProps={{
+          words: ['Capture.', 'Animate.', 'Export.'],
+          accent: '#00f2fe',
+          bg: '#09090e'
+        }}
+      />
+
+      {/* B. dashboard-3d-float / DashboardShowcase */}
+      <Composition
+        id="dashboard-3d-float"
         component={DashboardShowcase}
-        width={defaultWidth}
-        height={defaultHeight}
-        fps={defaultFps}
-        durationInFrames={180}
+        width={defaultMeta.width}
+        height={defaultMeta.height}
+        fps={defaultMeta.fps}
+        durationInFrames={120}
+        calculateMetadata={async ({props}) => resolveDimensions(props)}
         defaultProps={{
           title: 'Next-Gen Analytics & AI Platform',
           subtitle: 'Real-Time Telemetry & Autonomous Workflows',
           accentColor: '#00f2fe',
           backgroundColor: '#0a0a0f',
-          clickX: 0.72,
-          clickY: 0.38,
-          image: project?.assets?.[0] || 'logo.png'
+          image: null
+        }}
+      />
+      <Composition
+        id="DashboardShowcase"
+        component={DashboardShowcase}
+        width={defaultMeta.width}
+        height={defaultMeta.height}
+        fps={defaultMeta.fps}
+        durationInFrames={120}
+        calculateMetadata={async ({props}) => resolveDimensions(props)}
+        defaultProps={{
+          title: 'Next-Gen Analytics & AI Platform',
+          subtitle: 'Real-Time Telemetry & Autonomous Workflows',
+          accentColor: '#00f2fe',
+          backgroundColor: '#0a0a0f',
+          image: null
         }}
       />
 
-      {/* 3. Title Card (RANGY.AI Starter Kit 4a) */}
+      {/* C. interactive-cursor-click / InteractiveCursorClick */}
+      <Composition
+        id="interactive-cursor-click"
+        component={DashboardShowcase}
+        width={defaultMeta.width}
+        height={defaultMeta.height}
+        fps={defaultMeta.fps}
+        durationInFrames={120}
+        calculateMetadata={async ({props}) => resolveDimensions(props)}
+        defaultProps={{
+          title: 'Interactive UI Simulation',
+          subtitle: 'Smooth Cursor Click & Dynamic Ripple Wave',
+          accentColor: '#00f2fe',
+          backgroundColor: '#0a0a0f',
+          clickX: 0.72,
+          clickY: 0.42
+        }}
+      />
+      <Composition
+        id="InteractiveCursorClick"
+        component={DashboardShowcase}
+        width={defaultMeta.width}
+        height={defaultMeta.height}
+        fps={defaultMeta.fps}
+        durationInFrames={120}
+        calculateMetadata={async ({props}) => resolveDimensions(props)}
+        defaultProps={{
+          title: 'Interactive UI Simulation',
+          subtitle: 'Smooth Cursor Click & Dynamic Ripple Wave',
+          accentColor: '#00f2fe',
+          backgroundColor: '#0a0a0f',
+          clickX: 0.72,
+          clickY: 0.42
+        }}
+      />
+
+      {/* D. fact-card / FactCard */}
+      <Composition
+        id="fact-card"
+        component={FactCard}
+        width={defaultMeta.width}
+        height={defaultMeta.height}
+        fps={defaultMeta.fps}
+        durationInFrames={90}
+        calculateMetadata={async ({props}) => resolveDimensions(props)}
+        defaultProps={{
+          title: 'Autonomous Production Speed',
+          stat: '10x Faster',
+          subtitle: 'Engineered for High-Conversion Explainer Videos',
+          accent: '#00f2fe',
+          bg: '#09090e'
+        }}
+      />
+      <Composition
+        id="FactCard"
+        component={FactCard}
+        width={defaultMeta.width}
+        height={defaultMeta.height}
+        fps={defaultMeta.fps}
+        durationInFrames={90}
+        calculateMetadata={async ({props}) => resolveDimensions(props)}
+        defaultProps={{
+          title: 'Autonomous Production Speed',
+          stat: '10x Faster',
+          subtitle: 'Engineered for High-Conversion Explainer Videos',
+          accent: '#00f2fe',
+          bg: '#09090e'
+        }}
+      />
+
+      {/* E. title-card / TitleCard */}
+      <Composition
+        id="title-card"
+        component={TitleCard}
+        width={defaultMeta.width}
+        height={defaultMeta.height}
+        fps={defaultMeta.fps}
+        durationInFrames={90}
+        calculateMetadata={async ({props}) => resolveDimensions(props)}
+        defaultProps={{
+          title: 'Autonomous Motion Studio',
+          subtitle: 'Crafted with AI & Remotion',
+          accent: '#00f2fe',
+          bg: '#0b0b12'
+        }}
+      />
       <Composition
         id="TitleCard"
         component={TitleCard}
-        width={defaultWidth}
-        height={defaultHeight}
-        fps={defaultFps}
-        durationInFrames={120}
+        width={defaultMeta.width}
+        height={defaultMeta.height}
+        fps={defaultMeta.fps}
+        durationInFrames={90}
+        calculateMetadata={async ({props}) => resolveDimensions(props)}
         defaultProps={{
           title: 'Autonomous Motion Studio',
           subtitle: 'Crafted with AI & Remotion',
@@ -87,14 +262,29 @@ function Root() {
         }}
       />
 
-      {/* 4. Lower Third (RANGY.AI Starter Kit 4b) */}
+      {/* F. lower-third / LowerThird */}
+      <Composition
+        id="lower-third"
+        component={LowerThird}
+        width={defaultMeta.width}
+        height={defaultMeta.height}
+        fps={defaultMeta.fps}
+        durationInFrames={90}
+        calculateMetadata={async ({props}) => resolveDimensions(props)}
+        defaultProps={{
+          name: 'Alex Rivera',
+          role: 'Lead Architect · Cloud AI',
+          accent: '#00f2fe'
+        }}
+      />
       <Composition
         id="LowerThird"
         component={LowerThird}
-        width={defaultWidth}
-        height={defaultHeight}
-        fps={defaultFps}
-        durationInFrames={120}
+        width={defaultMeta.width}
+        height={defaultMeta.height}
+        fps={defaultMeta.fps}
+        durationInFrames={90}
+        calculateMetadata={async ({props}) => resolveDimensions(props)}
         defaultProps={{
           name: 'Alex Rivera',
           role: 'Lead Architect · Cloud AI',
@@ -102,31 +292,31 @@ function Root() {
         }}
       />
 
-      {/* 5. Kinetic Text Reveal (RANGY.AI Starter Kit 4c) */}
+      {/* G. transparent-callout / TransparentOverlay */}
       <Composition
-        id="KineticText"
-        component={KineticText}
-        width={defaultWidth}
-        height={defaultHeight}
-        fps={defaultFps}
-        durationInFrames={120}
+        id="transparent-callout"
+        component={TransparentOverlay}
+        width={defaultMeta.width}
+        height={defaultMeta.height}
+        fps={defaultMeta.fps}
+        durationInFrames={90}
+        calculateMetadata={async ({props}) => resolveDimensions(props)}
         defaultProps={{
-          words: ['Capture.', 'Animate.', 'Export.'],
-          accent: '#00f2fe',
-          bg: '#09090e'
+          badgeText: 'VERIFIED 30 FPS EXPORT',
+          stat: 'Zero Friction',
+          accent: '#00f2fe'
         }}
       />
-
-      {/* 6. Transparent Overlay Badge (RANGY.AI Starter Kit 4d) */}
       <Composition
         id="TransparentOverlay"
         component={TransparentOverlay}
-        width={defaultWidth}
-        height={defaultHeight}
-        fps={defaultFps}
-        durationInFrames={120}
+        width={defaultMeta.width}
+        height={defaultMeta.height}
+        fps={defaultMeta.fps}
+        durationInFrames={90}
+        calculateMetadata={async ({props}) => resolveDimensions(props)}
         defaultProps={{
-          badgeText: 'VERIFIED 60 FPS EXPORT',
+          badgeText: 'VERIFIED 30 FPS EXPORT',
           stat: 'Zero Friction',
           accent: '#00f2fe'
         }}

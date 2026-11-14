@@ -18,6 +18,7 @@ remotion/out/
 htmlcov/
 site/
 remotion/public/project.json
+.remotion/
 BUILD-PLAN.md
 LIBRARY-VALIDATION.md
 VALIDATION.md

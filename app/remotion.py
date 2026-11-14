@@ -17,13 +17,96 @@ def write_project(folder, plan, brief):
     folder = Path(folder).resolve()
     dest = (folder / 'remotion' / 'public').resolve()
     dest.mkdir(parents=True, exist_ok=True)
-    media_file = folder / 'media.json'
-    media = json.loads(media_file.read_text(encoding='utf-8')) if media_file.is_file() else {'width':1920,'height':1080,'fps':30,'duration':5.0,'audio':False}
-    data = {'plan':plan.model_dump() if hasattr(plan, 'model_dump') else plan, 'media':media, 'logo':None, 'audio':None, 'assets':[]}
 
-    if (folder/'logo.png').exists():
-        shutil.copy2(folder/'logo.png',dest/'logo.png')
-        data['logo']='logo.png'
+    # 1. Determine Aspect Ratio and Dimensions
+    # 9:16 -> 1080x1920 @30fps
+    # 16:9 -> 1920x1080 @30fps
+    # 1:1  -> 1080x1080 @30fps
+    aspect = '9:16'
+    dashboard_file = folder / 'dashboard_project.json'
+    dashboard_data = {}
+    if dashboard_file.is_file():
+        try:
+            dashboard_data = json.loads(dashboard_file.read_text(encoding='utf-8'))
+            if dashboard_data.get('aspect'):
+                aspect = dashboard_data['aspect']
+        except Exception:
+            pass
+
+    scene_plan_file = folder / 'scene_plan.json'
+    scene_plan_data = {}
+    if scene_plan_file.is_file():
+        try:
+            scene_plan_data = json.loads(scene_plan_file.read_text(encoding='utf-8'))
+            if scene_plan_data.get('aspect'):
+                aspect = scene_plan_data['aspect']
+        except Exception:
+            pass
+
+    if aspect == '16:9':
+        width, height = 1920, 1080
+    elif aspect == '1:1':
+        width, height = 1080, 1080
+    else:
+        width, height = 1080, 1920  # Default 9:16 vertical reel
+
+    fps = 30
+
+    # 2. Duration: strictly sum of scene durations (default 30s), not hard-coded 61.53s
+    scenes = scene_plan_data.get('scenes', []) or dashboard_data.get('scene_plan', {}).get('scenes', [])
+    if scenes:
+        duration = round(sum(float(s.get('duration_seconds', 0)) for s in scenes), 2)
+    elif scene_plan_data.get('duration_seconds'):
+        duration = float(scene_plan_data['duration_seconds'])
+    elif plan and hasattr(plan, 'tracks') and plan.tracks:
+        duration = max((t.end for t in plan.tracks), default=30.0)
+    else:
+        duration = 30.0
+
+    if duration <= 0:
+        duration = 30.0
+
+    # Audio check
+    audio_file_name = None
+    audio_candidates = [
+        folder / 'final_audio.mp3',
+        folder / 'final_mix.mp3',
+        folder / 'voiceover.mp3',
+        folder / 'voiceover.wav',
+        folder / 'audio.mp3'
+    ]
+    for cand in audio_candidates:
+        if cand.is_file() and cand.stat().st_size > 1024:
+            shutil.copy2(cand, dest / cand.name)
+            audio_file_name = cand.name
+            break
+
+    media = {
+        'width': width,
+        'height': height,
+        'fps': fps,
+        'duration': duration,
+        'audio': bool(audio_file_name),
+        'aspect': aspect
+    }
+    (folder / 'media.json').write_text(json.dumps(media, indent=2), encoding='utf-8')
+
+    data = {
+        'plan': plan.model_dump() if hasattr(plan, 'model_dump') else plan,
+        'media': media,
+        'aspect': aspect,
+        'fps': fps,
+        'duration_seconds': duration,
+        'scenes': scenes,
+        'scene_plan': scene_plan_data or None,
+        'logo': None,
+        'audio': audio_file_name,
+        'assets': []
+    }
+
+    if (folder / 'logo.png').exists():
+        shutil.copy2(folder / 'logo.png', dest / 'logo.png')
+        data['logo'] = 'logo.png'
 
     # Stage assets from folder/assets and folder/rebuild/assets
     dest_assets = dest / 'assets'
@@ -43,7 +126,7 @@ def write_project(folder, plan, brief):
         for sfx_file in sfx_source.glob('*.wav'):
             shutil.copy2(sfx_file, dest_sfx / sfx_file.name)
 
-    (dest/'project.json').write_text(json.dumps(data,indent=2),encoding='utf-8')
+    (dest / 'project.json').write_text(json.dumps(data, indent=2), encoding='utf-8')
     return dest
 
 

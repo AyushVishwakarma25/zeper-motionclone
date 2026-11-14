@@ -13,7 +13,7 @@ from .process import run, Cancelled
 from .models import MAX_DURATION
 
 MAX_BYTES = 250 * 1024 * 1024
-VIDEO_FORMATS = 'mov,matroska,webm,avi,mpegts,mpeg,ogg,flv'
+VIDEO_FORMATS = 'mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,avi,mpegts,mpeg,ogg,flv'
 
 
 def validate_url(url):

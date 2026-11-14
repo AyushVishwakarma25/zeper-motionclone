@@ -11,7 +11,8 @@ const preview = process.argv.includes('--preview');
 const still = process.argv.includes('--still');
 const isProres = process.argv.includes('--prores') || process.argv.some(a => a.startsWith('--codec=prores'));
 const compArg = process.argv.find(a => a.startsWith('--composition='));
-const targetCompId = compArg ? compArg.split('=')[1] : 'Motion';
+let targetCompId = compArg ? compArg.split('=')[1] : 'Motion';
+if (targetCompId) targetCompId = targetCompId.replace(/_/g, '-');
 
 const project = JSON.parse(fs.readFileSync(projectFile,'utf8'));
 const publicDir = path.dirname(projectFile);

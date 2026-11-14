@@ -49,7 +49,8 @@ RUN npm ci --prefix hyperframes --no-fund --no-audit
 
 # Install Remotion Node dependencies
 COPY remotion/package*.json ./remotion/
-RUN npm ci --prefix remotion --no-fund --no-audit
+RUN npm ci --prefix remotion --no-fund --no-audit && \
+    npx --prefix remotion remotion browser ensure
 
 # Copy application source
 COPY app/ ./app/
