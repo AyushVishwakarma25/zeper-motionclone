@@ -55,6 +55,7 @@ RUN npm ci --prefix remotion --no-fund --no-audit && \
 # Copy application source
 COPY app/ ./app/
 COPY web/ ./web/
+COPY static/ ./static/
 COPY assets/ ./assets/
 COPY docs/ ./docs/
 COPY licenses/ ./licenses/

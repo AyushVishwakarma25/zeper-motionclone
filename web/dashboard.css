@@ -1003,15 +1003,17 @@ body.dashboard-body {
 .stage-player-wrap.aspect-9-16,
 .stage-viewport-inner.aspect-9-16 {
   aspect-ratio: 9 / 16 !important;
-  height: min(calc(100vh - 300px), 520px) !important;
-  width: calc(min(calc(100vh - 300px), 520px) * 9 / 16) !important;
+  height: min(calc(100vh - 320px), 500px) !important;
+  width: min(100%, calc(min(calc(100vh - 320px), 500px) * 9 / 16)) !important;
   max-width: 100% !important;
+  max-height: 100% !important;
 }
 
 .stage-player-wrap.aspect-16-9,
 .stage-viewport-inner.aspect-16-9 {
   aspect-ratio: 16 / 9 !important;
   width: 100% !important;
+  max-height: min(calc(100vh - 320px), 280px) !important;
   height: auto !important;
   max-width: 100% !important;
 }
@@ -1019,9 +1021,10 @@ body.dashboard-body {
 .stage-player-wrap.aspect-1-1,
 .stage-viewport-inner.aspect-1-1 {
   aspect-ratio: 1 / 1 !important;
-  width: min(calc(100vh - 300px), 320px) !important;
-  height: min(calc(100vh - 300px), 320px) !important;
+  width: min(100%, min(calc(100vh - 320px), 320px)) !important;
+  height: min(100%, min(calc(100vh - 320px), 320px)) !important;
   max-width: 100% !important;
+  max-height: 100% !important;
 }
 
 #dashboard-video-player {
