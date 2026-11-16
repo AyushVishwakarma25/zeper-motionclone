@@ -214,6 +214,13 @@ No project-wide open-source license has been assigned. Third-party components re
 
 For development, run `.venv\Scripts\python.exe -m pytest -q` after setup. See the [development guide](docs/DEVELOPMENT.md) for browser checks.
 
+### Live GCP Real-Credential Smoke Check
+To verify live GCP Vertex AI, Cloud Text-to-Speech, Cloud Speech-to-Text, Firestore, and local Remotion rendering with real ADC credentials (no stubs):
+```powershell
+.venv\Scripts\python.exe scripts/real_check.py
+```
+This tests ADC resolution, Gemini 3.1 Pro text & video deconstruction, vision, Gemini 3.1 Flash Image generation, Cloud TTS synthesis, STT word timestamps, Firestore transactions, and 60 FPS Remotion rendering.
+
 ## Community
 
 💬 [Join the Discord](https://discord.gg/zEB4VjmfSb) for questions, help, feedback, and updates.
