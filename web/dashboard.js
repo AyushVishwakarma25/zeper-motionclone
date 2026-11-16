@@ -861,9 +861,21 @@
             const msgEl = $('overlay-submessage');
             if (msgEl) msgEl.textContent = s.stage + (s.progress ? ` (${s.progress}%)` : '');
           }
-          if (s.state === 'ready' || s.stage === 'Complete' || (s.output_url && s.progress === 100)) {
+          if (s.state === 'needs_attention') {
             clearInterval(poll);
             hideOverlay();
+            updatePipelineStep(5);
+            videoCacheKey = Date.now();
+            projectState.preview_url = s.output_url || `/media/${activeJobId}/output.mp4`;
+            $('btn-view-rebuilt')?.click();
+            renderVideoStage();
+            showNeedsAttentionBox(s.issues || []);
+            showToast('⚠️ Video rendered, but requires attention.', 'warning');
+            appendChatBubble('agent', '⚠️ Video rendered with issues that need attention. See the issues listed above.');
+          } else if (s.state === 'ready' || s.stage === 'Complete' || (s.output_url && s.progress === 100)) {
+            clearInterval(poll);
+            hideOverlay();
+            hideNeedsAttentionBox();
             updatePipelineStep(5);
             videoCacheKey = Date.now();
             projectState.preview_url = s.output_url || `/media/${activeJobId}/output.mp4`;
@@ -937,9 +949,20 @@
       const poll = setInterval(async () => {
         try {
           const j = await callApi(`/api/jobs/${activeJobId}`);
-          if (j.status === 'complete') {
+          if (j.status === 'needs_attention') {
             clearInterval(poll);
             hideOverlay();
+            updatePipelineStep(5);
+            videoCacheKey = Date.now();
+            projectState.preview_url = `/media/${activeJobId}/output.mp4`;
+            $('btn-view-rebuilt')?.click();
+            showNeedsAttentionBox(j.issues || []);
+            showToast('⚠️ Merged with issues. Review Needs Attention list.', 'warning');
+            appendChatBubble('agent', '⚠️ Your custom code was merged, but some scenes require attention. See the issues list.');
+          } else if (j.status === 'complete' || j.status === 'ready') {
+            clearInterval(poll);
+            hideOverlay();
+            hideNeedsAttentionBox();
             updatePipelineStep(5);
             videoCacheKey = Date.now();
             projectState.preview_url = `/media/${activeJobId}/output.mp4`;
@@ -982,6 +1005,25 @@
       el.hidden = true;
       el.style.display = 'none';
     }
+  }
+
+  function showNeedsAttentionBox(issues) {
+    const box = $('needs-attention-box');
+    const container = $('needs-attention-issues');
+    if (!box || !container) return;
+    container.innerHTML = '';
+    (issues || []).forEach(iss => {
+      const row = document.createElement('div');
+      row.className = 'issue-row';
+      row.innerHTML = `<span class="issue-code">[${iss.code}]</span> <span>${iss.scene_id ? '(Scene: ' + iss.scene_id + ') ' : ''}${iss.message}</span>`;
+      container.appendChild(row);
+    });
+    box.style.display = 'flex';
+  }
+
+  function hideNeedsAttentionBox() {
+    const box = $('needs-attention-box');
+    if (box) box.style.display = 'none';
   }
 
   // =========================================================================
@@ -1278,6 +1320,12 @@ export const ExplainerScene = () => {
 
     $('btn-merger-render')?.addEventListener('click', () => {
       handlePasteAndRender();
+    });
+
+    $('btn-retry-failed-scenes')?.addEventListener('click', () => {
+      hideNeedsAttentionBox();
+      showToast('🔄 Retrying scenes...', 'info');
+      triggerProjectGenerate({ useExistingScenePlan: true, fps: 60 });
     });
 
     // Timeline Preview Render Button

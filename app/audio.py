@@ -156,8 +156,12 @@ def synthesize_voiceover(
         return dest
 
     except Exception as exc:
-        logger.warning(f"Google Cloud TTS synthesis unavailable: {exc}. Generating fallback tone track.")
-        # Fallback for unconfigured or offline environments: generate clean audio track matching speech duration
+        allow_tone = os.getenv('ALLOW_TONE_FALLBACK', '0') == '1'
+        if not allow_tone:
+            logger.error(f"Google Cloud TTS synthesis failed: {exc}")
+            raise RuntimeError(f"Cloud TTS synthesis failed: {exc}") from exc
+        logger.warning(f"Google Cloud TTS synthesis failed: {exc}. Generating fallback tone track.")
+        # Fallback for local development environments with ALLOW_TONE_FALLBACK=1
         duration = max(3.0, len(text_or_ssml.split()) * 0.4)
         run([
             'ffmpeg', '-y', '-v', 'error',
@@ -184,6 +188,7 @@ def generate_scene_voiceovers(
     padded_clips = []
     current_time = 0.0
     scene_offsets = []
+    issues = []
 
     for idx, sc in enumerate(scenes):
         planned_dur = float(sc.get('duration_seconds') or sc.get('duration') or 3.0)
@@ -200,7 +205,33 @@ def generate_scene_voiceovers(
         padded_path = folder / f'scene_{idx}_padded.mp3'
 
         if text:
-            synthesize_voiceover(text, language=language, output_path=clip_path, is_ssml=False)
+            tts_success = False
+            try:
+                synthesize_voiceover(text, language=language, output_path=clip_path, is_ssml=False)
+                tts_success = True
+            except Exception as tts_err:
+                logger.error(f"TTS synthesis failed for scene {sc.get('id', idx)}: {tts_err}")
+                issues.append({
+                    "code": "TTS_FAILED",
+                    "scene_id": sc.get("id") or f"scene_{idx}",
+                    "message": str(tts_err)
+                })
+                if os.getenv('ALLOW_TONE_FALLBACK', '0') == '1':
+                    duration = max(3.0, len(text.split()) * 0.4)
+                    run([
+                        'ffmpeg', '-y', '-v', 'error',
+                        '-f', 'lavfi', '-i', f'sine=frequency=320:duration={duration}',
+                        '-c:a', 'libmp3lame', '-b:a', '192k', str(clip_path)
+                    ])
+                else:
+                    run([
+                        'ffmpeg', '-y', '-v', 'error',
+                        '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
+                        '-t', str(planned_dur),
+                        '-c:a', 'libmp3lame', '-b:a', '192k',
+                        str(clip_path)
+                    ])
+
             try:
                 probe_res = json.loads(run([
                     'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
@@ -210,7 +241,7 @@ def generate_scene_voiceovers(
             except Exception:
                 actual_clip_dur = planned_dur
 
-            if adjust_durations:
+            if adjust_durations and tts_success:
                 scene_dur = round(max(planned_dur, actual_clip_dur + 0.3), 2)
             else:
                 scene_dur = round(planned_dur, 2)
@@ -253,6 +284,19 @@ def generate_scene_voiceovers(
 
     # Save scene offsets for report.json / inspection
     (folder / 'scene_offsets.json').write_text(json.dumps(scene_offsets, indent=2), encoding='utf-8')
+
+    if issues:
+        issues_file = folder / 'issues.json'
+        existing = []
+        if issues_file.is_file():
+            try:
+                existing = json.loads(issues_file.read_text(encoding='utf-8'))
+            except Exception:
+                existing = []
+        for iss in issues:
+            if not any(x.get('code') == iss.get('code') and x.get('scene_id') == iss.get('scene_id') for x in existing):
+                existing.append(iss)
+        issues_file.write_text(json.dumps(existing, indent=2), encoding='utf-8')
 
     # Concatenate all padded clips into final_vo
     if padded_clips:
@@ -412,8 +456,10 @@ def measure_loudness(file_path: Path) -> dict:
         raise ValueError(f"Could not parse loudnorm metrics from ffmpeg output: {stderr[-500:]}")
 
     data = json.loads(match.group(0))
+    input_i = float(data.get('input_i', -99.0))
     return {
-        'input_i': float(data.get('input_i', -99.0)),
+        'input_i': input_i,
+        'integrated_lufs': input_i,
         'input_tp': float(data.get('input_tp', -99.0)),
         'input_lra': float(data.get('input_lra', 0.0)),
         'output_i': float(data.get('output_i', -14.0)),

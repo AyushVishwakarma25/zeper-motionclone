@@ -295,6 +295,15 @@
 
         <!-- 70% RIGHT: Blueprint, Story Brief & Code Studio Workspace -->
         <div class="stage-workspace-column" id="stage-workspace-column">
+          <!-- Needs Attention Notification Box -->
+          <div class="needs-attention-card" id="needs-attention-box" style="display:none;">
+            <div class="needs-attention-header">
+              <span class="warning-badge">⚠️ Needs Attention</span>
+              <button type="button" class="btn-retry-failed-scenes" id="btn-retry-failed-scenes">🔄 Retry failed scenes</button>
+            </div>
+            <div class="needs-attention-issues" id="needs-attention-issues"></div>
+          </div>
+
           <!-- 1. Dedicated Blueprint & Creative Brief View Deck -->
           <div class="blueprint-deck-overlay" id="stage-blueprint-view" style="display:none;">
             <!-- Dedicated Creative Topic & Brief Input Bar (Docked neatly inside Blueprint) -->

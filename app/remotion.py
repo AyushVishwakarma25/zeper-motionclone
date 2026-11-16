@@ -327,15 +327,43 @@ def render(folder, plan, brief, cancel, progress, *, preview=False, format='mp4'
         if actual['audio']:
             try:
                 loudness_info = audio.measure_loudness(output)
-                integrated_lufs = float(loudness_info.get('integrated_lufs', -70.0))
+                integrated_lufs = float(loudness_info.get('integrated_lufs', loudness_info.get('input_i', -70.0)))
             except Exception as e:
                 logger.warning(f"Loudness measurement error: {e}")
+
+        # Measure voice-over stem separately
+        vo_file = folder / 'voiceover.mp3'
+        vo_integrated_lufs = -70.0
+        vo_present = vo_file.is_file() and vo_file.stat().st_size > 512
+        if vo_present:
+            try:
+                vo_info = audio.measure_loudness(vo_file)
+                vo_integrated_lufs = float(vo_info.get('integrated_lufs', vo_info.get('input_i', -70.0)))
+            except Exception as e:
+                logger.warning(f"Voiceover stem loudness error: {e}")
+
+        # Check if narration was planned
+        has_narration = False
+        sp_file = folder / 'scene_plan.json'
+        if sp_file.is_file():
+            try:
+                sp_data = json.loads(sp_file.read_text(encoding='utf-8'))
+                sp_scenes = sp_data.get('scenes', []) or sp_data.get('shots', [])
+                has_narration = any(
+                    s.get('voiceover') or s.get('voiceover_script') or s.get('voiceover_script_en') or s.get('voiceover_script_hi')
+                    for s in sp_scenes
+                )
+            except Exception:
+                pass
+        if not has_narration and (folder / 'voiceover.txt').is_file():
+            has_narration = bool((folder / 'voiceover.txt').read_text(encoding='utf-8').strip())
 
         # Target: -14 LUFS, tolerance: 2 LU (-16.0 <= LUFS <= -12.0)
         is_loudness_compliant = (-16.0 <= integrated_lufs <= -12.0)
         is_silent = (integrated_lufs <= -60.0)
         duration_matches_plan = abs(actual['duration'] - media['duration']) <= 0.3
-        audio_valid = actual['audio'] and not is_silent and is_loudness_compliant
+        vo_is_silent = (vo_integrated_lufs <= -60.0)
+        audio_valid = actual['audio'] and not is_silent and is_loudness_compliant and (not vo_is_silent if has_narration else True)
 
         report = dict(
             decoded=True,
@@ -343,6 +371,17 @@ def render(folder, plan, brief, cancel, progress, *, preview=False, format='mp4'
             actual_frames=count,
             audio_present=actual['audio'],
             integrated_lufs=integrated_lufs,
+            voiceover_stem_lufs=vo_integrated_lufs,
+            final_mix={
+                'integrated_lufs': integrated_lufs,
+                'loudness_compliant': is_loudness_compliant,
+                'is_silent': is_silent
+            },
+            voiceover_stem={
+                'integrated_lufs': vo_integrated_lufs,
+                'present': vo_present,
+                'is_silent': vo_is_silent
+            },
             loudness_compliant=is_loudness_compliant,
             duration_matches_plan=duration_matches_plan,
             audio_valid=audio_valid,

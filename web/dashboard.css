@@ -952,7 +952,59 @@ body.dashboard-body {
   border-radius: var(--radius-pill);
 }
 
-/* Center Stage Viewport Area - 30% / 70% Split Layout */
+/* Needs Attention Card & Issues Banner */
+.needs-attention-card {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.needs-attention-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.warning-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fbbf24;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.btn-retry-failed-scenes {
+  background: #f59e0b;
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-retry-failed-scenes:hover {
+  opacity: 0.9;
+}
+.needs-attention-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.issue-row {
+  font-size: 11.5px;
+  color: #fef3c7;
+  display: flex;
+  gap: 6px;
+}
+.issue-code {
+  font-weight: 700;
+  color: #fbbf24;
+}
+
 .stage-viewport-area {
   flex: 1;
   display: grid;

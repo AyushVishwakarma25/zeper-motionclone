@@ -113,11 +113,11 @@ def test_paste_and_render_aspects_duration_and_pixel_check(tmp_path, monkeypatch
             out_file = tmp_path / job_id / 'output.mp4'
             for _ in range(120):
                 j_stat = server.get_job(job_id)
-                if j_stat.get('status') in ('complete', 'error'):
+                if j_stat.get('status') in ('complete', 'ready', 'error', 'needs_attention'):
                     break
                 time.sleep(1.0)
 
-            assert j_stat.get('status') == 'complete', f"Render failed for {aspect}: {j_stat.get('error')}"
+            assert j_stat.get('status') in ('complete', 'ready'), f"Render failed for {aspect}: {j_stat.get('error')}"
             assert out_file.is_file(), f"Output file missing for aspect {aspect}"
             probe_meta = media.probe(out_file)
 
@@ -128,10 +128,10 @@ def test_paste_and_render_aspects_duration_and_pixel_check(tmp_path, monkeypatch
 
             # Extract frames for the 9:16 render and run pixel check
             if aspect == '9:16':
-                fixtures_dir = Path(__file__).resolve().parent / 'fixtures'
-                fixtures_dir.mkdir(parents=True, exist_ok=True)
-                frame1_path = fixtures_dir / 'scene_1_kinetic.png'
-                frame2_path = fixtures_dir / 'scene_2_fact.png'
+                frames_dir = tmp_path / 'extracted_frames'
+                frames_dir.mkdir(parents=True, exist_ok=True)
+                frame1_path = frames_dir / 'scene_1_kinetic.png'
+                frame2_path = frames_dir / 'scene_2_fact.png'
 
                 # Extract at 1.5s (Scene 1) and 4.5s (Scene 2)
                 subprocess.run(['ffmpeg', '-y', '-v', 'error', '-ss', '1.5', '-i', str(out_file), '-vframes', '1', str(frame1_path)], check=True)

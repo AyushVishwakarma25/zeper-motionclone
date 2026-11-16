@@ -283,14 +283,32 @@ def step_assets(
                 sc['image'] = f"assets/{cached_image.name}"
             else:
                 try:
-                    if ai.auth_status():
-                        img_bytes = ai.generate_image_composite(prompt)
-                        if img_bytes:
-                            cached_image.write_bytes(img_bytes)
-                            sc['assigned_asset'] = f"assets/{cached_image.name}"
-                            sc['image'] = f"assets/{cached_image.name}"
+                    if not ai.auth_status():
+                        raise RuntimeError("AI connection unavailable or not configured")
+                    img_bytes = ai.generate_image_composite(prompt)
+                    if img_bytes and len(img_bytes) > 500:
+                        cached_image.write_bytes(img_bytes)
+                        sc['assigned_asset'] = f"assets/{cached_image.name}"
+                        sc['image'] = f"assets/{cached_image.name}"
+                    else:
+                        raise ValueError("No image bytes returned from image generation")
                 except Exception as e:
                     logger.warning(f"Image generation failed for scene {sc.get('id')}: {e}")
+                    issues_file = project_dir / "issues.json"
+                    curr_issues = []
+                    if issues_file.is_file():
+                        try:
+                            curr_issues = json.loads(issues_file.read_text(encoding="utf-8"))
+                        except Exception:
+                            curr_issues = []
+                    curr_issues.append({
+                        "code": "IMAGE_FAILED",
+                        "scene_id": sc.get("id"),
+                        "message": str(e)
+                    })
+                    issues_file.write_text(json.dumps(curr_issues, indent=2), encoding="utf-8")
+                    sc['assigned_asset'] = ""
+                    sc['image'] = ""
 
     return vo_path
 
@@ -542,18 +560,15 @@ def run_pipeline(
                 pass
 
         elapsed = time.monotonic() - start_time
-        report = {
-            'status': 'ready' if verif.get('audio_valid', True) else 'needs_attention',
+        extra_report = {
             'elapsed_seconds': round(elapsed, 2),
             'credit_cost': gate_info['estimate']['total_credits'],
             'output_mp4': str(output_mp4.name),
-            'verification': verif,
             'qa_verdict': qa_report.verdict,
             'qa_score': qa_report.overall_score,
             'scene_offsets': scene_offsets
         }
-        (project_dir / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
-        write_status("Complete", 100, state="ready")
+        report = finalize_job(project_dir, verification=verif, extra_report=extra_report)
         return report
 
     except Cancelled:
@@ -563,3 +578,160 @@ def run_pipeline(
         logger.error(f"Pipeline error: {exc}", exc_info=True)
         write_status("Failed", 0, state="failed", err=str(exc))
         raise
+
+
+def finalize_job(
+    project_dir: Path,
+    verification: dict[str, Any] | None = None,
+    issues: list[dict[str, Any]] | None = None,
+    extra_report: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Shared single source of truth for job status across all pipeline and render paths.
+    Returns status: 'ready' only if:
+      - audio_valid is True
+      - duration_matches_plan is True
+      - dimensions match aspect ratio
+      - issues list is empty
+    Otherwise returns status: 'needs_attention' with machine-readable issues: [{code, scene_id, message}].
+    """
+    project_dir = Path(project_dir).resolve()
+    job_id = project_dir.name
+
+    # 1. Verification
+    if verification is None:
+        v_file = project_dir / "verification.json"
+        if v_file.is_file():
+            try:
+                verification = json.loads(v_file.read_text(encoding="utf-8"))
+            except Exception:
+                verification = {}
+        else:
+            verification = {}
+
+    # 2. Accumulated issues
+    all_issues: list[dict[str, Any]] = list(issues or [])
+    issues_file = project_dir / "issues.json"
+    if issues_file.is_file():
+        try:
+            saved = json.loads(issues_file.read_text(encoding="utf-8"))
+            for s_iss in saved:
+                if not any(x.get('code') == s_iss.get('code') and x.get('scene_id') == s_iss.get('scene_id') for x in all_issues):
+                    all_issues.append(s_iss)
+        except Exception:
+            pass
+
+    # 3. Aspect and Dimensions
+    aspect = "9:16"
+    for cand in [project_dir / "scene_plan.json", project_dir / "dashboard_project.json"]:
+        if cand.is_file():
+            try:
+                data = json.loads(cand.read_text(encoding="utf-8"))
+                if data.get("aspect"):
+                    aspect = data["aspect"]
+                    break
+            except Exception:
+                pass
+
+    if aspect == "16:9":
+        exp_dims = [1920, 1080]
+    elif aspect == "1:1":
+        exp_dims = [1080, 1080]
+    else:
+        exp_dims = [1080, 1920]
+
+    actual_dims = verification.get("dimensions", [])
+    dim_matches = (actual_dims == exp_dims) if actual_dims else True
+    duration_matches = bool(verification.get("duration_matches_plan", True))
+    audio_valid = bool(verification.get("audio_valid", False))
+
+    if not audio_valid and not any(x.get('code') in ('TTS_FAILED', 'AUDIO_INVALID') for x in all_issues):
+        all_issues.append({
+            "code": "AUDIO_INVALID",
+            "scene_id": None,
+            "message": "Audio stream is silent, invalid, or non-compliant with -14 LUFS."
+        })
+
+    if not duration_matches and not any(x.get('code') == 'DURATION_MISMATCH' for x in all_issues):
+        all_issues.append({
+            "code": "DURATION_MISMATCH",
+            "scene_id": None,
+            "message": f"Rendered duration {verification.get('duration')}s does not match planned duration."
+        })
+
+    if not dim_matches and not any(x.get('code') == 'DIMENSION_MISMATCH' for x in all_issues):
+        all_issues.append({
+            "code": "DIMENSION_MISMATCH",
+            "scene_id": None,
+            "message": f"Rendered dimensions {actual_dims} do not match expected aspect {aspect} ({exp_dims})."
+        })
+
+    is_ready = audio_valid and duration_matches and dim_matches and (len(all_issues) == 0)
+    final_status = "ready" if is_ready else "needs_attention"
+    final_stage = "Ready" if is_ready else "Needs attention"
+
+    issues_file.write_text(json.dumps(all_issues, indent=2), encoding="utf-8")
+
+    # Load or build report.json
+    report_file = project_dir / "report.json"
+    report_data = {}
+    if report_file.is_file():
+        try:
+            report_data = json.loads(report_file.read_text(encoding="utf-8"))
+        except Exception:
+            report_data = {}
+
+    report_data.update({
+        "status": final_status,
+        "stage": final_stage,
+        "issues": all_issues,
+        "verification": verification,
+        "output_mp4": str((project_dir / "output.mp4").name) if (project_dir / "output.mp4").is_file() else None
+    })
+    if extra_report:
+        report_data.update(extra_report)
+    report_file.write_text(json.dumps(report_data, indent=2), encoding="utf-8")
+
+    # Update pipeline_status.json
+    status_file = project_dir / "pipeline_status.json"
+    status_payload = {
+        "stage": final_stage,
+        "progress": 100,
+        "state": final_status,
+        "issues": all_issues,
+        "output_url": f"/media/{job_id}/output.mp4" if (project_dir / "output.mp4").is_file() else None,
+        "error": all_issues[0]["message"] if all_issues else None
+    }
+    status_file.write_text(json.dumps(status_payload, indent=2), encoding="utf-8")
+
+    # Update dashboard_project.json
+    dash_file = project_dir / "dashboard_project.json"
+    if dash_file.is_file():
+        try:
+            d_state = json.loads(dash_file.read_text(encoding="utf-8"))
+            d_state["status"] = final_status
+            d_state["stage"] = final_stage
+            d_state["issues"] = all_issues
+            if (project_dir / "output.mp4").is_file():
+                d_state["preview_url"] = f"/media/{job_id}/output.mp4"
+            dash_file.write_text(json.dumps(d_state, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    # Update server.JOBS in memory
+    try:
+        from . import server
+        with server.LOCK:
+            job = server.JOBS.get(job_id)
+            if job:
+                job.update(
+                    status=final_status,
+                    stage=final_stage,
+                    progress=100,
+                    issues=all_issues,
+                    error=all_issues[0]["message"] if all_issues else None
+                )
+                server.persist(job)
+    except Exception:
+        pass
+
+    return report_data

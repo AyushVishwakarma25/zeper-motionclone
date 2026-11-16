@@ -137,6 +137,21 @@
     <div class="login-brand">Motion<span>Clone</span></div>
     <div class="login-subtitle">Sign in to your production workspace</div>
 
+    <form id="email-auth-form" onsubmit="return false;" style="margin-bottom: 20px;">
+      <input type="email" id="email-input" class="form-input" placeholder="Work email (e.g. name@company.com)" required style="margin-bottom: 10px;">
+      <input type="password" id="password-input" class="form-input" placeholder="Password" required style="margin-bottom: 12px;">
+      <div style="display: flex; gap: 8px;">
+        <button type="submit" class="btn-token-submit" id="btn-email-login" style="flex: 1; padding: 10px; background: #00f2fe; color: #000; font-weight: 700;">Sign In</button>
+        <button type="button" class="btn-token-submit" id="btn-email-signup" style="flex: 1; padding: 10px; background: #27272a; color: #fff;">Create Account</button>
+      </div>
+    </form>
+
+    <div style="display: flex; align-items: center; margin: 18px 0; color: #71717a; font-size: 11px;">
+      <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
+      <span style="padding: 0 10px;">OR</span>
+      <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
+    </div>
+
     <button type="button" class="btn-google" id="btn-google-login">
       <svg viewBox="0 0 24 24">
         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -222,6 +237,62 @@
       err.textContent = msg;
       err.style.display = 'block';
     }
+
+    document.getElementById('btn-email-login').addEventListener('click', async () => {
+      document.getElementById('login-error').style.display = 'none';
+      const email = document.getElementById('email-input').value.trim();
+      const password = document.getElementById('password-input').value;
+      if (!email || !password) {
+        showError('Please enter both email and password.');
+        return;
+      }
+      if (!authInitialized) await initAuth();
+      if (!authInitialized || !window.firebase) {
+        showError('Firebase Auth is initializing or not configured for this origin. Use Developer Token sign-in below.');
+        document.getElementById('dev-token-box').style.display = 'block';
+        return;
+      }
+      try {
+        const cred = await firebase.auth().signInWithEmailAndPassword(email, password);
+        if (cred && cred.user) {
+          const token = await cred.user.getIdToken();
+          await verifyAndRedirect(token);
+        }
+      } catch (error) {
+        console.error('Email Sign-In Error:', error);
+        showError(error.message || 'Email authentication failed.');
+      }
+    });
+
+    document.getElementById('btn-email-signup').addEventListener('click', async () => {
+      document.getElementById('login-error').style.display = 'none';
+      const email = document.getElementById('email-input').value.trim();
+      const password = document.getElementById('password-input').value;
+      if (!email || !password) {
+        showError('Please enter both email and password to create an account.');
+        return;
+      }
+      if (password.length < 6) {
+        showError('Password must be at least 6 characters.');
+        return;
+      }
+      if (!authInitialized) await initAuth();
+      if (!authInitialized || !window.firebase) {
+        showError('Firebase Auth is initializing or not configured for this origin. Use Developer Token sign-in below.');
+        document.getElementById('dev-token-box').style.display = 'block';
+        return;
+      }
+      try {
+        const cred = await firebase.auth().createUserWithEmailAndPassword(email, password);
+        if (cred && cred.user) {
+          const token = await cred.user.getIdToken();
+          await verifyAndRedirect(token);
+        }
+      } catch (error) {
+        console.error('Email Sign-Up Error:', error);
+        showError(error.message || 'Account creation failed.');
+      }
+    });
 
     document.getElementById('btn-google-login').addEventListener('click', async () => {
       document.getElementById('login-error').style.display = 'none';

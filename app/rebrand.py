@@ -828,9 +828,8 @@ def trigger_remotion_render(id: str, format: str = 'mp4', composition: str = 'Mo
                 format=format,
                 composition=composition
             )
-            with server.LOCK:
-                job.update(status='complete', stage='Ready', progress=100)
-                server.persist(job)
+            from .pipeline import finalize_job
+            finalize_job(folder)
         except Exception as e:
             with server.LOCK:
                 job.update(status='error', stage='Render failed', error=str(e))
