@@ -29,21 +29,25 @@ echo "Deploying MotionClone to Google Cloud Run in project: $PROJECT_ID, region:
 if [ "$DRY_RUN" = true ]; then
   echo "--- DRY RUN MODE ---"
   echo "1. Would enable APIs:"
-  echo "   gcloud services enable aiplatform.googleapis.com run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com texttospeech.googleapis.com"
+  echo "   gcloud services enable aiplatform.googleapis.com run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com texttospeech.googleapis.com speech.googleapis.com firestore.googleapis.com storage.googleapis.com"
   echo "2. Would deploy Cloud Run service:"
-  echo "   gcloud run deploy \"$SERVICE_NAME\" --source . --region \"$REGION\" --platform managed --memory 4Gi --cpu 2 --timeout 900 --set-env-vars \"$ENV_VARS\""
+  MASKED_ENV_VARS=$(echo "$ENV_VARS" | sed -E 's/(FIREBASE_WEB_API_KEY=)[^,]*/\1[REDACTED]/g')
+  echo "   gcloud run deploy \"$SERVICE_NAME\" --source . --region \"$REGION\" --platform managed --memory 4Gi --cpu 2 --timeout 3600 --min-instances 1 --max-instances 1 --no-cpu-throttling --set-env-vars \"$MASKED_ENV_VARS\""
   echo "--- Dry run complete. No commands executed. ---"
   exit 0
 fi
 
 # 1. Enable required Google Cloud APIs
-echo "Enabling Vertex AI, Cloud Run, Cloud Build, Artifact Registry, and Text-to-Speech APIs..."
+echo "Enabling Vertex AI, Cloud Run, Cloud Build, Artifact Registry, Text-to-Speech, Speech-to-Text, Firestore, and Storage APIs..."
 gcloud services enable \
   aiplatform.googleapis.com \
   run.googleapis.com \
   cloudbuild.googleapis.com \
   artifactregistry.googleapis.com \
-  texttospeech.googleapis.com
+  texttospeech.googleapis.com \
+  speech.googleapis.com \
+  firestore.googleapis.com \
+  storage.googleapis.com
 
 # 2. Deploy directly with Cloud Run Source Deploy
 echo "Building container and deploying to Cloud Run..."
@@ -53,7 +57,10 @@ gcloud run deploy "$SERVICE_NAME" \
   --platform managed \
   --memory 4Gi \
   --cpu 2 \
-  --timeout 900 \
+  --timeout 3600 \
+  --min-instances 1 \
+  --max-instances 1 \
+  --no-cpu-throttling \
   --set-env-vars "$ENV_VARS"
 
 echo "MotionClone is deployed and running on Google Cloud Run!"

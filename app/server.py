@@ -144,6 +144,30 @@ def get_job(id):
                 return job
             except Exception:
                 pass
+        # Fallback to Firestore state mirroring if running in hosted mode or on restart
+        try:
+            from . import storage
+            fs_job = storage.load_job_from_firestore(id)
+            if fs_job:
+                folder = DATA / id
+                folder.mkdir(parents=True, exist_ok=True)
+                job = {
+                    'id': id,
+                    'status': fs_job.get('status', 'ready'),
+                    'stage': fs_job.get('stage', 'Ready'),
+                    'progress': fs_job.get('progress', 100),
+                    'issues': fs_job.get('issues', []),
+                    'error': fs_job.get('error'),
+                    'signed_output_url': fs_job.get('signed_output_url'),
+                    'brief': {},
+                    'files': {},
+                    'cancel': threading.Event()
+                }
+                JOBS[id] = job
+                job_file.write_text(json.dumps(job, indent=2), encoding='utf-8')
+                return job
+        except Exception:
+            pass
     raise HTTPException(404, 'Project not found.')
 
 
@@ -677,4 +701,13 @@ install_rebrand(app, sys.modules[__name__])
 
 from .dashboard_routes import install as install_dashboard
 install_dashboard(app, sys.modules[__name__])
+
+
+@app.on_event('startup')
+def on_app_startup():
+    try:
+        from . import storage
+        storage.probe_vertex_models()
+    except Exception as e:
+        logger.warning(f"Startup probe error: {e}")
 

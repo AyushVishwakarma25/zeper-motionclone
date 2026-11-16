@@ -34,7 +34,12 @@ steps:
       - '--cpu'
       - '2'
       - '--timeout'
-      - '900'
+      - '3600'
+      - '--min-instances'
+      - '1'
+      - '--max-instances'
+      - '1'
+      - '--no-cpu-throttling'
       - '--set-env-vars'
       - 'GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$_LOCATION,VERTEXAI_LOCATION_TEXT=global,VERTEXAI_LOCATION_VIDEO=us-central1,GEMINI_LOCATION=global,FRAMEFORGE_HOSTED=1,FIREBASE_WEB_API_KEY=$_FIREBASE_WEB_API_KEY,FIREBASE_APP_ID=$_FIREBASE_APP_ID,FIREBASE_AUTH_DOMAIN=$_FIREBASE_AUTH_DOMAIN,ALLOWED_EMAILS=$_ALLOWED_EMAILS'
 

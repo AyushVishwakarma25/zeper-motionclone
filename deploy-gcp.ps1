@@ -25,16 +25,17 @@ Write-Host "Deploying MotionClone to Google Cloud Run in project: $projectId, re
 if ($DryRun) {
     Write-Host "--- DRY RUN MODE ---" -ForegroundColor Yellow
     Write-Host "1. Would enable APIs:"
-    Write-Host "   gcloud services enable aiplatform.googleapis.com run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com texttospeech.googleapis.com"
+    Write-Host "   gcloud services enable aiplatform.googleapis.com run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com texttospeech.googleapis.com speech.googleapis.com firestore.googleapis.com storage.googleapis.com"
     Write-Host "2. Would deploy Cloud Run service:"
-    Write-Host "   gcloud run deploy $serviceName --source . --region $region --platform managed --memory 4Gi --cpu 2 --timeout 900 --set-env-vars `"$envVars`""
+    $maskedVars = $envVars -replace 'FIREBASE_WEB_API_KEY=[^,]*', 'FIREBASE_WEB_API_KEY=[REDACTED]'
+    Write-Host "   gcloud run deploy $serviceName --source . --region $region --platform managed --memory 4Gi --cpu 2 --timeout 3600 --min-instances 1 --max-instances 1 --no-cpu-throttling --set-env-vars `"$maskedVars`""
     Write-Host "--- Dry run complete. No commands executed. ---" -ForegroundColor Green
     exit 0
 }
 
 # 1. Enable required APIs
 Write-Host "Enabling Google Cloud APIs..." -ForegroundColor Yellow
-& gcloud services enable aiplatform.googleapis.com run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com texttospeech.googleapis.com
+& gcloud services enable aiplatform.googleapis.com run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com texttospeech.googleapis.com speech.googleapis.com firestore.googleapis.com storage.googleapis.com
 
 # 2. Deploy directly with Cloud Run
 Write-Host "Building container and deploying to Cloud Run..." -ForegroundColor Yellow
@@ -44,7 +45,10 @@ Write-Host "Building container and deploying to Cloud Run..." -ForegroundColor Y
     --platform managed `
     --memory 4Gi `
     --cpu 2 `
-    --timeout 900 `
+    --timeout 3600 `
+    --min-instances 1 `
+    --max-instances 1 `
+    --no-cpu-throttling `
     --set-env-vars "$envVars"
 
 Write-Host "MotionClone successfully deployed to Google Cloud Run!" -ForegroundColor Green

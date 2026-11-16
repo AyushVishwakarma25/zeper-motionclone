@@ -1058,4 +1058,7 @@ def install(app, server):
         if (folder / 'output.mp4').is_file():
             status_data['output_url'] = f"/media/{id}/output.mp4"
 
+        if status_data.get('report', {}).get('signed_output_url'):
+            status_data['signed_output_url'] = status_data['report']['signed_output_url']
+
         return status_data

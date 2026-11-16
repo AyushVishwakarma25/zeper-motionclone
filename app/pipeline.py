@@ -752,4 +752,33 @@ def finalize_job(
     except Exception:
         pass
 
+    # 4. Upload finished artifacts to GCS if OUTPUT_BUCKET is configured
+    signed_output_url = None
+    try:
+        from . import storage
+        upload_res = storage.upload_job_artifacts(project_dir)
+        if upload_res.get("signed_output_url"):
+            signed_output_url = upload_res["signed_output_url"]
+            report_data["signed_output_url"] = signed_output_url
+            report_file.write_text(json.dumps(report_data, indent=2), encoding="utf-8")
+            status_payload["signed_output_url"] = signed_output_url
+            status_file.write_text(json.dumps(status_payload, indent=2), encoding="utf-8")
+    except Exception as gcs_err:
+        logger.warning(f"GCS artifact upload skipped or failed: {gcs_err}")
+
+    # 5. Mirror state to Firestore
+    try:
+        from . import storage
+        storage.mirror_job_to_firestore(
+            job_id=job_id,
+            status=final_status,
+            stage=final_stage,
+            issues=all_issues,
+            progress=100,
+            error=all_issues[0]["message"] if all_issues else None,
+            signed_output_url=signed_output_url
+        )
+    except Exception as fs_err:
+        logger.warning(f"Firestore mirroring skipped or failed: {fs_err}")
+
     return report_data
