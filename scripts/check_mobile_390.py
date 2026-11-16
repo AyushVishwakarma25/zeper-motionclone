@@ -17,10 +17,8 @@ def check_viewports():
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(
-            executable_path=r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-            headless=True
-        )
+        # Use Playwright-managed Chromium on every developer/CI platform.
+        browser = p.chromium.launch(headless=True)
 
         viewports = [
             ("390x844", 390, 844),
