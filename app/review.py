@@ -77,56 +77,116 @@ def evaluate_scenes_with_gemini(
     scene_frames: dict[str, list[Path]],
     pass_num: int
 ) -> ReviewPassReport:
-    """Sends frames and scene plans to Gemini for structured QA checklist evaluation."""
-    client, model, _ = ai.get_gemini_client(tier='qa_gate')
+    """Evaluate every scene. Any unavailable/invalid evidence is UNKNOWN, never PASS."""
+    scene_ids = [str(sc.get("id") or f"scene_{i}") for i, sc in enumerate(scenes)]
 
-    prompt = (
-        f"You are the Lead Video QA Director conducting Pass #{pass_num} automated inspection.\n"
-        "Inspect each scene's rendered frames against these strict quality criteria:\n"
-        "1. Legibility: Font size is readable, text contrast >= 4.5:1, clean word wrapping.\n"
-        "2. Safe Margins: No text or badges clipped by outer 10% bounds (for mobile screens).\n"
-        "3. Visual Relevance: Content matches scene voice-over / headline.\n"
-        "4. Artifacts: No broken layout, empty cards, or duplicate text elements.\n\n"
-        f"SCENES UNDER REVIEW:\n{json.dumps(scenes, indent=2)}\n\n"
-        "Return a valid JSON ReviewPassReport with scene_id, verdict ('PASS', 'FAIL', 'UNKNOWN'), "
-        "reasons[], and suggested_fix if FAIL."
-    )
+    def unknown(reason: str) -> ReviewPassReport:
+        return ReviewPassReport(
+            pass_number=pass_num,
+            overall_verdict="UNKNOWN",
+            scenes=[
+                SceneQAResult(scene_id=sid, verdict="UNKNOWN", reasons=[reason])
+                for sid in scene_ids
+            ],
+        )
 
-    contents = [prompt]
-    # Attach scene frames
-    for sc_id, frames in scene_frames.items():
-        for frame_p in frames:
-            if frame_p.is_file():
-                contents.append(types.Part.from_bytes(data=frame_p.read_bytes(), mime_type="image/jpeg"))
+    if not scenes:
+        return unknown("No scenes were supplied for QA.")
 
-    config = types.GenerateContentConfig(
-        response_mime_type="application/json",
-        response_schema=ReviewPassReport,
-        temperature=0.1,
-        max_output_tokens=4096
-    )
+    missing_frames = [
+        sid for sid in scene_ids
+        if not scene_frames.get(sid) or not any(p.is_file() for p in scene_frames[sid])
+    ]
+    if missing_frames:
+        return ReviewPassReport(
+            pass_number=pass_num,
+            overall_verdict="UNKNOWN",
+            scenes=[
+                SceneQAResult(
+                    scene_id=sid,
+                    verdict="UNKNOWN",
+                    reasons=["Rendered frame evidence is missing; QA cannot certify this scene."],
+                )
+                for sid in scene_ids
+            ],
+        )
 
     try:
-        res = client.models.generate_content(model=model, contents=contents, config=config)
-        if res and res.text:
-            cleaned = res.text.strip()
-            if cleaned.startswith("```"):
-                lines = cleaned.splitlines()
-                if lines[0].startswith("```"):
-                    lines = lines[1:]
-                if lines and lines[-1].strip() == "```":
-                    lines = lines[:-1]
-                cleaned = "\n".join(lines).strip()
-            return ReviewPassReport.model_validate_json(cleaned)
-    except Exception as e:
-        logger.warning(f"QA review evaluation failed: {e}")
+        client, model, _ = ai.get_gemini_client(tier="qa_gate")
+        if client is None or not model:
+            return unknown("QA model client is unavailable.")
 
-    # Fallback to PASS if evaluator unavailable
-    return ReviewPassReport(
-        pass_number=pass_num,
-        overall_verdict="PASS",
-        scenes=[SceneQAResult(scene_id=str(sc.get("id", i)), verdict="PASS") for i, sc in enumerate(scenes)]
-    )
+        prompt = (
+            f"You are the Lead Video QA Director conducting Pass #{pass_num} automated inspection.\\n"
+            "Inspect each scene's rendered frames against these strict quality criteria:\\n"
+            "1. Legibility: Font size is readable, text contrast >= 4.5:1, clean word wrapping.\\n"
+            "2. Safe Margins: No text or badges clipped by outer 10% bounds (for mobile screens).\\n"
+            "3. Visual Relevance: Content matches scene voice-over / headline.\\n"
+            "4. Artifacts: No broken layout, empty cards, or duplicate text elements.\\n\\n"
+            f"SCENES UNDER REVIEW:\\n{json.dumps(scenes, indent=2)}\\n\\n"
+            "Return JSON matching ReviewPassReport. Include exactly one result for every scene_id. "
+            "Use PASS only when all criteria are visibly satisfied; use FAIL for a visible defect "
+            "and UNKNOWN when evidence is inconclusive."
+        )
+        contents = [prompt]
+        for sid in scene_ids:
+            for frame_p in scene_frames[sid]:
+                if frame_p.is_file():
+                    contents.append(types.Part.from_bytes(data=frame_p.read_bytes(), mime_type="image/jpeg"))
+
+        config = types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=ReviewPassReport,
+            temperature=0.1,
+            max_output_tokens=4096,
+        )
+        res = client.models.generate_content(model=model, contents=contents, config=config)
+        if not res or not res.text:
+            return unknown("QA model returned an empty response.")
+
+        cleaned = res.text.strip()
+        if cleaned.startswith("```"):
+            lines = cleaned.splitlines()
+            if lines and lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            cleaned = "\\n".join(lines).strip()
+
+        parsed = ReviewPassReport.model_validate_json(cleaned)
+        by_id = {item.scene_id: item for item in parsed.scenes}
+        complete_ids = len(parsed.scenes) == len(scene_ids) and set(by_id) == set(scene_ids)
+        normalized = []
+        for sid in scene_ids:
+            item = by_id.get(sid)
+            if item is None:
+                normalized.append(SceneQAResult(
+                    scene_id=sid,
+                    verdict="UNKNOWN",
+                    reasons=["QA response omitted this scene."],
+                ))
+            elif not complete_ids and item.verdict == "PASS":
+                normalized.append(SceneQAResult(
+                    scene_id=sid,
+                    verdict="UNKNOWN",
+                    reasons=["QA response contained missing, duplicate, or unexpected scene IDs."],
+                ))
+            else:
+                normalized.append(item)
+
+        overall = (
+            "FAIL" if any(s.verdict == "FAIL" for s in normalized)
+            else "UNKNOWN" if any(s.verdict == "UNKNOWN" for s in normalized)
+            else "PASS"
+        )
+        return ReviewPassReport(
+            pass_number=pass_num,
+            overall_verdict=overall,
+            scenes=normalized,
+        )
+    except Exception as exc:
+        logger.exception("QA review evaluation failed")
+        return unknown(f"QA evaluation failed: {type(exc).__name__}: {exc}")
 
 
 def run_quality_review_loop(
@@ -173,41 +233,55 @@ def run_quality_review_loop(
         pass_file = review_dir / f"pass_{pass_num}.json"
         pass_file.write_text(report.model_dump_json(indent=2), encoding="utf-8")
 
-        # 4. If all PASS, we are done
-        failed_scenes = [s for s in report.scenes if s.verdict == "FAIL"]
-        if not failed_scenes or report.overall_verdict == "PASS":
-            logger.info(f"QA Review Pass {pass_num}: All scenes PASSED.")
+        # Only an explicit PASS for every expected scene completes QA.
+        expected_ids = [str(sc.get("id") or f"scene_{i}") for i, sc in enumerate(scenes)]
+        by_id = {item.scene_id: item for item in report.scenes}
+        complete_pass = (
+            report.overall_verdict == "PASS"
+            and len(report.scenes) == len(expected_ids)
+            and set(by_id) == set(expected_ids)
+            and all(by_id[sid].verdict == "PASS" for sid in expected_ids)
+        )
+        if complete_pass:
+            logger.info(f"QA Review Pass {pass_num}: every scene explicitly PASSED.")
             break
 
-        # 5. If FAIL and more passes allowed, fix scene plan and re-render
-        if pass_num < max_passes:
-            logger.info(f"QA Review Pass {pass_num}: {len(failed_scenes)} scenes FAILED. Applying fixes and re-rendering...")
+        failed_scenes = [s for s in report.scenes if s.verdict == "FAIL"]
+        if pass_num < max_passes and failed_scenes:
+            logger.info(
+                f"QA Review Pass {pass_num}: {len(failed_scenes)} scenes FAILED. "
+                "Applying available scene fixes and re-rendering."
+            )
+            changed = False
             for fail_s in failed_scenes:
-                target_sc = next((sc for sc in scenes if str(sc.get("id")) == str(fail_s.scene_id)), None)
+                target_sc = next(
+                    (sc for sc in scenes if str(sc.get("id") or "") == str(fail_s.scene_id)),
+                    None,
+                )
                 if target_sc and fail_s.suggested_fix:
                     fix = fail_s.suggested_fix
                     if fix.template:
                         target_sc["template"] = fix.template
+                        changed = True
                     if fix.text_adjust:
                         target_sc["headline"] = fix.text_adjust
+                        changed = True
 
-            # Save updated scene plan
-            scene_plan_data["scenes"] = scenes
-            if sp_file.is_file():
-                sp_file.write_text(json.dumps(scene_plan_data, indent=2), encoding="utf-8")
-            if hasattr(plan, "scenes"):
-                plan.scenes = scenes
-
-            # Re-render updated project
-            remotion.render(
-                folder=project_dir,
-                plan=plan,
-                brief=brief,
-                cancel=cancel,
-                progress=lambda msg, pct: None,
-                format="mp4",
-                composition="Motion"
-            )
-
+            if changed:
+                scene_plan_data["scenes"] = scenes
+                if sp_file.is_file():
+                    sp_file.write_text(json.dumps(scene_plan_data, indent=2), encoding="utf-8")
+                if hasattr(plan, "scenes"):
+                    plan.scenes = scenes
+                remotion.render(
+                    folder=project_dir,
+                    plan=plan,
+                    brief=brief,
+                    cancel=cancel,
+                    progress=lambda msg, pct: None,
+                    format="mp4",
+                    composition="Motion",
+                )
+        # UNKNOWN is never success. Keep it visible after the final pass.
     return final_report
 
