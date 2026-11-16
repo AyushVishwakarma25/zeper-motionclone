@@ -419,52 +419,22 @@ def step_assemble(
 def step_review_loop(
     project_dir: Path,
     output_mp4: Path,
-    rules: list[str],
+    plan: Any,
+    brief: Any,
     cancel: threading.Event | None = None,
     progress_cb: Callable[[str, int], None] | None = None
-) -> QAEvaluationCategory:
-    """Step 6: Look at result and evaluate QA checklist (at least 2 stills)."""
-    if progress_cb:
-        progress_cb("Running automated QA verification gate...", 85)
-
-    stills_dir = project_dir / "qa_stills"
-    stills_dir.mkdir(parents=True, exist_ok=True)
-
-    info = media.probe(output_mp4)
-    duration = info.get('duration', 4.0)
-
-    stills = []
-    sample_times = [duration * 0.25, duration * 0.75]
-    for idx, t in enumerate(sample_times):
-        out_still = stills_dir / f"qa_frame_{idx}.png"
-        try:
-            run([
-                'ffmpeg', '-y', '-v', 'error',
-                '-ss', f"{t:.2f}",
-                '-i', str(output_mp4),
-                '-vframes', '1',
-                '-q:v', '2',
-                str(out_still)
-            ], cancel=cancel)
-            if out_still.is_file():
-                stills.append(out_still)
-        except Exception:
-            pass
-
-    if not stills:
-        # Fallback still
-        stills = [project_dir / "still.png"] if (project_dir / "still.png").is_file() else []
-
-    qa_report = ai.evaluate_qa_gate(
-        reference_stills=stills,
-        rendered_stills=stills,
-        rules=rules
+) -> dict[str, Any]:
+    """Step 6: Automated Multi-Pass QA Review Loop."""
+    from . import review
+    report = review.run_quality_review_loop(
+        project_dir=project_dir,
+        output_mp4=output_mp4,
+        plan=plan,
+        brief=brief,
+        cancel=cancel,
+        progress_cb=progress_cb
     )
-    (project_dir / "qa_gate.json").write_text(
-        qa_report.model_dump_json(indent=2),
-        encoding="utf-8"
-    )
-    return qa_report
+    return report.model_dump()
 
 
 def run_pipeline(
@@ -571,14 +541,24 @@ def run_pipeline(
 
         # 6. QA Review Loop
         write_status("Evaluating QA checklist", 85)
-        rules = bp_dict.get('rules', [])
         qa_report = step_review_loop(
             project_dir=project_dir,
             output_mp4=output_mp4,
-            rules=rules,
+            plan=None,
+            brief=None,
             cancel=cancel,
             progress_cb=progress_cb
         )
+
+        qa_issues = []
+        if qa_report.get('overall_verdict') == 'FAIL':
+            for s in qa_report.get('scenes', []):
+                if s.get('verdict') == 'FAIL':
+                    qa_issues.append({
+                        'code': 'QA_GATE_FAILED',
+                        'scene_id': s.get('scene_id'),
+                        'message': "; ".join(s.get('reasons', [])) or 'Scene failed quality review'
+                    })
 
         # 7. Verification & Report
         write_status("Final verification", 95)
@@ -603,11 +583,10 @@ def run_pipeline(
             'elapsed_seconds': round(elapsed, 2),
             'credit_cost': gate_info['estimate']['total_credits'],
             'output_mp4': str(output_mp4.name),
-            'qa_verdict': qa_report.verdict,
-            'qa_score': qa_report.overall_score,
+            'qa_verdict': qa_report.get('overall_verdict', 'PASS'),
             'scene_offsets': scene_offsets
         }
-        report = finalize_job(project_dir, verification=verif, extra_report=extra_report)
+        report = finalize_job(project_dir, verification=verif, issues=qa_issues if qa_issues else None, extra_report=extra_report)
         return report
 
     except Cancelled:
