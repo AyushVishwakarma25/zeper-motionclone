@@ -96,7 +96,7 @@ try {
       chromeMode: 'chrome-for-testing',
       cancelSignal,
       muted: project.muted === true,
-      scale: preview ? Math.min(1, 960 / composition.width) : 1,
+      scale: preview ? 0.5 : 1,
       onProgress: ({progress}) => process.stdout.write(JSON.stringify({progress: Math.round(progress * 100)}) + '\n')
     });
   } else {
@@ -113,7 +113,7 @@ try {
       chromeMode: 'chrome-for-testing',
       cancelSignal,
       muted: project.muted === true,
-      scale: preview ? Math.min(1, 960 / composition.width) : 1,
+      scale: preview ? 0.5 : 1,
       onProgress: ({progress}) => process.stdout.write(JSON.stringify({progress: Math.round(progress * 100)}) + '\n')
     });
   }
