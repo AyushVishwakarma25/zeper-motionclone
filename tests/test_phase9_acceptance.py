@@ -118,6 +118,12 @@ def test_paste_and_render_aspects_duration_and_pixel_check(tmp_path, monkeypatch
                 time.sleep(1.0)
 
             assert j_stat.get('status') in ('complete', 'ready'), f"Render failed for {aspect}: {j_stat.get('error')}"
+            # Ensure background thread has released the server lock
+            for _ in range(50):
+                if not server.ACTIVE.get('id'):
+                    break
+                time.sleep(0.1)
+            server.ACTIVE['id'] = None
             assert out_file.is_file(), f"Output file missing for aspect {aspect}"
             probe_meta = media.probe(out_file)
 

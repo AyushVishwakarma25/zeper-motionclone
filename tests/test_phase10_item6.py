@@ -92,6 +92,7 @@ def test_concurrency_parallel_deductions_local(tmp_path, monkeypatch):
     assert final_balance == 2, f"Expected final balance 2, got {final_balance}"
 
 
+@pytest.mark.integration
 def test_concurrency_firestore_transactions_hosted(monkeypatch):
     """Tests atomic Firestore transactions in hosted mode (FRAMEFORGE_HOSTED=1).
     Runs real concurrent transactions against Firestore collection users/{uid}.

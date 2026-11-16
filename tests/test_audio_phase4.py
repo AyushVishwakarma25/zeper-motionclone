@@ -7,6 +7,59 @@ from app import audio
 from app.media import probe
 
 
+def _generate_realistic_mp3_bytes(duration: float = 2.0) -> bytes:
+    """Generates real, decodable MP3 bytes via ffmpeg so downstream probe/mixing work accurately."""
+    p = subprocess.run([
+        'ffmpeg', '-y', '-v', 'error',
+        '-f', 'lavfi', '-i', f'sine=frequency=440:duration={duration}',
+        '-c:a', 'libmp3lame', '-b:a', '192k',
+        '-f', 'mp3', 'pipe:1'
+    ], capture_output=True, check=True)
+    return p.stdout
+
+
+def _probe_audio(file_path: Path) -> dict:
+    """Extracts audio stream details using ffprobe."""
+    proc = subprocess.run([
+        'ffprobe', '-v', 'error', '-show_streams', '-show_format', '-of', 'json', str(file_path)
+    ], stdout=subprocess.PIPE, text=True, check=True)
+    data = json.loads(proc.stdout)
+    a_stream = next((s for s in data.get('streams', []) if s['codec_type'] == 'audio'), None)
+    return {
+        'audio': a_stream is not None,
+        'duration': float(data.get('format', {}).get('duration', 0.0)),
+        'codec': a_stream.get('codec_name') if a_stream else None
+    }
+
+
+class MockTTSResponse:
+    def __init__(self, audio_content: bytes):
+        self.audio_content = audio_content
+
+
+class MockTextToSpeechClient:
+    def __init__(self, audio_bytes: bytes | None = None):
+        self.audio_bytes = audio_bytes if audio_bytes is not None else _generate_realistic_mp3_bytes(2.0)
+        self.calls = []
+
+    def synthesize_speech(self, input, voice, audio_config):
+        self.calls.append({
+            'input': input,
+            'voice': voice,
+            'audio_config': audio_config
+        })
+        return MockTTSResponse(self.audio_bytes)
+
+
+@pytest.fixture
+def mock_tts(monkeypatch):
+    """Mocks Google Cloud Text-to-Speech client at the SDK boundary for offline unit testing."""
+    from google.cloud import texttospeech
+    client_instance = MockTextToSpeechClient()
+    monkeypatch.setattr(texttospeech, 'TextToSpeechClient', lambda *args, **kwargs: client_instance)
+    return client_instance
+
+
 def test_ssml_script_builder():
     scenes = [
         {"id": "scene_1", "duration_seconds": 3.0, "voiceover_script_en": "Welcome to MotionClone AI video generation."},
@@ -29,7 +82,7 @@ def test_ssml_script_builder():
     assert "<s>मोशन क्लोन में आपका स्वागत है।</s>" in hi_ssml
 
 
-def test_synthesize_voiceover_english_and_hindi(tmp_path):
+def test_synthesize_voiceover_english_and_hindi(tmp_path, mock_tts):
     en_path = tmp_path / "en_vo.mp3"
     hi_path = tmp_path / "hi_vo.mp3"
 
@@ -41,6 +94,17 @@ def test_synthesize_voiceover_english_and_hindi(tmp_path):
     )
     assert en_path.is_file()
     assert en_path.stat().st_size > 1024
+    meta_en = _probe_audio(en_path)
+    assert meta_en["audio"] is True
+    assert meta_en["codec"] == "mp3"
+    assert abs(meta_en["duration"] - 2.0) < 0.3
+
+    # Check mock calls for English
+    assert len(mock_tts.calls) == 1
+    call_en = mock_tts.calls[0]
+    assert call_en['voice'].language_code == 'en-US'
+    assert call_en['voice'].name == audio.VOICE_PRESETS['en']['primary']
+    assert call_en['input'].text == "MotionClone provides automated reference to video reconstruction."
 
     # Synthesize Hindi VO
     audio.synthesize_voiceover(
@@ -50,9 +114,54 @@ def test_synthesize_voiceover_english_and_hindi(tmp_path):
     )
     assert hi_path.is_file()
     assert hi_path.stat().st_size > 1024
+    meta_hi = _probe_audio(hi_path)
+    assert meta_hi["audio"] is True
+    assert meta_hi["codec"] == "mp3"
+    assert abs(meta_hi["duration"] - 2.0) < 0.3
+
+    # Check mock calls for Hindi
+    assert len(mock_tts.calls) == 2
+    call_hi = mock_tts.calls[1]
+    assert call_hi['voice'].language_code == 'hi-IN'
+    assert call_hi['voice'].name == audio.VOICE_PRESETS['hi']['primary']
+    assert call_hi['input'].text == "मोशन क्लोन एआई वीडियो निर्माण का नया तरीका है।"
 
 
-def test_duck_and_mix_audio_with_target_loudness(tmp_path):
+def test_synthesize_voiceover_auth_failure_handling(tmp_path, monkeypatch):
+    """Verifies that TTS authentication/API failure raises RuntimeError and does NOT silently fake audio."""
+    from google.cloud import texttospeech
+    from google.auth.exceptions import DefaultCredentialsError
+
+    def failing_client(*args, **kwargs):
+        raise DefaultCredentialsError("Your default credentials were not found.")
+
+    monkeypatch.setattr(texttospeech, 'TextToSpeechClient', failing_client)
+    monkeypatch.setenv('ALLOW_TONE_FALLBACK', '0')
+
+    out_file = tmp_path / "should_fail.mp3"
+    with pytest.raises(RuntimeError) as exc_info:
+        audio.synthesize_voiceover("Test fail", language="en", output_path=out_file)
+
+    assert "Cloud TTS synthesis failed" in str(exc_info.value)
+    assert not out_file.exists()
+
+
+@pytest.mark.integration
+def test_real_cloud_tts_synthesis(tmp_path):
+    """Integration test: Real Google Cloud Text-to-Speech synthesis with live ADC."""
+    en_path = tmp_path / "real_en.mp3"
+    audio.synthesize_voiceover(
+        "MotionClone live cloud text-to-speech test.",
+        language="en",
+        output_path=en_path
+    )
+    assert en_path.is_file()
+    assert en_path.stat().st_size > 1024
+    meta = _probe_audio(en_path)
+    assert meta["audio"] is True
+
+
+def test_duck_and_mix_audio_with_target_loudness(tmp_path, mock_tts):
     # Ensure music library is ready
     audio.ensure_music_library()
     music_track = audio.STATIC_MUSIC_DIR / "tech_upbeat.mp3"
