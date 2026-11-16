@@ -12,6 +12,13 @@ import uuid
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
+if __package__ is None or __package__ == "":
+    root = Path(__file__).resolve().parents[1]
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    __package__ = "app"
+
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -710,4 +717,12 @@ def on_app_startup():
         storage.probe_vertex_models()
     except Exception as e:
         logger.warning(f"Startup probe error: {e}")
+
+
+if __name__ == '__main__':
+    import uvicorn
+    port = int(os.environ.get('PORT', 8000))
+    print(f"Starting MotionClone server at http://localhost:{port}/dashboard ...")
+    uvicorn.run('app.server:app', host='0.0.0.0', port=port, reload=False)
+
 
