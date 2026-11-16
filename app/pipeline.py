@@ -76,7 +76,8 @@ def detect_scene_cuts(video_path: Path, cancel: threading.Event | None = None) -
 
 
 def extract_evidence(video_path: Path, output_dir: Path, cancel: threading.Event | None = None) -> dict[str, Any]:
-    """Extract local evidence: scene cuts, keyframes, audio presence, duration."""
+    """Extract local evidence: scene cuts, keyframes, audio presence, duration, loudness."""
+    output_dir.mkdir(parents=True, exist_ok=True)
     info = media.probe(video_path)
     cuts = detect_scene_cuts(video_path, cancel=cancel)
     keyframes_dir = output_dir / 'keyframes'
@@ -102,16 +103,30 @@ def extract_evidence(video_path: Path, output_dir: Path, cancel: threading.Event
         if kf_path.is_file():
             keyframe_paths.append(str(kf_path))
 
-    return {
+    # Energy curve & loudness measurement
+    energy_lufs = -70.0
+    if info.get('audio'):
+        try:
+            loud_data = audio.measure_loudness(video_path)
+            energy_lufs = float(loud_data.get('input_i', -70.0))
+        except Exception:
+            pass
+
+    evidence = {
         'meta': info,
         'scene_cuts': cuts,
+        'keyframes': [str(p) for p in keyframe_paths],
         'keyframe_count': len(keyframe_paths),
         'duration': info['duration'],
         'fps': info['fps'],
         'width': info['width'],
         'height': info['height'],
-        'has_audio': info['audio']
+        'has_audio': info['audio'],
+        'energy_lufs': energy_lufs,
+        'transcript': ""
     }
+    (output_dir / 'evidence.json').write_text(json.dumps(evidence, indent=2), encoding='utf-8')
+    return evidence
 
 
 def step_deconstruct(
@@ -122,8 +137,11 @@ def step_deconstruct(
     cancel: threading.Event | None = None,
     progress_cb: Callable[[str, int], None] | None = None
 ) -> dict[str, Any]:
-    """Step 1: Deconstruct reference video into structural blueprint.json."""
+    """Step 1: Deconstruct reference video into structural blueprint.json and save audit artifacts."""
     blueprint_path = project_dir / "blueprint.json"
+    deconstruct_dir = project_dir / "deconstruct"
+    deconstruct_dir.mkdir(parents=True, exist_ok=True)
+
     if blueprint_path.is_file():
         try:
             return json.loads(blueprint_path.read_text(encoding="utf-8"))
@@ -135,7 +153,7 @@ def step_deconstruct(
 
     evidence = {}
     if source_video and source_video.is_file():
-        evidence = extract_evidence(source_video, project_dir, cancel=cancel)
+        evidence = extract_evidence(source_video, deconstruct_dir, cancel=cancel)
 
     meta = evidence.get('meta', {
         'width': 1080 if aspect != "16:9" else 1920,
@@ -145,15 +163,36 @@ def step_deconstruct(
         'audio': True
     })
 
-    blueprint_obj = dashboard_agent.generate_blueprint_from_reference(
-        reference_meta=meta,
-        aspect=aspect,
-        brief_notes=brief_notes,
-        reference_video_path=source_video
-    )
-    data = blueprint_obj.model_dump()
-    blueprint_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    return data
+    try:
+        blueprint_obj = dashboard_agent.generate_blueprint_from_reference(
+            reference_meta=meta,
+            aspect=aspect,
+            brief_notes=brief_notes,
+            reference_video_path=source_video,
+            evidence=evidence,
+            deconstruct_dir=deconstruct_dir
+        )
+        data = blueprint_obj.model_dump()
+        blueprint_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        (deconstruct_dir / "blueprint.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
+        return data
+    except Exception as exc:
+        logger.error(f"Reference deconstruction failed: {exc}")
+        issues_file = project_dir / "issues.json"
+        existing = []
+        if issues_file.is_file():
+            try:
+                existing = json.loads(issues_file.read_text(encoding="utf-8"))
+            except Exception:
+                existing = []
+        if not any(x.get('code') == 'BLUEPRINT_INVALID' for x in existing):
+            existing.append({
+                "code": "BLUEPRINT_INVALID",
+                "scene_id": None,
+                "message": str(exc)
+            })
+        issues_file.write_text(json.dumps(existing, indent=2), encoding="utf-8")
+        raise
 
 
 def step_plan(

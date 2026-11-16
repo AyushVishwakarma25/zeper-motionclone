@@ -140,11 +140,25 @@ class ExplainerScenePlan(BaseModel):
     scenes: list[SceneItem] = Field(default_factory=list)
 
 
+def _clean_markdown_fence(text: str) -> str:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        lines = cleaned.splitlines()
+        if lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        cleaned = "\n".join(lines).strip()
+    return cleaned
+
+
 def generate_blueprint_from_reference(
     reference_meta: dict[str, Any],
     aspect: str = "9:16",
     brief_notes: str = "",
-    reference_video_path: Path | None = None
+    reference_video_path: Path | None = None,
+    evidence: dict[str, Any] | None = None,
+    deconstruct_dir: Path | None = None
 ) -> BlueprintStructure:
     """Uses Google Gemini to analyze reference video/frames/metadata and extract a reusable Blueprint."""
     if not auth_status():
@@ -152,11 +166,13 @@ def generate_blueprint_from_reference(
 
     client, model, _ = get_gemini_client(tier='vision_deconstruct')
 
-    prompt = (
+    base_instruction = (
         "You are an elite Commercial Video Director and Motion Graphics Specialist.\n"
-        "Deconstruct this video reference into a reusable STYLE BLUEPRINT.\n"
-        "The blueprint captures STRUCTURE, PACING, CAMERA MOTION, and TIMING RULES—NEVER original copyrighted text or footage.\n\n"
+        "Extract ONLY the structure, pacing, scene types, visual compositions, transitions, and motion rhythm. "
+        "DO NOT copy text, dialogue, company names, product names, or slogans from the reference. "
+        "Output must be a valid JSON BlueprintStructure.\n\n"
         f"REFERENCE METADATA: {json.dumps(reference_meta, indent=2)}\n"
+        f"LOCAL EVIDENCE: {json.dumps(evidence or {}, indent=2)}\n"
         f"TARGET ASPECT RATIO: {aspect}\n"
         f"USER GOALS: {brief_notes}\n\n"
         "BLUEPRINT REQUIREMENTS:\n"
@@ -164,23 +180,32 @@ def generate_blueprint_from_reference(
         "2. Pacing: Average shot length 1.8 to 3.0 seconds, snappy rhythm.\n"
         "3. Shots: 5 to 8 sequential shots with precise shot_type, camera_motion, and transition.\n"
         "4. Rules: 5 concrete, checkable rules that made this reference engaging (e.g. 'Question hook within 2.5s', 'Safe margins 64px').\n"
-        "5. Output must conform to BlueprintStructure schema."
+        "5. Output must conform to BlueprintStructure schema. NEVER include specific copy or brand slogans from the reference."
     )
 
-    contents = [prompt]
+    contents = [base_instruction]
 
     # Multimodal video ingestion: attach reference frames or video if present
     if reference_video_path and Path(reference_video_path).is_file():
         ref_p = Path(reference_video_path)
-        # If reference stills/contact sheets are available in the folder, attach them
         parent_dir = ref_p.parent
         stills = sorted(parent_dir.glob('reference-*.jpg'))
+        if deconstruct_dir and (deconstruct_dir / 'keyframes').is_dir():
+            stills = sorted((deconstruct_dir / 'keyframes').glob('*.jpg'))
+
         if stills:
             for s in stills[:6]:
                 contents.append(types.Part.from_bytes(data=s.read_bytes(), mime_type='image/jpeg'))
         elif ref_p.stat().st_size <= 20 * 1024 * 1024:
-            # Under 20MB, pass raw video bytes directly to multimodal Google Gemini
+            # Under 20MB, pass raw video bytes directly
             contents.append(types.Part.from_bytes(data=ref_p.read_bytes(), mime_type='video/mp4'))
+        else:
+            # Over 20MB, upload via files API
+            try:
+                uploaded = client.files.upload(file=str(ref_p))
+                contents.append(uploaded)
+            except Exception as up_err:
+                logger.warning(f"Files API upload fallback to keyframes: {up_err}")
 
     config = types.GenerateContentConfig(
         response_mime_type="application/json",
@@ -189,34 +214,73 @@ def generate_blueprint_from_reference(
         max_output_tokens=8192,
     )
 
+    raw_text_1 = ""
+    raw_text_2 = ""
+    val_err_1 = None
+
+    # Attempt 1
     try:
         res = client.models.generate_content(
             model=model,
             contents=contents,
             config=config,
         )
-
         if res and res.text:
-            text = res.text.strip()
-            # Fast path
-            try:
-                return BlueprintStructure.model_validate_json(text)
-            except Exception:
-                # Attempt repair if JSON was truncated
-                if not text.endswith('}'):
-                    # Close open arrays or objects
-                    if text.rfind(']') < text.rfind('['):
-                        text += '\n]}'
-                    else:
-                        text += '\n}'
-                try:
-                    return BlueprintStructure.model_validate_json(text)
-                except Exception as inner_e:
-                    logger.warning(f"Could not parse repaired blueprint JSON: {inner_e}")
-    except Exception as e:
-        logger.warning(f"Gemini blueprint generation encountered: {e}. Falling back to synthesized blueprint.")
+            raw_text_1 = res.text.strip()
+            cleaned_1 = _clean_markdown_fence(raw_text_1)
+            parsed = BlueprintStructure.model_validate_json(cleaned_1)
 
-    return _fallback_blueprint(reference_meta, aspect)
+            if deconstruct_dir:
+                (deconstruct_dir / 'raw_response.json').write_text(json.dumps({'raw': raw_text_1}, indent=2), encoding='utf-8')
+                (deconstruct_dir / 'blueprint.json').write_text(parsed.model_dump_json(indent=2), encoding='utf-8')
+            return parsed
+    except Exception as e:
+        val_err_1 = e
+        logger.warning(f"Blueprint attempt 1 validation failed: {e}. Retrying ONCE with error appended...")
+
+    # Retry ONCE with validation error appended
+    retry_instruction = (
+        f"{base_instruction}\n\n"
+        f"CRITICAL: Previous response failed schema validation with error:\n{val_err_1}\n"
+        f"Previous invalid text was:\n{raw_text_1[:400]}\n"
+        "Please fix the schema errors, remove any trailing commas or markdown fences, and return valid JSON conforming to BlueprintStructure."
+    )
+    contents_retry = [retry_instruction]
+    for c in contents[1:]:
+        contents_retry.append(c)
+
+    try:
+        res_retry = client.models.generate_content(
+            model=model,
+            contents=contents_retry,
+            config=config,
+        )
+        if res_retry and res_retry.text:
+            raw_text_2 = res_retry.text.strip()
+            cleaned_2 = _clean_markdown_fence(raw_text_2)
+            parsed_2 = BlueprintStructure.model_validate_json(cleaned_2)
+
+            if deconstruct_dir:
+                (deconstruct_dir / 'raw_response.json').write_text(json.dumps({'raw': raw_text_2, 'retry': True}, indent=2), encoding='utf-8')
+                (deconstruct_dir / 'blueprint.json').write_text(parsed_2.model_dump_json(indent=2), encoding='utf-8')
+            return parsed_2
+    except Exception as e2:
+        logger.error(f"Blueprint retry attempt 2 also failed: {e2}")
+        if deconstruct_dir:
+            (deconstruct_dir / 'error_response.json').write_text(json.dumps({
+                'attempt1': raw_text_1,
+                'attempt2': raw_text_2,
+                'error': str(e2)
+            }, indent=2), encoding='utf-8')
+        raise ValueError(f"BLUEPRINT_INVALID: Schema validation failed after retry: {e2}") from e2
+
+    if deconstruct_dir:
+        (deconstruct_dir / 'error_response.json').write_text(json.dumps({
+            'attempt1': raw_text_1,
+            'attempt2': raw_text_2,
+            'error': str(val_err_1)
+        }, indent=2), encoding='utf-8')
+    raise ValueError(f"BLUEPRINT_INVALID: No response returned from Gemini: {val_err_1}")
 
 
 def _fallback_blueprint(reference_meta: dict[str, Any], aspect: str = "9:16") -> BlueprintStructure:

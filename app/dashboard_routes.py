@@ -332,6 +332,7 @@ def install(app, server):
             raise UpstreamAIError(f"Chat processing failed: {e}")
 
     @app.post('/api/dashboard/blueprint')
+    @app.post('/api/dashboard/deconstruct')
     def api_generate_blueprint(req: BlueprintGenerateRequest):
         server.get_job(req.job_id)
         folder = server.DATA / req.job_id
@@ -356,12 +357,24 @@ def install(app, server):
         else:
             meta = {"duration": 30.0, "fps": 30, "aspect": req.aspect}
 
+        deconstruct_dir = folder / 'deconstruct'
+        deconstruct_dir.mkdir(parents=True, exist_ok=True)
+        evidence = {}
+        if ref_video_path.is_file():
+            from .pipeline import extract_evidence
+            try:
+                evidence = extract_evidence(ref_video_path, deconstruct_dir)
+            except Exception as ev_err:
+                logger.warning(f"Local evidence extraction error: {ev_err}")
+
         try:
             blueprint = dashboard_agent.generate_blueprint_from_reference(
                 reference_meta=meta,
                 aspect=req.aspect,
                 brief_notes=req.notes,
-                reference_video_path=ref_video_path if ref_video_path.is_file() else None
+                reference_video_path=ref_video_path if ref_video_path.is_file() else None,
+                evidence=evidence,
+                deconstruct_dir=deconstruct_dir
             )
         except ValueError as ve:
             if "not configured" in str(ve).lower():
