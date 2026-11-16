@@ -96,6 +96,13 @@ class PreflightEstimateResponse(BaseModel):
     breakdown: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class DeductCreditsRequest(BaseModel):
+    amount: int | float
+    reason: str = "generation"
+    job_id: str = ""
+    user_id: str = "default_user"
+
+
 class SceneUpdateRequest(BaseModel):
     job_id: str
     id: int | str | None = None
@@ -227,6 +234,53 @@ def install(app, server):
             "tracks": ROYALTY_FREE_MUSIC_TRACKS,
             "aspect_ratios": ASPECT_RATIOS
         }
+
+    @app.post('/api/credits/deduct')
+    def api_deduct_credits(req: DeductCreditsRequest, request: Request):
+        from . import credits
+        uid = req.user_id or "default_user"
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            from .security import verify_token
+            try:
+                decoded = verify_token(auth_header.split('Bearer ')[1].strip())
+                uid = decoded.get('uid') or decoded.get('email') or uid
+            except Exception:
+                pass
+
+        try:
+            res = credits.check_and_deduct_credits(
+                user_id=uid,
+                required_credits=req.amount,
+                description=req.reason,
+                job_id=req.job_id
+            )
+            return res
+        except credits.InsufficientCreditsError as ice:
+            curr = credits.get_balance(uid)
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error": str(ice),
+                    "code": "INSUFFICIENT_CREDITS",
+                    "required": req.amount,
+                    "available": curr
+                }
+            )
+
+    @app.get('/api/credits/balance')
+    def api_get_credits_balance(request: Request, user_id: str = "default_user"):
+        from . import credits
+        uid = user_id
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            from .security import verify_token
+            try:
+                decoded = verify_token(auth_header.split('Bearer ')[1].strip())
+                uid = decoded.get('uid') or decoded.get('email') or uid
+            except Exception:
+                pass
+        return {"user_id": uid, "balance": credits.get_balance(uid)}
 
     @app.get('/api/dashboard/project/{id}')
     def get_dashboard_project(id: str):
@@ -933,6 +987,7 @@ def install(app, server):
                 status_code=402,
                 detail={
                     "error": "Insufficient credits",
+                    "code": "INSUFFICIENT_CREDITS",
                     "required_credits": req_credits,
                     "available_credits": user_balance,
                     "breakdown": cost.get('breakdown', [])
