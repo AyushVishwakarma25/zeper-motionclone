@@ -93,9 +93,12 @@ def upload_job_artifacts(
                 )
                 signed_urls[local_rel] = signed_url
             except Exception as sign_err:
-                # Signed URL generation might fail with ADC if service account private key is not present
-                logger.debug(f"generate_signed_url unavailable: {sign_err}")
-                signed_urls[local_rel] = f"https://storage.googleapis.com/{bucket_name}/{gcs_path}"
+                # Cloud Run ADC may not expose a local signing key. Keep the object private
+                # and omit its URL rather than returning an unsigned, potentially inaccessible URL.
+                logger.warning(
+                    "Signed URL generation failed for gs://%s/%s: %s",
+                    bucket_name, gcs_path, sign_err,
+                )
         except Exception as upload_err:
             logger.warning(f"Failed to upload {local_path} to gs://{bucket_name}/{gcs_path}: {upload_err}")
 
