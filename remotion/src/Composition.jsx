@@ -1,101 +1,998 @@
 import React, {useLayoutEffect, useRef, useState} from 'react';
 import {AbsoluteFill, Audio, Img, interpolate, OffthreadVideo, Sequence, spring, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 import {stateAt} from './motion.mjs';
+import {getTheme, MOTION_SPRINGS, PALETTES} from './theme.js';
 
-const families = {sans: 'Inter, Arial, sans-serif', serif: 'Georgia, serif', mono: 'Consolas, monospace'};
+const families = {
+  sans: "'Noto Sans Devanagari', 'Nirmala UI', Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+  serif: 'Georgia, serif',
+  mono: "Consolas, 'JetBrains Mono', monospace"
+};
 
-// Text layer with layout measurement so typewriter reveals don't reflow
-function Text({track, state, height, width, boxHeight}) {
-  const ref = useRef(null);
-  const [size, setSize] = useState(track.size * height);
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-    const intended = track.size * height;
-    element.style.fontSize = `${intended}px`;
-    setSize(Math.max(2, intended * Math.min(1, width / Math.max(1, element.scrollWidth), boxHeight / Math.max(1, element.scrollHeight))));
-  }, [track.text, track.size, track.font, track.weight, height, width, boxHeight]);
-  const common = {
-    fontFamily: families[track.font] || families.sans,
-    fontWeight: track.weight === 'bold' ? 700 : 400,
-    whiteSpace: 'pre-wrap',
-    lineHeight: 1.18,
-    textAlign: track.align
-  };
-  return <>
-    <span ref={ref} style={{...common, position:'absolute', visibility:'hidden', fontSize:track.size*height}}>{track.text}</span>
-    <span style={{...common, fontSize:size}}>{track.text.slice(0, Math.ceil(track.text.length * state.reveal))}</span>
-  </>;
+// Font-face declaration for Devanagari support
+export function GlobalFontStyles() {
+  return (
+    <style>{`
+      @font-face {
+        font-family: 'Noto Sans Devanagari';
+        src: url('${staticFile('fonts/NotoSansDevanagari-Regular.ttf')}') format('truetype');
+        font-weight: 400;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Noto Sans Devanagari';
+        src: url('${staticFile('fonts/NotoSansDevanagari-Bold.ttf')}') format('truetype');
+        font-weight: 700;
+        font-style: normal;
+      }
+    `}</style>
+  );
 }
 
-// General Layer Component for Motion Rebuilds
-function Layer({track, time, logo}) {
+// Continuous Motion Background: guarantees no static frames (>0.8s) across any scene
+export function MotionBackground({theme, accent = '#00f2fe', bg = '#0a0a12'}) {
+  const frame = useCurrentFrame();
   const {width, height} = useVideoConfig();
-  if (time < track.start || time >= track.end) return null;
-  const state = stateAt(track, time), w = state.w * width, h = state.h * height;
-  const style = {
-    position: 'absolute',
-    left: state.x * width,
-    top: state.y * height,
-    width: w,
-    height: h,
-    opacity: state.opacity,
-    transform: `rotate(${state.rotation}deg)`,
-    filter: state.blur ? `blur(${state.blur}px)` : undefined,
-    color: track.color,
-    boxSizing: 'border-box',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: {left:'flex-start', center:'center', right:'flex-end'}[track.align] || 'center'
-  };
-  const paint = {
-    width: '100%',
-    height: '100%',
-    boxSizing: 'border-box',
-    clipPath: track.kind !== 'text' ? `inset(0 ${(1-state.reveal)*100}% 0 0)` : undefined
-  };
 
-  let content;
-  if (track.kind === 'text') {
-    content = <Text track={track} state={state} height={height} width={w} boxHeight={h}/>;
-  } else if (track.kind === 'image') {
-    let imgSrc = null;
-    if (track.asset === 'logo' && logo) imgSrc = staticFile(logo);
-    else if (track.image) imgSrc = track.image.startsWith('http') ? track.image : staticFile(track.image);
-    else if (track.src) imgSrc = track.src.startsWith('http') ? track.src : staticFile(track.src);
-    else if (logo) imgSrc = staticFile(logo);
+  // Continuous drifting motion: angle and coordinates evolve on every frame
+  const angle = (125 + frame * 0.35) % 360;
+  const driftX = Math.sin(frame / 32) * 50;
+  const driftY = Math.cos(frame / 42) * 50;
+  const pulse = 0.85 + 0.15 * Math.sin(frame / 20);
 
-    content = imgSrc ? (
-      <Img
-        src={imgSrc}
-        style={{
-          ...paint,
-          objectFit: track.style?.objectFit || 'contain',
-          borderRadius: track.style?.borderRadius || `${(track.radius || 0.02) * height}px`,
-          boxShadow: track.style?.boxShadow || '0 20px 50px rgba(0,0,0,0.6)'
-        }}
-      />
-    ) : null;
-  } else if (track.kind === 'line') {
-    content = (
-      <svg width={w} height={h} style={paint}>
-        <line x1="0" y1="0" x2={w} y2={h} stroke={track.color} strokeWidth={Math.max(1,track.stroke*height)}/>
-      </svg>
-    );
-  } else {
-    content = (
+  return (
+    <AbsoluteFill style={{backgroundColor: bg, overflow: 'hidden', pointerEvents: 'none', zIndex: 0}}>
+      {/* Drifting ambient dynamic gradient */}
       <div style={{
-        ...paint,
-        borderRadius: track.kind==='ellipse' ? '50%' : `${(track.radius || 0) * height}px`,
-        background: track.kind==='gradient' ? `linear-gradient(${track.color},${track.color2})` : track.stroke ? 'transparent' : track.color,
-        border: track.stroke ? `${track.stroke*height}px solid ${track.color}` : undefined
-      }}/>
-    );
-  }
-  return <div style={style}>{content}</div>;
+        position: 'absolute',
+        inset: '-25%',
+        background: `radial-gradient(circle at ${50 + driftX / 2}% ${45 + driftY / 2}%, ${accent}28 0%, transparent 65%), linear-gradient(${angle}deg, ${bg} 0%, rgba(22,26,42,0.85) 100%)`
+      }} />
+
+      {/* Floating subtle glow orb */}
+      <div style={{
+        position: 'absolute',
+        left: `${width * 0.5 + driftX}px`,
+        top: `${height * 0.45 + driftY}px`,
+        width: `${width * 0.75}px`,
+        height: `${width * 0.75}px`,
+        transform: `translate(-50%, -50%) scale(${pulse})`,
+        background: `radial-gradient(circle, ${accent}20 0%, transparent 70%)`,
+        filter: 'blur(75px)'
+      }} />
+
+      {/* Subtle moving grid */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        backgroundImage: `linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px)`,
+        backgroundSize: `${Math.round(width * 0.08)}px ${Math.round(width * 0.08)}px`,
+        backgroundPosition: `${Math.round(driftX * 0.5)}px ${Math.round(driftY * 0.5)}px`,
+        opacity: 0.6
+      }} />
+    </AbsoluteFill>
+  );
 }
 
-// 1. Full Motion Reconstructed Composition
+// 1. KINETIC TEXT TEMPLATE (Word-level beat reveal, responsive safe-margins)
+export function KineticText({
+  headline = 'Autonomous Video Engine',
+  words = null,
+  accent = '#00f2fe',
+  bg = '#0a0a12'
+}) {
+  const frame = useCurrentFrame();
+  const {fps, width, height} = useVideoConfig();
+  const theme = getTheme(width, height);
+
+  const wordList = (words && words.length > 0)
+    ? words
+    : (headline ? headline.split(' ').filter(Boolean) : ['Autonomous', 'Video', 'Platform']);
+
+  const fontSize = theme.typeScale.h1;
+
+  return (
+    <AbsoluteFill style={{
+      fontFamily: theme.fontFamilies.sans,
+      overflow: 'hidden'
+    }}>
+      <GlobalFontStyles />
+      <MotionBackground theme={theme} accent={accent} bg={bg} />
+
+      {/* Safe container (8% sides, 12% top, 18% bottom) */}
+      <div style={{
+        position: 'absolute',
+        top: theme.safeMargins.top,
+        bottom: theme.safeMargins.bottom,
+        left: theme.safeMargins.left,
+        right: theme.safeMargins.right,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 2,
+        boxSizing: 'border-box'
+      }}>
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: `${Math.round(fontSize * 0.28)}px`,
+          maxWidth: '100%',
+          textAlign: 'center',
+          lineHeight: 1.25,
+          wordBreak: 'break-word'
+        }}>
+          {wordList.map((word, i) => {
+            const sp = spring({frame: frame - i * 6, fps, config: theme.springs.snappy});
+            const isAccent = (i === wordList.length - 1) || (wordList.length > 4 && i % 3 === 0);
+            return (
+              <span
+                key={i}
+                style={{
+                  color: isAccent ? accent : theme.palette.textPrimary,
+                  fontSize: `${fontSize}px`,
+                  fontWeight: 900,
+                  letterSpacing: '-0.5px',
+                  transform: `scale(${sp}) translateY(${interpolate(sp, [0, 1], [35, 0])}px)`,
+                  opacity: sp,
+                  display: 'inline-block',
+                  textShadow: '0 4px 20px rgba(0,0,0,0.8)'
+                }}
+              >
+                {word}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+// 2. FACT CARD TEMPLATE (Single headline, cleanly wrapped, animated stat, glassmorphism border)
+export function FactCard({
+  title = 'Engineered for High Conversion',
+  headline = '',
+  stat = '10x Faster',
+  subtitle = '',
+  source = 'Verified Benchmark',
+  accent = '#00f2fe',
+  bg = '#0a0a12'
+}) {
+  const frame = useCurrentFrame();
+  const {fps, width, height} = useVideoConfig();
+  const theme = getTheme(width, height);
+
+  const displayTitle = headline || title || 'Engineered for High Conversion';
+  const displaySubtitle = subtitle || '';
+
+  const enter = spring({frame, fps, config: theme.springs.smooth});
+  const statScale = spring({frame: frame - 4, fps, config: theme.springs.snappy});
+  const opacity = enter;
+
+  return (
+    <AbsoluteFill style={{fontFamily: theme.fontFamilies.sans, overflow: 'hidden'}}>
+      <GlobalFontStyles />
+      <MotionBackground theme={theme} accent={accent} bg={bg} />
+
+      <div style={{
+        position: 'absolute',
+        top: theme.safeMargins.top,
+        bottom: theme.safeMargins.bottom,
+        left: theme.safeMargins.left,
+        right: theme.safeMargins.right,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 2,
+        boxSizing: 'border-box'
+      }}>
+        <div style={{
+          transform: `scale(${0.88 + enter * 0.12})`,
+          opacity,
+          background: theme.palette.cardBg,
+          backdropFilter: 'blur(24px)',
+          border: `1.5px solid ${accent}50`,
+          borderRadius: `${Math.round(theme.width * 0.03)}px`,
+          padding: `${Math.round(theme.safeMargins.top * 0.35)}px ${Math.round(theme.safeMargins.left * 0.6)}px`,
+          textAlign: 'center',
+          width: '100%',
+          maxWidth: '100%',
+          boxSizing: 'border-box',
+          boxShadow: `0 30px 90px rgba(0,0,0,0.7), 0 0 45px ${accent}25`
+        }}>
+          {/* Source / Verified Pill */}
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '4px 14px',
+            borderRadius: '20px',
+            background: `${accent}18`,
+            border: `1px solid ${accent}40`,
+            color: accent,
+            fontSize: `${theme.typeScale.caption}px`,
+            fontWeight: 700,
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+            marginBottom: '16px'
+          }}>
+            <span style={{width: '6px', height: '6px', borderRadius: '50%', background: accent}} />
+            {source}
+          </div>
+
+          {/* Animated Big Stat */}
+          <div style={{
+            fontSize: `${theme.typeScale.display}px`,
+            fontWeight: 900,
+            color: accent,
+            letterSpacing: '-1.5px',
+            lineHeight: 1.1,
+            transform: `scale(${statScale})`,
+            marginBottom: '16px',
+            textShadow: `0 0 30px ${accent}40`
+          }}>
+            {stat}
+          </div>
+
+          {/* Single Headline (Never duplicated) */}
+          <div style={{
+            fontSize: `${theme.typeScale.h2}px`,
+            fontWeight: 800,
+            color: theme.palette.textPrimary,
+            lineHeight: 1.25,
+            marginBottom: displaySubtitle ? '12px' : '0px',
+            wordBreak: 'break-word'
+          }}>
+            {displayTitle}
+          </div>
+
+          {/* Subtitle */}
+          {displaySubtitle && (
+            <div style={{
+              fontSize: `${theme.typeScale.body}px`,
+              color: theme.palette.textSecondary,
+              fontWeight: 500,
+              lineHeight: 1.35
+            }}>
+              {displaySubtitle}
+            </div>
+          )}
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+// 3. STAT COUNTER TEMPLATE (Animated number counting up + description)
+export function StatCounter({
+  number = 100,
+  prefix = '',
+  suffix = '%',
+  headline = 'Automated Pipeline',
+  subtitle = 'Zero manual editing required',
+  accent = '#00f2fe',
+  bg = '#0a0a12'
+}) {
+  const frame = useCurrentFrame();
+  const {fps, width, height} = useVideoConfig();
+  const theme = getTheme(width, height);
+
+  const sp = spring({frame, fps, config: theme.springs.smooth});
+  const currentVal = Math.round(interpolate(sp, [0, 1], [0, Number(number) || 100]));
+
+  return (
+    <AbsoluteFill style={{fontFamily: theme.fontFamilies.sans, overflow: 'hidden'}}>
+      <GlobalFontStyles />
+      <MotionBackground theme={theme} accent={accent} bg={bg} />
+
+      <div style={{
+        position: 'absolute',
+        top: theme.safeMargins.top,
+        bottom: theme.safeMargins.bottom,
+        left: theme.safeMargins.left,
+        right: theme.safeMargins.right,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 2,
+        textAlign: 'center'
+      }}>
+        <div style={{
+          fontSize: `${Math.round(theme.typeScale.display * 1.3)}px`,
+          fontWeight: 900,
+          color: accent,
+          letterSpacing: '-2px',
+          lineHeight: 1.05,
+          textShadow: `0 0 40px ${accent}50`,
+          transform: `scale(${0.9 + sp * 0.1})`
+        }}>
+          {prefix}{currentVal}{suffix}
+        </div>
+        <div style={{
+          fontSize: `${theme.typeScale.h1}px`,
+          fontWeight: 800,
+          color: theme.palette.textPrimary,
+          marginTop: '16px',
+          lineHeight: 1.25
+        }}>
+          {headline}
+        </div>
+        {subtitle && (
+          <div style={{
+            fontSize: `${theme.typeScale.body}px`,
+            color: theme.palette.textSecondary,
+            marginTop: '10px'
+          }}>
+            {subtitle}
+          </div>
+        )}
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+// 4. COMPARISON SPLIT TEMPLATE (Before vs After / Option A vs Option B)
+export function ComparisonSplit({
+  optionA = {title: 'Manual Editing', desc: '4-8 Hours per video'},
+  optionB = {title: 'MotionClone AI', desc: '30 Seconds total'},
+  headline = 'The Smarter Workflow',
+  accent = '#00f2fe',
+  bg = '#0a0a12'
+}) {
+  const frame = useCurrentFrame();
+  const {fps, width, height} = useVideoConfig();
+  const theme = getTheme(width, height);
+
+  const isStacked = theme.isVertical || theme.isSquare;
+  const spA = spring({frame: frame - 2, fps, config: theme.springs.smooth});
+  const spB = spring({frame: frame - 10, fps, config: theme.springs.smooth});
+
+  return (
+    <AbsoluteFill style={{fontFamily: theme.fontFamilies.sans, overflow: 'hidden'}}>
+      <GlobalFontStyles />
+      <MotionBackground theme={theme} accent={accent} bg={bg} />
+
+      <div style={{
+        position: 'absolute',
+        top: theme.safeMargins.top,
+        bottom: theme.safeMargins.bottom,
+        left: theme.safeMargins.left,
+        right: theme.safeMargins.right,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '24px',
+        zIndex: 2
+      }}>
+        {headline && (
+          <div style={{
+            fontSize: `${theme.typeScale.h2}px`,
+            fontWeight: 800,
+            color: theme.palette.textPrimary,
+            textAlign: 'center',
+            marginBottom: '4px'
+          }}>
+            {headline}
+          </div>
+        )}
+
+        <div style={{
+          display: 'flex',
+          flexDirection: isStacked ? 'column' : 'row',
+          gap: '20px',
+          width: '100%',
+          justifyContent: 'center',
+          alignItems: 'stretch'
+        }}>
+          {/* Card A: Before / Legacy */}
+          <div style={{
+            flex: 1,
+            background: 'rgba(255, 60, 60, 0.08)',
+            border: '1.5px solid rgba(255, 60, 60, 0.35)',
+            borderRadius: '20px',
+            padding: '24px',
+            textAlign: 'center',
+            transform: `scale(${0.9 + spA * 0.1})`,
+            opacity: spA
+          }}>
+            <div style={{color: '#ff6b6b', fontSize: `${theme.typeScale.caption}px`, fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px'}}>BEFORE</div>
+            <div style={{color: '#ffffff', fontSize: `${theme.typeScale.h2}px`, fontWeight: 800, marginBottom: '6px'}}>{optionA.title}</div>
+            <div style={{color: theme.palette.textSecondary, fontSize: `${theme.typeScale.body}px`}}>{optionA.desc}</div>
+          </div>
+
+          {/* Card B: After / AI */}
+          <div style={{
+            flex: 1,
+            background: `${accent}15`,
+            border: `1.5px solid ${accent}`,
+            borderRadius: '20px',
+            padding: '24px',
+            textAlign: 'center',
+            transform: `scale(${0.9 + spB * 0.1})`,
+            opacity: spB,
+            boxShadow: `0 10px 40px ${accent}25`
+          }}>
+            <div style={{color: accent, fontSize: `${theme.typeScale.caption}px`, fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px'}}>WITH MOTIONCLONE</div>
+            <div style={{color: '#ffffff', fontSize: `${theme.typeScale.h2}px`, fontWeight: 800, marginBottom: '6px'}}>{optionB.title}</div>
+            <div style={{color: theme.palette.textSecondary, fontSize: `${theme.typeScale.body}px`}}>{optionB.desc}</div>
+          </div>
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+// 5. BULLET LIST TEMPLATE (Sequential reveal with checkmarks)
+export function BulletList({
+  headline = 'Key Architectural Pillars',
+  bullets = ['Real-time Vertex AI integration', 'Cloud TTS neural voiceover', '60 FPS broadcast Remotion render', 'Single source of truth pipeline'],
+  accent = '#00f2fe',
+  bg = '#0a0a12'
+}) {
+  const frame = useCurrentFrame();
+  const {fps, width, height} = useVideoConfig();
+  const theme = getTheme(width, height);
+
+  return (
+    <AbsoluteFill style={{fontFamily: theme.fontFamilies.sans, overflow: 'hidden'}}>
+      <GlobalFontStyles />
+      <MotionBackground theme={theme} accent={accent} bg={bg} />
+
+      <div style={{
+        position: 'absolute',
+        top: theme.safeMargins.top,
+        bottom: theme.safeMargins.bottom,
+        left: theme.safeMargins.left,
+        right: theme.safeMargins.right,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        zIndex: 2
+      }}>
+        {headline && (
+          <div style={{
+            fontSize: `${theme.typeScale.h1}px`,
+            fontWeight: 800,
+            color: theme.palette.textPrimary,
+            textAlign: 'center',
+            marginBottom: '32px'
+          }}>
+            {headline}
+          </div>
+        )}
+
+        <div style={{display: 'flex', flexDirection: 'column', gap: '16px'}}>
+          {bullets.map((item, idx) => {
+            const sp = spring({frame: frame - idx * 8, fps, config: theme.springs.snappy});
+            return (
+              <div
+                key={idx}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                  background: theme.palette.cardBg,
+                  border: `1px solid ${accent}30`,
+                  borderRadius: '16px',
+                  padding: '16px 20px',
+                  transform: `translateX(${interpolate(sp, [0, 1], [-40, 0])}px)`,
+                  opacity: sp
+                }}
+              >
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  background: accent,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#000000',
+                  fontWeight: 900,
+                  fontSize: '16px',
+                  flexShrink: 0
+                }}>
+                  ✓
+                </div>
+                <div style={{
+                  color: theme.palette.textPrimary,
+                  fontSize: `${theme.typeScale.body}px`,
+                  fontWeight: 600,
+                  lineHeight: 1.3
+                }}>
+                  {item}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+// 6. QUOTE TEMPLATE (Block quote + author + avatar placeholder)
+export function QuoteScene({
+  quote = "The future of motion design belongs to code and generative AI.",
+  author = "Zeper AI Research",
+  role = "Autonomous Media Lab",
+  accent = '#00f2fe',
+  bg = '#0a0a12'
+}) {
+  const frame = useCurrentFrame();
+  const {fps, width, height} = useVideoConfig();
+  const theme = getTheme(width, height);
+
+  const sp = spring({frame, fps, config: theme.springs.smooth});
+
+  return (
+    <AbsoluteFill style={{fontFamily: theme.fontFamilies.sans, overflow: 'hidden'}}>
+      <GlobalFontStyles />
+      <MotionBackground theme={theme} accent={accent} bg={bg} />
+
+      <div style={{
+        position: 'absolute',
+        top: theme.safeMargins.top,
+        bottom: theme.safeMargins.bottom,
+        left: theme.safeMargins.left,
+        right: theme.safeMargins.right,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 2,
+        textAlign: 'center'
+      }}>
+        {/* Typographic quote mark */}
+        <div style={{
+          fontSize: `${Math.round(theme.typeScale.display * 1.6)}px`,
+          lineHeight: 0.6,
+          color: accent,
+          fontFamily: 'Georgia, serif',
+          opacity: 0.8
+        }}>
+          “
+        </div>
+
+        {/* Quote body */}
+        <div style={{
+          fontSize: `${theme.typeScale.h2}px`,
+          fontWeight: 700,
+          color: theme.palette.textPrimary,
+          lineHeight: 1.35,
+          fontStyle: 'italic',
+          margin: '20px 0',
+          transform: `scale(${0.92 + sp * 0.08})`,
+          opacity: sp
+        }}>
+          {quote}
+        </div>
+
+        {/* Author info */}
+        <div style={{display: 'flex', alignItems: 'center', gap: '14px', marginTop: '16px'}}>
+          <div style={{
+            width: '44px',
+            height: '44px',
+            borderRadius: '50%',
+            background: `${accent}30`,
+            border: `2px solid ${accent}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: accent,
+            fontWeight: 800,
+            fontSize: '18px'
+          }}>
+            {author.charAt(0)}
+          </div>
+          <div style={{textAlign: 'left'}}>
+            <div style={{color: theme.palette.textPrimary, fontSize: `${theme.typeScale.body}px`, fontWeight: 800}}>{author}</div>
+            <div style={{color: theme.palette.textSecondary, fontSize: `${theme.typeScale.caption}px`}}>{role}</div>
+          </div>
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+// 7. IMAGE FULL BLEED TEMPLATE (Ken Burns slow zoom/pan + lower-third caption)
+export function ImageFullBleed({
+  image = null,
+  headline = 'Stunning Visual Detail',
+  subtitle = 'High-resolution generative synthesis',
+  accent = '#00f2fe'
+}) {
+  const frame = useCurrentFrame();
+  const {durationInFrames, width, height} = useVideoConfig();
+  const theme = getTheme(width, height);
+
+  // Ken Burns zoom & subtle pan
+  const scale = interpolate(frame, [0, durationInFrames], [1.0, 1.12], {extrapolateRight: 'clamp'});
+  const panY = interpolate(frame, [0, durationInFrames], [0, -25], {extrapolateRight: 'clamp'});
+
+  const imageSrc = image ? (image.startsWith('http') ? image : staticFile(image)) : null;
+
+  return (
+    <AbsoluteFill style={{backgroundColor: '#0a0a12', overflow: 'hidden', fontFamily: theme.fontFamilies.sans}}>
+      <GlobalFontStyles />
+      {imageSrc ? (
+        <Img
+          src={imageSrc}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            transform: `scale(${scale}) translateY(${panY}px)`
+          }}
+        />
+      ) : (
+        <MotionBackground theme={theme} accent={accent} bg="#0a0a12" />
+      )}
+
+      {/* Dark gradient shadow for lower third readability */}
+      <div style={{
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: '45%',
+        background: 'linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.5) 60%, transparent 100%)',
+        zIndex: 1
+      }} />
+
+      {/* Lower Third Caption inside safe margins */}
+      <div style={{
+        position: 'absolute',
+        bottom: theme.safeMargins.bottom,
+        left: theme.safeMargins.left,
+        right: theme.safeMargins.right,
+        zIndex: 2
+      }}>
+        <div style={{
+          fontSize: `${theme.typeScale.h1}px`,
+          fontWeight: 900,
+          color: '#ffffff',
+          lineHeight: 1.2,
+          textShadow: '0 4px 20px rgba(0,0,0,0.8)'
+        }}>
+          {headline}
+        </div>
+        {subtitle && (
+          <div style={{
+            fontSize: `${theme.typeScale.body}px`,
+            color: accent,
+            fontWeight: 700,
+            marginTop: '8px',
+            textShadow: '0 2px 10px rgba(0,0,0,0.8)'
+          }}>
+            {subtitle}
+          </div>
+        )}
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+// 8. SCREEN CAPTURE FRAME TEMPLATE (Mock browser/device frame with inner scroll/zoom)
+export function ScreenCaptureFrame({
+  image = null,
+  headline = 'Interactive Workspace',
+  subtitle = 'Full real-time visual control',
+  accent = '#00f2fe',
+  bg = '#0a0a12'
+}) {
+  const frame = useCurrentFrame();
+  const {durationInFrames, width, height} = useVideoConfig();
+  const theme = getTheme(width, height);
+
+  const imageSrc = image ? (image.startsWith('http') ? image : staticFile(image)) : null;
+  const innerScrollY = interpolate(frame, [0, durationInFrames], [0, -40], {extrapolateRight: 'clamp'});
+
+  return (
+    <AbsoluteFill style={{fontFamily: theme.fontFamilies.sans, overflow: 'hidden'}}>
+      <GlobalFontStyles />
+      <MotionBackground theme={theme} accent={accent} bg={bg} />
+
+      <div style={{
+        position: 'absolute',
+        top: theme.safeMargins.top,
+        bottom: theme.safeMargins.bottom,
+        left: theme.safeMargins.left,
+        right: theme.safeMargins.right,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '16px',
+        zIndex: 2
+      }}>
+        {headline && (
+          <div style={{
+            fontSize: `${theme.typeScale.h2}px`,
+            fontWeight: 800,
+            color: theme.palette.textPrimary,
+            textAlign: 'center'
+          }}>
+            {headline}
+          </div>
+        )}
+
+        {/* Browser Mock Frame */}
+        <div style={{
+          width: '100%',
+          flex: 1,
+          maxHeight: '75%',
+          background: '#161824',
+          borderRadius: '16px',
+          border: `1.5px solid ${accent}40`,
+          boxShadow: `0 25px 70px rgba(0,0,0,0.8), 0 0 30px ${accent}20`,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          {/* Header bar */}
+          <div style={{
+            height: '32px',
+            background: '#0d0f17',
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 12px',
+            gap: '8px'
+          }}>
+            <span style={{width: '10px', height: '10px', borderRadius: '50%', background: '#ff5f56'}} />
+            <span style={{width: '10px', height: '10px', borderRadius: '50%', background: '#ffbd2e'}} />
+            <span style={{width: '10px', height: '10px', borderRadius: '50%', background: '#27c93f'}} />
+            <div style={{
+              flex: 1,
+              height: '18px',
+              background: '#1a1d2c',
+              borderRadius: '6px',
+              marginLeft: '12px',
+              marginRight: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              paddingLeft: '8px',
+              color: '#666',
+              fontSize: '11px'
+            }}>
+              motionclone.studio/app
+            </div>
+          </div>
+
+          {/* Viewport content */}
+          <div style={{flex: 1, position: 'relative', overflow: 'hidden', background: '#0a0a10'}}>
+            {imageSrc ? (
+              <Img
+                src={imageSrc}
+                style={{
+                  width: '100%',
+                  height: '120%',
+                  objectFit: 'cover',
+                  transform: `translateY(${innerScrollY}px)`
+                }}
+              />
+            ) : (
+              <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: accent}}>
+                Mock Screen Viewport
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+// 9. CTA END CARD TEMPLATE (Logo + headline + action button + handle)
+export function CtaEndCard({
+  headline = 'Start Creating Today',
+  buttonText = 'Try MotionClone Free',
+  handle = '@zeperai',
+  accent = '#00f2fe',
+  bg = '#0a0a12',
+  logo = null
+}) {
+  const frame = useCurrentFrame();
+  const {fps, width, height} = useVideoConfig();
+  const theme = getTheme(width, height);
+
+  const sp = spring({frame, fps, config: theme.springs.snappy});
+  const btnPulse = 1.0 + 0.04 * Math.sin(frame / 12);
+
+  return (
+    <AbsoluteFill style={{fontFamily: theme.fontFamilies.sans, overflow: 'hidden'}}>
+      <GlobalFontStyles />
+      <MotionBackground theme={theme} accent={accent} bg={bg} />
+
+      <div style={{
+        position: 'absolute',
+        top: theme.safeMargins.top,
+        bottom: theme.safeMargins.bottom,
+        left: theme.safeMargins.left,
+        right: theme.safeMargins.right,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '24px',
+        zIndex: 2,
+        textAlign: 'center'
+      }}>
+        {/* Brand Icon */}
+        <div style={{
+          width: '72px',
+          height: '72px',
+          borderRadius: '20px',
+          background: `linear-gradient(135deg, ${accent}, #0072ff)`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: `0 12px 35px ${accent}60`,
+          transform: `scale(${sp})`
+        }}>
+          <span style={{fontSize: '36px', color: '#ffffff'}}>⚡</span>
+        </div>
+
+        {/* CTA Headline */}
+        <div style={{
+          fontSize: `${theme.typeScale.h1}px`,
+          fontWeight: 900,
+          color: theme.palette.textPrimary,
+          lineHeight: 1.2
+        }}>
+          {headline}
+        </div>
+
+        {/* Interactive-Styled Action Button */}
+        <div style={{
+          background: `linear-gradient(90deg, ${accent}, #4facfe)`,
+          color: '#000000',
+          fontWeight: 900,
+          fontSize: `${theme.typeScale.body}px`,
+          padding: '16px 36px',
+          borderRadius: '30px',
+          boxShadow: `0 10px 40px ${accent}50`,
+          transform: `scale(${btnPulse})`,
+          letterSpacing: '0.5px'
+        }}>
+          {buttonText} →
+        </div>
+
+        {/* Handle / Domain Pill */}
+        <div style={{
+          color: theme.palette.textSecondary,
+          fontSize: `${theme.typeScale.caption}px`,
+          fontWeight: 700,
+          letterSpacing: '1px'
+        }}>
+          {handle}
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+// Universal Scene Switch Component for Explainer Sequences
+export function SceneSwitch({scene = {}, logo = null}) {
+  const template = (scene.template || 'kinetic_text').toLowerCase();
+  const headline = scene.headline || scene.title || '';
+  const subtitle = scene.subtitle || scene.voiceover || scene.voiceover_script || scene.voiceover_script_en || scene.voiceover_script_hi || '';
+  const accent = scene.accent_color || '#00f2fe';
+  const bg = scene.background_color || '#0a0a12';
+  const asset = scene.assigned_asset || scene.asset || logo;
+
+  switch (template) {
+    case 'kinetic_text':
+      return (
+        <KineticText
+          headline={headline}
+          words={headline ? headline.split(' ').filter(Boolean) : null}
+          accent={accent}
+          bg={bg}
+        />
+      );
+    case 'fact_card':
+      const statVal = scene.stat || (headline.length <= 15 ? headline : '10x Faster');
+      const titleVal = scene.title && scene.title !== 'Fact' ? scene.title : headline;
+      return (
+        <FactCard
+          title={titleVal}
+          headline={titleVal}
+          stat={statVal}
+          subtitle={subtitle}
+          accent={accent}
+          bg={bg}
+        />
+      );
+    case 'stat_counter':
+      return (
+        <StatCounter
+          number={scene.number || 100}
+          prefix={scene.prefix || ''}
+          suffix={scene.suffix || '%'}
+          headline={headline}
+          subtitle={subtitle}
+          accent={accent}
+          bg={bg}
+        />
+      );
+    case 'comparison_split':
+      return (
+        <ComparisonSplit
+          optionA={scene.optionA || {title: 'Manual Video Edit', desc: 'Hours of timeline tweaking'}}
+          optionB={scene.optionB || {title: 'MotionClone AI', desc: 'Instant 60 FPS compilation'}}
+          headline={headline}
+          accent={accent}
+          bg={bg}
+        />
+      );
+    case 'bullet_list':
+      const bulletItems = scene.bullets || (subtitle ? subtitle.split('. ').filter(Boolean) : ['High-conversion hooks', 'Automated audio mixing', 'Production quality Remotion output']);
+      return (
+        <BulletList
+          headline={headline}
+          bullets={bulletItems}
+          accent={accent}
+          bg={bg}
+        />
+      );
+    case 'quote':
+      return (
+        <QuoteScene
+          quote={headline || subtitle || 'Motion graphics at the speed of thought.'}
+          author={scene.author || 'Zeper AI'}
+          role={scene.role || 'Design Engine'}
+          accent={accent}
+          bg={bg}
+        />
+      );
+    case 'image_full_bleed':
+      return (
+        <ImageFullBleed
+          image={asset}
+          headline={headline}
+          subtitle={subtitle}
+          accent={accent}
+        />
+      );
+    case 'screen_capture_frame':
+      return (
+        <ScreenCaptureFrame
+          image={asset}
+          headline={headline}
+          subtitle={subtitle}
+          accent={accent}
+          bg={bg}
+        />
+      );
+    case 'cta_end_card':
+      return (
+        <CtaEndCard
+          headline={headline || 'Ready to Rebuild Your Video?'}
+          buttonText={scene.buttonText || 'Get Started Now'}
+          handle={scene.handle || '@zeperai'}
+          accent={accent}
+          bg={bg}
+          logo={logo}
+        />
+      );
+    default:
+      return (
+        <KineticText
+          headline={headline}
+          words={headline ? headline.split(' ').filter(Boolean) : null}
+          accent={accent}
+          bg={bg}
+        />
+      );
+  }
+}
+
+// Main Universal Explainer Composition
 export function MotionComposition(props) {
   const {plan, audio, logo, scene_plan, scenes} = props;
   const frame = useCurrentFrame();
@@ -105,10 +1002,11 @@ export function MotionComposition(props) {
     ? scene_plan.scenes
     : (scenes && scenes.length > 0 ? scenes : null);
 
-  const bg = plan?.background || '#0a0a0f';
+  const bg = plan?.background || '#0a0a12';
 
   return (
     <AbsoluteFill style={{backgroundColor: bg, overflow: 'hidden'}}>
+      <GlobalFontStyles />
       {audio ? <Audio src={audio.startsWith('http') ? audio : staticFile(audio)} /> : null}
 
       {/* Render scene sequence when scenes exist */}
@@ -133,652 +1031,52 @@ export function MotionComposition(props) {
           );
         });
       })()}
-
-      {/* Render overlay tracks from plan ONLY when there are no structured scenes (prevents double-drawing) */}
-      {(!allScenes || allScenes.length === 0) && plan?.tracks && plan.tracks.map((track, index) => (
-        <Layer key={`${index}-${track.id}`} track={track} time={frame / fps} logo={logo} />
-      ))}
     </AbsoluteFill>
   );
 }
 
-// 2. Pro Website & Dashboard Screenshot Showcase
-// Includes: Spring enter/exit, subtle floating life, animated mouse cursor with click & expanding ripple
+// Legacy Composition Aliases
 export function DashboardShowcase(props) {
-  const frame = useCurrentFrame();
-  const {fps, durationInFrames, width, height} = useVideoConfig();
-
-  const title = props.title || 'Next-Gen Analytics Platform';
-  const subtitle = props.subtitle || 'Real-time Telemetry & Autonomous AI Workflows';
-  const accent = props.accentColor || '#00f2fe';
-  const bg = props.backgroundColor || '#0a0a0f';
-  const clickXNorm = props.clickX ?? 0.72;
-  const clickYNorm = props.clickY ?? 0.38;
-  const imageSrc = props.image ? (props.image.startsWith('http') ? props.image : staticFile(props.image)) : null;
-
-  // Spring Entrance (damping 12, mass 0.8 with overshoot)
-  const enterProgress = spring({
-    frame,
-    fps,
-    config: {damping: 12, mass: 0.8, stiffness: 100}
-  });
-
-  // Clean Exit before clip finishes
-  const exitFrames = 25;
-  const exitProgress = interpolate(
-    frame,
-    [durationInFrames - exitFrames, durationInFrames],
-    [0, 1],
-    {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}
-  );
-
-  // Subtle Life: gentle float bobbing
-  const floatY = Math.sin((frame) / 16) * 8;
-  const glowPulse = 0.4 + 0.2 * Math.sin(frame / 20);
-
-  // Scale and opacity combined
-  const scale = (0.85 + enterProgress * 0.15) * (1 - exitProgress * 0.08);
-  const opacity = enterProgress * (1 - exitProgress);
-
-  // Card dimensions
-  const cardW = Math.round(width * 0.82);
-  const cardH = Math.round(height * 0.56);
-  const cardX = Math.round((width - cardW) / 2);
-  const cardY = Math.round((height - cardH) / 2 + 50 + floatY);
-
-  // Mouse Cursor Click Animation
-  // Arrives at frame 35, clicks at frame 50, ripples at 52-68, departs at 75
-  const clickFrame = 50;
-  const cursorEnter = spring({
-    frame: frame - 25,
-    fps,
-    config: {damping: 14, mass: 0.9}
-  });
-  const cursorDepress = spring({
-    frame: frame - clickFrame,
-    fps,
-    config: {damping: 10, mass: 0.5, stiffness: 200}
-  });
-  const cursorDepressScale = interpolate(cursorDepress, [0, 0.5, 1], [1, 0.82, 1], {extrapolateRight: 'clamp'});
-
-  const cursorTargetX = cardX + Math.round(cardW * clickXNorm);
-  const cursorTargetY = cardY + Math.round(cardH * clickYNorm);
-
-  const cursorStartX = width * 0.92;
-  const cursorStartY = height * 0.95;
-
-  const curX = interpolate(cursorEnter, [0, 1], [cursorStartX, cursorTargetX]);
-  const curY = interpolate(cursorEnter, [0, 1], [cursorStartY, cursorTargetY]);
-
-  // Ripple Wave Expansion on click
-  const rippleProgress = interpolate(
-    frame,
-    [clickFrame, clickFrame + 22],
-    [0, 1],
-    {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}
-  );
-  const rippleScale = interpolate(rippleProgress, [0, 1], [0.1, 2.6]);
-  const rippleOpacity = interpolate(rippleProgress, [0, 0.2, 1], [0, 0.9, 0]);
-
-  return (
-    <AbsoluteFill style={{backgroundColor: bg, overflow: 'hidden', fontFamily: 'Inter, system-ui, sans-serif'}}>
-      {/* Background radial ambient glow */}
-      <div style={{
-        position: 'absolute',
-        top: '20%',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        width: '800px',
-        height: '600px',
-        background: `radial-gradient(circle, ${accent}25 0%, transparent 70%)`,
-        pointerEvents: 'none',
-        filter: 'blur(60px)'
-      }} />
-
-      {/* Title-Safe Header Bar */}
-      <div style={{
-        position: 'absolute',
-        top: Math.round(height * 0.08),
-        left: '10%',
-        right: '10%',
-        textAlign: 'center',
-        opacity,
-        transform: `translateY(${interpolate(enterProgress, [0, 1], [30, 0])}px)`
-      }}>
-        {subtitle && (
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '6px 16px',
-            borderRadius: '20px',
-            background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.12)',
-            color: accent,
-            fontSize: `${Math.round(height * 0.016)}px`,
-            fontWeight: 700,
-            letterSpacing: '1.5px',
-            textTransform: 'uppercase',
-            marginBottom: '12px'
-          }}>
-            <span style={{width:'8px', height:'8px', borderRadius:'50%', background:accent, boxShadow:`0 0 10px ${accent}`}} />
-            {subtitle}
-          </div>
-        )}
-        <h1 style={{
-          margin: 0,
-          color: '#ffffff',
-          fontSize: `${Math.round(height * 0.045)}px`,
-          fontWeight: 800,
-          letterSpacing: '-0.5px',
-          textShadow: '0 4px 24px rgba(0,0,0,0.8)'
-        }}>
-          {title}
-        </h1>
-      </div>
-
-      {/* Main Floating Dashboard Card */}
-      <div style={{
-        position: 'absolute',
-        left: cardX,
-        top: cardY,
-        width: cardW,
-        height: cardH,
-        opacity,
-        transform: `scale(${scale})`,
-        borderRadius: '16px',
-        boxShadow: `0 30px 80px rgba(0,0,0,0.8), 0 0 35px ${accent}${Math.round(glowPulse * 40).toString(16).padStart(2,'0')}`,
-        border: '1px solid rgba(255,255,255,0.16)',
-        overflow: 'hidden',
-        background: '#121218'
-      }}>
-        {imageSrc ? (
-          <Img src={imageSrc} style={{width:'100%', height:'100%', objectFit:'cover', display:'block'}} />
-        ) : (
-          <div style={{width:'100%', height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', color:'#888'}}>
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2">
-              <rect x="2" y="3" width="20" height="14" rx="2" />
-              <line x1="8" y1="21" x2="16" y2="21" />
-              <line x1="12" y1="17" x2="12" y2="21" />
-            </svg>
-            <p style={{marginTop:'12px', fontSize:'18px', color:'#ccc'}}>Dashboard / Website Screenshot Preview</p>
-          </div>
-        )}
-      </div>
-
-      {/* Animated Click Ripple Ring */}
-      {frame >= clickFrame && frame <= clickFrame + 22 && (
-        <div style={{
-          position: 'absolute',
-          left: cursorTargetX - 35,
-          top: cursorTargetY - 35,
-          width: '70px',
-          height: '70px',
-          borderRadius: '50%',
-          border: `3px solid ${accent}`,
-          boxShadow: `0 0 20px ${accent}`,
-          transform: `scale(${rippleScale})`,
-          opacity: rippleOpacity,
-          pointerEvents: 'none'
-        }} />
-      )}
-
-      {/* Animated Mouse Cursor */}
-      {frame >= 25 && frame <= durationInFrames - 15 && (
-        <div style={{
-          position: 'absolute',
-          left: curX,
-          top: curY,
-          transform: `scale(${cursorDepressScale})`,
-          transformOrigin: 'top left',
-          pointerEvents: 'none',
-          filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.7))'
-        }}>
-          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-            <path
-              d="M3 2 L22 17 L14 18 L19 29 L14 31 L9 20 L3 25 Z"
-              fill="#ffffff"
-              stroke="#000000"
-              strokeWidth="2"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </div>
-      )}
-
-      {/* Synced Audio Sound Effects */}
-      <Sequence from={0} durationInFrames={20}>
-        <Audio src={staticFile('sfx/whoosh.wav')} volume={0.4} />
-      </Sequence>
-      <Sequence from={clickFrame} durationInFrames={8}>
-        <Audio src={staticFile('sfx/click.wav')} volume={0.7} />
-      </Sequence>
-      <Sequence from={clickFrame + 2} durationInFrames={32}>
-        <Audio src={staticFile('sfx/chime.wav')} volume={0.35} />
-      </Sequence>
-      <Sequence from={Math.max(0, durationInFrames - 22)} durationInFrames={20}>
-        <Audio src={staticFile('sfx/swish.wav')} volume={0.35} />
-      </Sequence>
-    </AbsoluteFill>
-  );
+  return <ScreenCaptureFrame {...props} />;
 }
-
-// 3. Pro Title Card (RANGY.AI Part 1 4a)
-export function TitleCard({title = 'Master Title Card', subtitle = 'Clean Motion Graphic', accent = '#00f2fe', bg = '#0b0b12'}) {
-  const frame = useCurrentFrame();
-  const {fps, durationInFrames, width, height} = useVideoConfig();
-
-  const enter = spring({frame, fps, config: {damping: 12, mass: 0.8}});
-  const exit = interpolate(frame, [durationInFrames - 20, durationInFrames], [0, 1], {extrapolateLeft:'clamp', extrapolateRight:'clamp'});
-  const opacity = enter * (1 - exit);
-  const scale = (0.9 + enter * 0.1) * (1 - exit * 0.05);
-
-  return (
-    <AbsoluteFill style={{backgroundColor: bg, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Inter, sans-serif'}}>
-      <div style={{textAlign:'center', opacity, transform:`scale(${scale})`, padding:'0 10%'}}>
-        <div style={{color:accent, fontSize:`${Math.round(height*0.022)}px`, fontWeight:700, letterSpacing:'3px', textTransform:'uppercase', marginBottom:'16px'}}>
-          {subtitle}
-        </div>
-        <h1 style={{color:'#ffffff', fontSize:`${Math.round(height*0.065)}px`, fontWeight:800, margin:0, textShadow:'0 4px 30px rgba(0,0,0,0.8)'}}>
-          {title}
-        </h1>
-        <div style={{width:'80px', height:'4px', background:accent, margin:'24px auto 0', borderRadius:'2px'}} />
-      </div>
-
-      {/* Synced Audio Sound Effects */}
-      <Sequence from={0} durationInFrames={20}>
-        <Audio src={staticFile('sfx/whoosh.wav')} volume={0.45} />
-      </Sequence>
-      <Sequence from={15} durationInFrames={35}>
-        <Audio src={staticFile('sfx/chime.wav')} volume={0.4} />
-      </Sequence>
-      <Sequence from={Math.max(0, durationInFrames - 20)} durationInFrames={20}>
-        <Audio src={staticFile('sfx/swish.wav')} volume={0.35} />
-      </Sequence>
-    </AbsoluteFill>
-  );
+export function TitleCard(props) {
+  return <KineticText {...props} />;
 }
-
-// 4. Pro Lower Third (RANGY.AI Part 1 4b)
-export function LowerThird({name = 'Alex Morgan', role = 'Founder & CEO · Linear', accent = '#00f2fe'}) {
-  const frame = useCurrentFrame();
-  const {fps, durationInFrames, height} = useVideoConfig();
-
-  const enter = spring({frame, fps, config: {damping: 14, mass: 0.9}});
-  const exit = interpolate(frame, [durationInFrames - 20, durationInFrames], [0, 1], {extrapolateLeft:'clamp', extrapolateRight:'clamp'});
-  const slideX = interpolate(enter, [0, 1], [-120, 0]) - exit * 150;
-  const opacity = enter * (1 - exit);
-
+export function LowerThird({name = 'Name', role = 'Role', accent = '#00f2fe'}) {
+  const {width, height} = useVideoConfig();
+  const theme = getTheme(width, height);
   return (
-    <AbsoluteFill style={{background:'transparent', pointerEvents:'none', fontFamily:'Inter, sans-serif'}}>
+    <AbsoluteFill style={{background: 'transparent', fontFamily: theme.fontFamilies.sans}}>
       <div style={{
         position: 'absolute',
-        bottom: Math.round(height * 0.12),
-        left: Math.round(height * 0.08),
-        opacity,
-        transform: `translateX(${slideX}px)`,
-        display: 'flex',
-        alignItems: 'center',
-        gap: '16px',
-        padding: '16px 28px',
-        borderRadius: '14px',
-        background: 'rgba(15, 15, 23, 0.92)',
-        border: '1px solid rgba(255,255,255,0.15)',
-        boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
-        backdropFilter: 'blur(16px)'
+        bottom: theme.safeMargins.bottom,
+        left: theme.safeMargins.left,
+        background: 'rgba(10,12,20,0.85)',
+        backdropFilter: 'blur(16px)',
+        borderLeft: `4px solid ${accent}`,
+        padding: '12px 24px',
+        borderRadius: '0 12px 12px 0'
       }}>
-        <div style={{width:'4px', height:'44px', background:accent, borderRadius:'2px'}} />
-        <div>
-          <div style={{color:'#ffffff', fontSize:'24px', fontWeight:800}}>{name}</div>
-          <div style={{color:accent, fontSize:'15px', fontWeight:600, letterSpacing:'0.5px'}}>{role}</div>
-        </div>
+        <div style={{color: '#fff', fontSize: `${theme.typeScale.h2}px`, fontWeight: 800}}>{name}</div>
+        <div style={{color: accent, fontSize: `${theme.typeScale.body}px`, fontWeight: 600}}>{role}</div>
       </div>
     </AbsoluteFill>
   );
 }
-
-// 5. Kinetic Text (RANGY.AI Part 1 4c)
-export function KineticText({words = ['Design.', 'Build.', 'Ship.'], headline = '', accent = '#00f2fe', bg = '#09090e'}) {
-  const frame = useCurrentFrame();
-  const {fps, width, height} = useVideoConfig();
-
-  const wordList = Array.isArray(words) && words.length > 0
-    ? words
-    : (headline ? headline.split(' ').filter(Boolean) : ['Design.', 'Build.', 'Ship.']);
-
-  // Dynamic responsive font size: adapts to word count and viewport dimensions with safe margins
-  const minDim = Math.min(width, height);
-  const isVertical = height > width;
-  const scaleFactor = wordList.length > 8 ? 0.045 : (wordList.length > 4 ? 0.055 : 0.07);
-  const fontSize = Math.max(28, Math.min(Math.round(minDim * scaleFactor * (isVertical ? 1.3 : 1.0)), 110));
-
+export function TransparentOverlay({badgeText = 'FEATURED', stat = '10x Faster', accent = '#00f2fe'}) {
+  const {width, height} = useVideoConfig();
+  const theme = getTheme(width, height);
   return (
-    <AbsoluteFill style={{
-      backgroundColor: bg,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontFamily: 'Inter, -apple-system, sans-serif',
-      padding: `${Math.round(height * 0.1)}px ${Math.round(width * 0.1)}px`,
-      boxSizing: 'border-box',
-      overflow: 'hidden'
-    }}>
+    <AbsoluteFill style={{background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: theme.fontFamilies.sans}}>
       <div style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: `${Math.round(fontSize * 0.3)}px`,
-        maxWidth: '85%',
-        textAlign: 'center',
-        lineHeight: 1.25,
-        wordBreak: 'break-word',
-        boxSizing: 'border-box'
-      }}>
-        {wordList.map((word, i) => {
-          const sp = spring({frame: frame - i * 8, fps, config: {damping: 12, mass: 0.6, stiffness: 150}});
-          const isAccent = (i === wordList.length - 1) || (wordList.length > 4 && i % 3 === 0);
-          return (
-            <span key={i} style={{
-              color: isAccent ? accent : '#ffffff',
-              fontSize: `${fontSize}px`,
-              fontWeight: 900,
-              letterSpacing: '-0.5px',
-              transform: `scale(${sp}) translateY(${interpolate(sp, [0, 1], [30, 0])}px)`,
-              opacity: sp,
-              display: 'inline-block'
-            }}>
-              {word}
-            </span>
-          );
-        })}
-      </div>
-    </AbsoluteFill>
-  );
-}
-
-// 6. Transparent Overlay Demo (RANGY.AI Part 1 4d) - Real Alpha Channel
-export function TransparentOverlay({badgeText = 'FEATURED PRODUCT', stat = '10x Faster', accent = '#00f2fe'}) {
-  const frame = useCurrentFrame();
-  const {fps, durationInFrames, width, height} = useVideoConfig();
-
-  const enter = spring({frame, fps, config: {damping: 12, mass: 0.8}});
-  const exit = interpolate(frame, [durationInFrames - 20, durationInFrames], [0, 1], {extrapolateLeft:'clamp', extrapolateRight:'clamp'});
-  const opacity = enter * (1 - exit);
-
-  return (
-    <AbsoluteFill style={{background: 'transparent', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Inter, sans-serif'}}>
-      <div style={{
-        opacity,
-        transform: `scale(${0.9 + enter * 0.1})`,
         padding: '24px 36px',
         borderRadius: '20px',
         background: 'rgba(18, 18, 26, 0.94)',
         border: `2px solid ${accent}`,
-        boxShadow: `0 20px 60px rgba(0,0,0,0.7), 0 0 30px ${accent}40`,
         textAlign: 'center'
       }}>
-        <div style={{color:accent, fontSize:'14px', fontWeight:800, letterSpacing:'2px', marginBottom:'8px'}}>{badgeText}</div>
-        <div style={{color:'#ffffff', fontSize:'42px', fontWeight:900}}>{stat}</div>
-      </div>
-    </AbsoluteFill>
-  );
-}
-
-// 6b. High-Impact Fact / Metric Card
-export function FactCard({
-  title = 'Autonomous Video Engine',
-  stat = '10x Faster',
-  subtitle = 'Engineered for High-Conversion Explainer Videos',
-  accent = '#00f2fe',
-  bg = '#09090e'
-}) {
-  const frame = useCurrentFrame();
-  const {fps, width, height} = useVideoConfig();
-
-  const enter = spring({frame, fps, config: {damping: 12, mass: 0.8}});
-  const scale = 0.9 + enter * 0.1;
-  const opacity = enter;
-
-  return (
-    <AbsoluteFill style={{backgroundColor: bg, justifyContent: 'center', alignItems: 'center', fontFamily: 'Inter, system-ui, sans-serif'}}>
-      <div style={{
-        position: 'absolute',
-        width: '600px',
-        height: '600px',
-        background: `radial-gradient(circle, ${accent}25 0%, transparent 70%)`,
-        filter: 'blur(80px)',
-        pointerEvents: 'none'
-      }} />
-      <div style={{
-        transform: `scale(${scale})`,
-        opacity,
-        background: 'rgba(20, 20, 30, 0.85)',
-        backdropFilter: 'blur(20px)',
-        border: `1px solid ${accent}40`,
-        borderRadius: '24px',
-        padding: '48px 56px',
-        textAlign: 'center',
-        maxWidth: '85%',
-        boxShadow: `0 30px 80px rgba(0,0,0,0.6), 0 0 40px ${accent}20`
-      }}>
-        <div style={{fontSize: `${Math.round(height * 0.07)}px`, fontWeight: 900, color: accent, letterSpacing: '-1px', marginBottom: '16px'}}>
-          {stat}
-        </div>
-        <div style={{fontSize: `${Math.round(height * 0.035)}px`, fontWeight: 700, color: '#ffffff', marginBottom: '12px', lineHeight: 1.2}}>
-          {title}
-        </div>
-        {subtitle && (
-          <div style={{fontSize: `${Math.round(height * 0.02)}px`, color: '#a1a1aa', fontWeight: 500}}>
-            {subtitle}
-          </div>
-        )}
-      </div>
-    </AbsoluteFill>
-  );
-}
-
-// Universal Scene Switch Component for Explainer Sequences
-export function SceneSwitch({scene = {}, logo = null}) {
-  const template = (scene.template || 'kinetic_text').toLowerCase();
-  const headline = scene.headline || scene.title || '';
-  const subtitle = scene.subtitle || '';
-  const accent = scene.accent_color || '#00f2fe';
-  const bg = scene.background_color || '#09090e';
-  const asset = scene.assigned_asset || logo;
-
-  switch (template) {
-    case 'kinetic_text':
-      return (
-        <KineticText
-          words={headline.split(' ').filter(Boolean)}
-          accent={accent}
-          bg={bg}
-        />
-      );
-    case 'dashboard_3d_float':
-      return (
-        <DashboardShowcase
-          title={headline}
-          subtitle={subtitle}
-          image={asset}
-          accentColor={accent}
-          backgroundColor={bg}
-        />
-      );
-    case 'interactive_cursor_click':
-      return (
-        <DashboardShowcase
-          title={headline}
-          subtitle={subtitle}
-          image={asset}
-          clickX={0.72}
-          clickY={0.42}
-          accentColor={accent}
-          backgroundColor={bg}
-        />
-      );
-    case 'fact_card':
-      const statVal = subtitle || (headline.length <= 15 ? headline : '10x Faster');
-      const titleVal = subtitle ? headline : (scene.title && scene.title !== 'Fact' ? scene.title : headline);
-      const subVal = scene.voiceover || scene.voiceover_script_en || scene.voiceover_script || '';
-      return (
-        <FactCard
-          title={titleVal}
-          stat={statVal}
-          subtitle={subVal}
-          accent={accent}
-          bg={bg}
-        />
-      );
-    case 'title_card':
-      return (
-        <TitleCard
-          title={headline}
-          subtitle={subtitle}
-          accent={accent}
-          bg={bg}
-        />
-      );
-    case 'lower_third':
-      return (
-        <LowerThird
-          name={headline}
-          role={subtitle}
-          accent={accent}
-        />
-      );
-    case 'transparent_callout':
-      return (
-        <TransparentOverlay
-          badgeText={headline}
-          stat={subtitle || 'Verified'}
-          accent={accent}
-        />
-      );
-    case 'kinetic_text':
-    case 'kinetic-text':
-    default:
-      return (
-        <KineticText
-          headline={headline}
-          words={headline ? headline.split(' ').filter(Boolean) : ['Design.', 'Build.', 'Ship.']}
-          accent={accent}
-          bg={bg}
-        />
-      );
-  }
-}
-
-// 7. KATANA 4-ENGINE: Annotated Visual Scene (Before/After Wipe Slider + SVG Callouts)
-export function AnnotatedVisualScene({
-  beforeImage,
-  afterImage,
-  callouts = [{x: 0.5, y: 0.4, title: 'Target Area', text: 'Optimized response'}],
-  wipeDuration = 60,
-  accent = '#00f2fe'
-}) {
-  const frame = useCurrentFrame();
-  const {width, height, fps, durationInFrames} = useVideoConfig();
-
-  const wipeProgress = interpolate(frame, [15, Math.min(durationInFrames - 15, 15 + wipeDuration)], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp'
-  });
-  const splitX = wipeProgress * width;
-
-  return (
-    <AbsoluteFill style={{backgroundColor: '#09090b', overflow: 'hidden'}}>
-      {/* After image (base) */}
-      {afterImage && (
-        <Img src={afterImage.startsWith('http') ? afterImage : staticFile(afterImage)} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
-      )}
-      {/* Before image (clipped) */}
-      {beforeImage && (
-        <div style={{position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', clipPath: `polygon(0 0, ${splitX}px 0, ${splitX}px 100%, 0 100%)`}}>
-          <Img src={beforeImage.startsWith('http') ? beforeImage : staticFile(beforeImage)} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
-        </div>
-      )}
-      {/* Wipe Slider Line */}
-      <div style={{position: 'absolute', left: `${splitX}px`, top: 0, bottom: 0, width: '3px', background: '#ffffff', boxShadow: `0 0 12px ${accent}`}}>
-        <div style={{position: 'absolute', top: '50%', left: '-14px', width: '30px', height: '30px', borderRadius: '50%', background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', transform: 'translateY(-50%)', boxShadow: '0 2px 8px rgba(0,0,0,0.5)'}}>
-          <span style={{fontSize: '12px', color: '#09090b', fontWeight: 900}}>⇄</span>
-        </div>
-      </div>
-      {/* SVG Callout Markers */}
-      {callouts.map((c, i) => {
-        const appear = spring({frame: frame - 20 - i * 10, fps, config: {damping: 12}});
-        return (
-          <div key={i} style={{position: 'absolute', left: `${c.x * width}px`, top: `${c.y * height}px`, transform: `translate(-50%, -50%) scale(${appear})`, opacity: appear}}>
-            <div style={{display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 14px', background: 'rgba(9,9,11,0.85)', backdropFilter: 'blur(8px)', border: `1px solid ${accent}`, borderRadius: '20px', color: '#ffffff', fontSize: '13px', fontWeight: 700}}>
-              <span style={{width: '8px', height: '8px', borderRadius: '50%', background: accent}} />
-              <span>{c.title}</span>
-            </div>
-          </div>
-        );
-      })}
-    </AbsoluteFill>
-  );
-}
-
-// 8. KATANA 4-ENGINE: Speaker Tracker Scene (Portrait 9:16 Crop + Dynamic Centering)
-export function SpeakerTrackerScene({
-  videoSrc,
-  speakerTrack = {cx: 0.5, cy: 0.35, zoom: 1.2},
-  activeWord = 'Impact',
-  accent = '#00f2fe'
-}) {
-  const frame = useCurrentFrame();
-  const {width, height} = useVideoConfig();
-
-  return (
-    <AbsoluteFill style={{backgroundColor: '#09090b', overflow: 'hidden'}}>
-      {videoSrc && (
-        <OffthreadVideo
-          src={videoSrc.startsWith('http') ? videoSrc : staticFile(videoSrc)}
-          style={{
-            position: 'absolute',
-            width: `${100 * (speakerTrack.zoom || 1.2)}%`,
-            height: `${100 * (speakerTrack.zoom || 1.2)}%`,
-            left: `${(0.5 - speakerTrack.cx) * 100}%`,
-            top: `${(0.5 - speakerTrack.cy) * 100}%`,
-            objectFit: 'cover'
-          }}
-          autoPlay
-          muted
-          playsInline
-        />
-      )}
-      {/* Dynamic Word-Pop Caption */}
-      <div style={{position: 'absolute', bottom: '15%', left: 0, right: 0, display: 'flex', justifyContent: 'center'}}>
-        <div style={{padding: '10px 24px', background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', borderRadius: '12px', border: `1px solid ${accent}60`, color: '#ffffff', fontSize: '28px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px'}}>
-          <span style={{color: accent}}>{activeWord}</span>
-        </div>
-      </div>
-    </AbsoluteFill>
-  );
-}
-
-// 9. KATANA 4-ENGINE: Synchronized Split-Screen Comparison
-export function SplitScreenComparison({referenceVideo, rebuiltVideo, showCannyOverlay = false, cannySrc = null}) {
-  return (
-    <AbsoluteFill style={{display: 'flex', flexDirection: 'row', backgroundColor: '#09090b'}}>
-      {/* Left: Reference Viewport */}
-      <div style={{flex: 1, position: 'relative', borderRight: '1px solid #27272a', overflow: 'hidden'}}>
-        <div style={{position: 'absolute', top: 12, left: 12, zIndex: 10, padding: '4px 8px', background: 'rgba(0,0,0,0.7)', borderRadius: '4px', color: '#a1a1aa', fontSize: '11px', fontFamily: 'monospace'}}>
-          ORIGINAL REFERENCE
-        </div>
-        {referenceVideo && <OffthreadVideo src={referenceVideo} style={{width: '100%', height: '100%', objectFit: 'contain'}} autoPlay muted playsInline />}
-        {showCannyOverlay && cannySrc && (
-          <Img src={cannySrc} style={{position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', mixBlendMode: 'screen', opacity: 0.8}} />
-        )}
-      </div>
-      {/* Right: Rebuilt Engine Output */}
-      <div style={{flex: 1, position: 'relative', overflow: 'hidden'}}>
-        <div style={{position: 'absolute', top: 12, left: 12, zIndex: 10, padding: '4px 8px', background: 'rgba(0,0,0,0.7)', borderRadius: '4px', color: '#00f2fe', fontSize: '11px', fontFamily: 'monospace'}}>
-          KATANA RECONSTRUCTION
-        </div>
-        {rebuiltVideo && <OffthreadVideo src={rebuiltVideo} style={{width: '100%', height: '100%', objectFit: 'contain'}} autoPlay muted playsInline />}
+        <div style={{color: accent, fontSize: `${theme.typeScale.caption}px`, fontWeight: 800, textTransform: 'uppercase'}}>{badgeText}</div>
+        <div style={{color: '#ffffff', fontSize: `${theme.typeScale.display}px`, fontWeight: 900}}>{stat}</div>
       </div>
     </AbsoluteFill>
   );

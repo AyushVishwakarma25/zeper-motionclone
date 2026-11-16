@@ -7,6 +7,7 @@ import subprocess
 import time
 import zipfile
 import os
+import threading
 from pathlib import Path
 from .media import probe
 from .process import Cancelled, popen, run
@@ -226,7 +227,12 @@ def export_project(folder, plan, brief):
     return dest
 
 
-def render(folder, plan, brief, cancel, progress, *, preview=False, format='mp4', composition='Motion', fps=None):
+def render(folder, plan, brief, cancel=None, progress=None, *, preview=False, format='mp4', composition='Motion', fps=None):
+    if cancel is None:
+        cancel = threading.Event()
+    if progress is None:
+        progress = lambda msg, pct: None
+
     folder = Path(folder).resolve()
     if not (RUNTIME/'node_modules/@remotion/renderer').exists():
         raise ValueError('Remotion is not installed. Run npm ci inside the remotion directory.')

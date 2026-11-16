@@ -2,13 +2,20 @@ import React from 'react';
 import {Composition, registerRoot} from 'remotion';
 import {
   MotionComposition,
+  KineticText,
+  FactCard,
+  StatCounter,
+  ComparisonSplit,
+  BulletList,
+  QuoteScene,
+  ImageFullBleed,
+  ScreenCaptureFrame,
+  CtaEndCard,
+  SceneSwitch,
   DashboardShowcase,
   TitleCard,
   LowerThird,
-  KineticText,
-  TransparentOverlay,
-  FactCard,
-  SceneSwitch
+  TransparentOverlay
 } from './Composition.jsx';
 
 /**

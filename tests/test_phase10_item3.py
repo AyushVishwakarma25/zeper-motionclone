@@ -261,3 +261,4 @@ def test_deconstruction_non_leaking_and_audit_artifacts(tmp_path, monkeypatch):
         evidence = json.loads((decon_dir / "evidence.json").read_text(encoding="utf-8"))
         assert "scene_cuts" in evidence
         assert "meta" in evidence
+
