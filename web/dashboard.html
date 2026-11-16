@@ -60,6 +60,11 @@
       <!-- Signed-in user email badge -->
       <span class="user-email-badge" id="user-email-display" style="display:none;"></span>
 
+      <!-- User Credit Balance Badge -->
+      <div class="credits-badge" id="credits-badge" title="Available Generation Credits">
+        🪙 <span id="user-credits-val">100</span> credits
+      </div>
+
       <!-- Live Gemini AI Connection Badge -->
       <div class="gemini-status-badge" id="ai-status-badge" title="AI Engine Status">
         <span class="status-dot connected" id="ai-status-dot"></span>
@@ -318,6 +323,7 @@
                   <input type="text" id="brand-name-input" class="brief-input" placeholder="e.g. HealthPulse">
                 </div>
                 <div class="brief-col-action">
+                  <span class="credit-estimate-pill" id="credit-estimate-blueprint" title="Estimated credits for script generation">⚡ Est: <span id="estimate-credits-val">10</span> credits</span>
                   <button type="button" class="btn-generate-plan-direct" id="btn-generate-plan-direct">
                     📝 Generate Script & Plan
                   </button>
@@ -343,9 +349,12 @@
                 <h3>⚡ Paste & Render Merger</h3>
                 <p>Paste Remotion JSX Code or JSON Scene Plan + Voiceover Script to compile and render a 60 FPS MP4 in ~15–25 seconds</p>
               </div>
-              <button type="button" class="btn-merger-render-now" id="btn-merger-render">
-                🚀 Merge & Render Final MP4
-              </button>
+              <div class="merger-actions-wrap" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <span class="credit-estimate-pill" id="credit-estimate-merger" title="Estimated credits for final render">⚡ Est: <span id="estimate-credits-merger-val">20</span> credits</span>
+                <button type="button" class="btn-merger-render-now" id="btn-merger-render">
+                  🚀 Merge & Render Final MP4
+                </button>
+              </div>
             </div>
             <div class="merger-editors-grid">
               <div class="merger-editor-box">

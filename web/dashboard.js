@@ -132,9 +132,10 @@
       if (dot && txt) {
         if (s.status === 'connected' || s.ok) {
           dot.className = 'status-dot connected';
-          txt.textContent = s.model ? `Gemini ${s.model} Ready` : 'Google Gemini Connected';
+          const modelName = s.model || 'gemini-3.1-pro-preview';
+          txt.textContent = `${modelName} Ready`;
           badge.className = 'status-badge';
-          badge.title = `AI Engine: ${s.model || 'Gemini'} (${s.auth_type || 'Vertex AI'})`;
+          badge.title = `AI Model: ${modelName} | Provider: ${s.auth_type || 'Vertex AI'} | Location: ${s.location || 'global'}`;
         } else {
           dot.className = 'status-dot';
           txt.textContent = 'Configure Gemini Key';
@@ -150,9 +151,47 @@
         const txt = $('ai-status-text');
         if (dot && txt) {
           dot.className = s.gemini ? 'status-dot connected' : 'status-dot';
-          txt.textContent = s.gemini ? 'Google Gemini Connected' : 'Gemini Key Needed';
+          txt.textContent = s.gemini ? 'gemini-3.1-pro-preview Ready' : 'Gemini Key Needed';
         }
       } catch {}
+    }
+  }
+
+  // Update credit balance
+  async function updateCreditBalance() {
+    try {
+      const data = await callApi('/api/credits/balance');
+      const el = $('user-credits-val');
+      if (el && typeof data.balance === 'number') {
+        el.textContent = data.balance;
+      }
+    } catch (e) {
+      console.warn('Credits balance lookup failed:', e);
+    }
+  }
+
+  // Update credit preflight estimate
+  async function updateCreditEstimate() {
+    if (!activeJobId) return;
+    try {
+      const est = await callApi('/api/dashboard/preflight-estimate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_id: activeJobId,
+          engine_type: 'compose'
+        })
+      });
+      const bpVal = $('estimate-credits-val');
+      const mgVal = $('estimate-credits-merger-val');
+      if (bpVal && typeof est.credits_required === 'number') {
+        bpVal.textContent = Math.max(5, Math.round(est.credits_required / 2));
+      }
+      if (mgVal && typeof est.credits_required === 'number') {
+        mgVal.textContent = est.credits_required;
+      }
+    } catch (e) {
+      console.warn('Credit estimate calculation failed:', e);
     }
   }
 
@@ -277,6 +316,8 @@
         setLanguage(projectState.language);
       }
       renderAllViews();
+      updateCreditEstimate();
+      updateCreditBalance();
     } catch (e) {
       console.warn('Could not load dashboard project for ' + id, e);
     }
@@ -756,6 +797,8 @@
 
       activeSceneIndex = 0;
       renderAllViews();
+      updateCreditEstimate();
+      updateCreditBalance();
 
       appendChatBubble('agent', `✅ ${res.message}`, `
         <div class="chat-card">
@@ -808,6 +851,8 @@
       hideOverlay();
       showToast('✨ Scene plan & voiceover ready!', 'success');
       renderAllViews();
+      updateCreditEstimate();
+      updateCreditBalance();
 
       appendChatBubble('agent', `🎉 ${res.message}`, `
         <div class="chat-card">
