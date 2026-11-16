@@ -151,7 +151,7 @@ def evaluate_scenes_with_gemini(
                 lines = lines[1:]
             if lines and lines[-1].strip() == "```":
                 lines = lines[:-1]
-            cleaned = "\\n".join(lines).strip()
+            cleaned = "\n".join(lines).strip()
 
         parsed = ReviewPassReport.model_validate_json(cleaned)
         by_id = {item.scene_id: item for item in parsed.scenes}
