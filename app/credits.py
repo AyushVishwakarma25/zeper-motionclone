@@ -66,7 +66,8 @@ def get_balance(user_id: str = "default_user") -> int:
                 return int(data.get('balance', grant))
             return grant
         except Exception as e:
-            logger.warning(f"Firestore get_balance fallback to local: {e}")
+            logger.exception("Firestore get_balance failed in hosted mode")
+            raise RuntimeError(f"Hosted credit balance unavailable; refusing local fallback: {e}") from e
 
     with _LOCAL_LOCK:
         p = _get_local_file(user_id)
@@ -96,7 +97,8 @@ def set_balance(user_id: str, balance: int, tier: str = "free") -> None:
             }, merge=True)
             return
         except Exception as e:
-            logger.warning(f"Firestore set_balance error: {e}")
+            logger.exception("Firestore set_balance failed in hosted mode")
+            raise RuntimeError(f"Hosted credit update failed; refusing local fallback: {e}") from e
 
     with _LOCAL_LOCK:
         p = _get_local_file(user_id)
@@ -184,7 +186,8 @@ def check_and_deduct_credits(
         except InsufficientCreditsError:
             raise
         except Exception as e:
-            logger.warning(f"Firestore deduction failed: {e}. Falling back to local.")
+            logger.exception("Firestore deduction failed in hosted mode")
+            raise RuntimeError(f"Hosted credit deduction failed; refusing local fallback: {e}") from e
 
     # Local mode (thread-locked)
     with _LOCAL_LOCK:
