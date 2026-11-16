@@ -27,6 +27,11 @@ def main():
         str(audio_path)
     ], check=True, capture_output=True)
 
+    # The renderer muxes final_mix.mp3; generating voiceover.mp3 alone does not
+    # attach audio to the Remotion composition used by this smoke test.
+    import shutil
+    shutil.copy2(audio_path, temp_dir / "final_mix.mp3")
+
     # Build 2-scene plan (6s total)
     scenes = [
         {
