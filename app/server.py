@@ -86,7 +86,7 @@ try:
     logger.info(run_probe_summary())
 except Exception as _probe_err:
     logger.debug(f"Model probe summary skipped: {_probe_err}")
-PORT=int(os.environ.get('FRAMEFORGE_PORT','4319'))
+PORT = int(os.environ.get('PORT') or os.environ.get('FRAMEFORGE_PORT') or '8000')
 POOL=ThreadPoolExecutor(max_workers=1)
 LOCK=threading.RLock()
 JOBS={}
@@ -180,17 +180,21 @@ def get_job(id):
 
 @app.middleware('http')
 async def local_boundary(request: Request, call_next):
-    host=request.headers.get('host','')
-    allowed={f'127.0.0.1:{PORT}',f'localhost:{PORT}','testserver'}
-    if not HOSTED and host not in allowed:return JSONResponse({'detail':'Local access only.'},status_code=403)
-    if request.method not in ('GET','HEAD','OPTIONS'):
+    host = request.headers.get('host', '').lower()
+    host_name = host.split(':')[0]
+    allowed_hostnames = {'127.0.0.1', 'localhost', 'testserver'}
+    if not HOSTED and host_name not in allowed_hostnames and host != 'testserver':
+        return JSONResponse({'detail': 'Local access only.'}, status_code=403)
+    if request.method not in ('GET', 'HEAD', 'OPTIONS'):
         req_token = request.headers.get('x-frameforge-token')
         if not HOSTED and req_token != TOKEN:
-            return JSONResponse({'detail':'Refresh this page to reconnect.'},status_code=403)
-        origin=request.headers.get('origin')
-        allowed_origins={f'http://127.0.0.1:{PORT}',f'http://localhost:{PORT}'}
-        if not HOSTED and origin and origin not in allowed_origins:
-            return JSONResponse({'detail':'Cross-origin requests are blocked.'},status_code=403)
+            return JSONResponse({'detail': 'Refresh this page to reconnect.'}, status_code=403)
+        origin = request.headers.get('origin')
+        if not HOSTED and origin:
+            from urllib.parse import urlparse
+            parsed_origin = urlparse(origin)
+            if parsed_origin.hostname not in ('127.0.0.1', 'localhost', 'testserver'):
+                return JSONResponse({'detail': 'Cross-origin requests are blocked.'}, status_code=403)
         try:length=int(request.headers.get('content-length','0'))
         except ValueError:return JSONResponse({'detail':'Invalid request size.'},status_code=400)
         if length > MAX_UPLOAD_BYTES + 1024*1024:
