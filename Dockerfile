@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gnupg \
     ca-certificates \
     ffmpeg \
+    espeak-ng \
     libgl1 \
     libglib2.0-0 \
     fonts-noto \
@@ -61,6 +62,11 @@ COPY docs/ ./docs/
 COPY licenses/ ./licenses/
 COPY remotion/ ./remotion/
 COPY hyperframes/ ./hyperframes/
+
+# Pre-bake Kokoro ONNX model weights and voices into image
+RUN mkdir -p /app/data/models/kokoro && \
+    curl -fsSL -o /app/data/models/kokoro/voices-v1.0.bin https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin && \
+    curl -fsSL -o /app/data/models/kokoro/kokoro-v1.0.onnx https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
 
 # Create persistent/temporary data directory
 RUN mkdir -p /data && chmod 777 /data
