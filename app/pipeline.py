@@ -402,6 +402,7 @@ def step_assemble(
     (project_dir / 'scene_plan.json').write_text(json.dumps(scene_plan_dict, indent=2), encoding='utf-8')
 
     # Remotion render
+    logger.info(f"Step 5 (Assemble): Invoking Remotion render for {project_dir.name} (fps={fps}, aspect={aspect})")
     output_mp4 = remotion.render(
         folder=project_dir,
         plan=None,
@@ -413,6 +414,7 @@ def step_assemble(
         composition="Motion",
         fps=fps
     )
+    logger.info(f"Step 5 (Assemble): Remotion render completed for {project_dir.name} -> {output_mp4} ({output_mp4.stat().st_size if output_mp4.is_file() else 0} bytes)")
     return output_mp4
 
 
@@ -764,7 +766,7 @@ def finalize_job(
             status_payload["signed_output_url"] = signed_output_url
             status_file.write_text(json.dumps(status_payload, indent=2), encoding="utf-8")
     except Exception as gcs_err:
-        logger.warning(f"GCS artifact upload skipped or failed: {gcs_err}")
+        logger.warning(f"GCS artifact upload skipped or failed for {job_id}: [{type(gcs_err).__name__}] {gcs_err}", exc_info=True)
 
     # 5. Mirror state to Firestore
     try:
@@ -778,7 +780,8 @@ def finalize_job(
             error=all_issues[0]["message"] if all_issues else None,
             signed_output_url=signed_output_url
         )
+        logger.info(f"Firestore mirroring completed for {job_id}")
     except Exception as fs_err:
-        logger.warning(f"Firestore mirroring skipped or failed: {fs_err}")
+        logger.warning(f"Firestore mirroring skipped or failed for {job_id}: [{type(fs_err).__name__}] {fs_err}", exc_info=True)
 
     return report_data

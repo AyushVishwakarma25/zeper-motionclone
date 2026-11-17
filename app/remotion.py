@@ -266,6 +266,7 @@ def render(folder, plan, brief, cancel=None, progress=None, *, preview=False, fo
     progress(label, 48 if preview else 78)
 
     log = folder / 'remotion-render.log'
+    logger.info(f"Starting Remotion render subprocess for {folder.name}: {' '.join(args)}")
     with log.open('w', encoding='utf-8') as stream:
         proc = popen(args, cwd=RUNTIME, stdout=stream, stderr=subprocess.STDOUT, env=env)
         started = time.monotonic()
@@ -291,19 +292,40 @@ def render(folder, plan, brief, cancel=None, progress=None, *, preview=False, fo
                     except (ValueError, KeyError, TypeError):
                         pass
                 time.sleep(.3)
+            elapsed = time.monotonic() - started
             if cancel.is_set():
+                logger.warning(f"Remotion render for {folder.name} was cancelled by user after {elapsed:.1f}s")
                 raise Cancelled()
             if timed_out:
+                logger.error(f"Remotion render for {folder.name} timed out after {elapsed:.1f}s")
                 raise TimeoutError('Remotion render timed out.')
             if proc.returncode:
-                raise ValueError('Remotion render failed. Check remotion-render.log for details.')
+                log_lines = log.read_text(encoding='utf-8', errors='replace').splitlines()
+                tail = "\n".join(log_lines[-25:])
+                logger.error(
+                    f"Remotion render subprocess failed (exit code {proc.returncode}) for {folder.name} "
+                    f"after {elapsed:.1f}s.\nLog tail ({log.name}):\n{tail}"
+                )
+                raise ValueError(
+                    f"Remotion render failed with exit code {proc.returncode}. "
+                    f"Check {log.name} for details. Tail:\n{tail}"
+                )
+            logger.info(
+                f"Remotion render subprocess exited with code 0 in {elapsed:.1f}s for {folder.name}"
+            )
         finally:
             if proc.poll() is None:
                 proc.terminate()
                 proc.wait(timeout=10)
             signal.unlink(missing_ok=True)
 
+    if not pending.is_file():
+        logger.error(f"Expected pending render output not found at {pending}")
+        raise FileNotFoundError(f"Remotion completed but pending output file does not exist at {pending}")
+
     pending.replace(output)
+    output_size = output.stat().st_size if output.is_file() else 0
+    logger.info(f"Remotion render output placed at {output} (size: {output_size} bytes)")
 
     if not preview and format == 'mp4':
         # Mux high-fidelity ducked mix with -14 LUFS audio if produced
@@ -312,20 +334,35 @@ def render(folder, plan, brief, cancel=None, progress=None, *, preview=False, fo
             from . import audio
             temp_mux = folder / 'muxed_output.mp4'
             try:
+                logger.info(f"Muxing ducked audio mix ({final_mix}) into {output}")
                 audio.mux_final_video(output, final_mix, temp_mux)
                 if temp_mux.is_file() and temp_mux.stat().st_size > 1024:
                     temp_mux.replace(output)
-            except Exception:
-                pass
+                    logger.info(f"Ducked audio mux succeeded. New output size: {output.stat().st_size} bytes")
+                else:
+                    logger.warning(f"Ducked audio mux produced missing or small file: {temp_mux}")
+            except Exception as mux_err:
+                logger.warning(f"Audio mux failed for {output}: {type(mux_err).__name__}: {mux_err}", exc_info=True)
 
         progress('Verifying frames and audio', 97)
-        run(['ffmpeg', '-v', 'error', '-i', str(output), '-c', 'copy', '-f', 'null', '-'], timeout=120, cancel=cancel)
-        actual = probe(output)
-        media_file = folder / 'media.json'
-        media = json.loads(media_file.read_text(encoding='utf-8')) if media_file.is_file() else {'duration': actual['duration'], 'fps': actual['fps']}
-        count = int(run(['ffprobe', '-v', 'error', '-count_frames', '-select_streams', 'v:0', '-show_entries',
-            'stream=nb_read_frames', '-of', 'default=nw=1:nk=1', str(output)]))
-        expected = math.ceil(media['duration'] * media['fps'])
+        logger.info(f"Running ffmpeg stream verification for {output}")
+        try:
+            run(['ffmpeg', '-v', 'error', '-i', str(output), '-c', 'copy', '-f', 'null', '-'], timeout=120, cancel=cancel)
+        except Exception as e:
+            logger.error(f"FFmpeg stream decode check failed for {output}: {type(e).__name__}: {e}", exc_info=True)
+            raise RuntimeError(f"Rendered video failed ffmpeg stream verification: {e}") from e
+
+        try:
+            actual = probe(output)
+            media_file = folder / 'media.json'
+            media = json.loads(media_file.read_text(encoding='utf-8')) if media_file.is_file() else {'duration': actual['duration'], 'fps': actual['fps']}
+            count = int(run(['ffprobe', '-v', 'error', '-count_frames', '-select_streams', 'v:0', '-show_entries',
+                'stream=nb_read_frames', '-of', 'default=nw=1:nk=1', str(output)]))
+            expected = math.ceil(media['duration'] * media['fps'])
+            logger.info(f"Probed video: {actual['width']}x{actual['height']}, {actual['duration']}s ({count}/{expected} frames), fps={actual['fps']}, audio={actual['audio']}")
+        except Exception as e:
+            logger.error(f"Post-render probing failed for {output}: {type(e).__name__}: {e}", exc_info=True)
+            raise RuntimeError(f"Post-render media probe failed: {e}") from e
 
         # Robust Loudness and Audio Verification using measure_loudness
         from . import audio
@@ -334,8 +371,9 @@ def render(folder, plan, brief, cancel=None, progress=None, *, preview=False, fo
             try:
                 loudness_info = audio.measure_loudness(output)
                 integrated_lufs = float(loudness_info.get('integrated_lufs', loudness_info.get('input_i', -70.0)))
+                logger.info(f"Video audio loudness measured: {integrated_lufs:.2f} LUFS")
             except Exception as e:
-                logger.warning(f"Loudness measurement error: {e}")
+                logger.warning(f"Loudness measurement error for {output}: {type(e).__name__}: {e}", exc_info=True)
 
         # Measure voice-over stem separately
         vo_file = folder / 'voiceover.mp3'
@@ -345,8 +383,9 @@ def render(folder, plan, brief, cancel=None, progress=None, *, preview=False, fo
             try:
                 vo_info = audio.measure_loudness(vo_file)
                 vo_integrated_lufs = float(vo_info.get('integrated_lufs', vo_info.get('input_i', -70.0)))
+                logger.info(f"Voiceover stem loudness measured: {vo_integrated_lufs:.2f} LUFS")
             except Exception as e:
-                logger.warning(f"Voiceover stem loudness error: {e}")
+                logger.warning(f"Voiceover stem loudness error for {vo_file}: {type(e).__name__}: {e}", exc_info=True)
 
         # Check if narration was planned
         has_narration = False
@@ -397,6 +436,14 @@ def render(folder, plan, brief, cancel=None, progress=None, *, preview=False, fo
             mode='rebuild',
             renderer='remotion'
         )
-        (folder / 'verification.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
+        report_path = folder / 'verification.json'
+        report_path.write_text(json.dumps(report, indent=2), encoding='utf-8')
+        logger.info(
+            f"Verification written to {report_path}: decoded={report['decoded']}, "
+            f"frames={report['actual_frames']}/{report['expected_frames']}, "
+            f"loudness_compliant={report['loudness_compliant']} ({report['integrated_lufs']:.2f} LUFS), "
+            f"audio_valid={report['audio_valid']}, duration={report['duration']}s"
+        )
 
+    logger.info(f"Remotion render finished for {folder.name}. Final artifact: {output} ({output.stat().st_size if output.is_file() else 0} bytes)")
     return output

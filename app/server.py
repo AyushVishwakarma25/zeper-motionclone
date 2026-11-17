@@ -33,7 +33,14 @@ from .security import (
     ALLOWED_ASSET_EXTENSIONS,
     validate_and_save_upload,
 )
+if not logging.getLogger().handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+        stream=sys.stderr
+    )
 logger = logging.getLogger('motionclone')
+logger.setLevel(logging.INFO)
 from PIL import Image, UnidentifiedImageError
 from .ai import analyze, auth_status
 from .media import MAX_BYTES, contact_sheets, download, prepare, review_timestamps, reference_frames
@@ -592,9 +599,11 @@ def pipeline(id, render_only=False):
         with LOCK:job.update(status='cancelled',stage='Cancelled. Your project is saved.')
     except Exception as e:
         import traceback
-        (folder/'error.log').write_text(traceback.format_exc(),encoding='utf-8')
-        message=str(e) if isinstance(e,(ValueError,TimeoutError)) else 'This step failed. Retry; technical details are saved in the project folder.'
-        with LOCK:job.update(status='error',stage='Needs attention',error=message)
+        tb = traceback.format_exc()
+        (folder/'error.log').write_text(tb, encoding='utf-8')
+        logger.error(f"Pipeline execution failed for job {id}: [{type(e).__name__}] {e}\nFull traceback:\n{tb}")
+        message = str(e) if isinstance(e, (ValueError, TimeoutError)) else 'This step failed. Retry; technical details are saved in the project folder.'
+        with LOCK:job.update(status='error', stage='Needs attention', error=message)
     finally:
         with LOCK:ACTIVE['id']=None
         persist(job)

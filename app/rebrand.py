@@ -811,6 +811,7 @@ def trigger_remotion_render(id: str, format: str = 'mp4', composition: str = 'Mo
         server.persist(job)
 
     def run_remotion():
+        current_stage = "Remotion rendering"
         try:
             plan_file = folder / 'plan.json'
             if plan_file.is_file():
@@ -822,17 +823,30 @@ def trigger_remotion_render(id: str, format: str = 'mp4', composition: str = 'Mo
                     background='#0b0b12'
                 )
             brief = Brief.model_validate(job.get('brief', {'brand': '', 'instructions': ''}))
-            remotion_render(
+            logger.info(f"Job {id}: Starting Remotion render ({format}, comp={composition})")
+            rendered_output = remotion_render(
                 folder, plan_data, brief, cancel_event,
                 lambda msg, pct: job.update(stage=msg, progress=pct),
                 format=format,
                 composition=composition
             )
+            logger.info(f"Job {id}: Remotion render produced {rendered_output} ({rendered_output.stat().st_size if rendered_output.is_file() else 0} bytes)")
+
+            current_stage = "Post-render finalization"
+            logger.info(f"Job {id}: Starting post-render finalization")
             from .pipeline import finalize_job
             finalize_job(folder)
+            logger.info(f"Job {id}: Completed successfully")
         except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
+            (folder / 'error.log').write_text(tb, encoding='utf-8')
+            logger.error(
+                f"Job {id} failed during stage '{current_stage}': [{type(e).__name__}] {e}\nFull traceback:\n{tb}"
+            )
+            failure_stage = 'Render failed' if current_stage == "Remotion rendering" else 'Finalization failed'
             with server.LOCK:
-                job.update(status='error', stage='Render failed', error=str(e))
+                job.update(status='error', stage=failure_stage, error=f"[{current_stage}] {str(e)}")
                 server.persist(job)
         finally:
             with server.LOCK:
