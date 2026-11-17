@@ -16,7 +16,7 @@ $geminiLoc = if ($env:GEMINI_LOCATION) { $env:GEMINI_LOCATION } else { "global" 
 $firebaseApiKey = if ($env:FIREBASE_WEB_API_KEY) { $env:FIREBASE_WEB_API_KEY } else { "AIzaSyDemoPlaceholderKey" }
 $firebaseAppId = if ($env:FIREBASE_APP_ID) { $env:FIREBASE_APP_ID } else { "1:123456789:web:abcdef" }
 $firebaseAuthDomain = if ($env:FIREBASE_AUTH_DOMAIN) { $env:FIREBASE_AUTH_DOMAIN } else { "$projectId.firebaseapp.com" }
-$allowedEmails = if ($env:ALLOWED_EMAILS) { $env:ALLOWED_EMAILS } else { "owner@zeper.ai,admin@zeper.ai" }
+$allowedEmails = if ($env:ALLOWED_EMAILS) { $env:ALLOWED_EMAILS } else { "owner@zeper.ai,admin@zeper.ai,reachtoayush25@gmail.com" }
 
 $envVars = "GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$projectId,GOOGLE_CLOUD_LOCATION=$region,VERTEXAI_LOCATION_TEXT=$geminiLoc,VERTEXAI_LOCATION_VIDEO=us-central1,GEMINI_LOCATION=$geminiLoc,FRAMEFORGE_HOSTED=1,FIREBASE_WEB_API_KEY=$firebaseApiKey,FIREBASE_APP_ID=$firebaseAppId,FIREBASE_AUTH_DOMAIN=$firebaseAuthDomain,ALLOWED_EMAILS=$allowedEmails"
 

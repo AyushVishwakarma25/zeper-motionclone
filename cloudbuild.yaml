@@ -49,7 +49,7 @@ substitutions:
   _FIREBASE_WEB_API_KEY: 'AIzaSyDemoPlaceholderKey'
   _FIREBASE_APP_ID: '1:123456789:web:abcdef'
   _FIREBASE_AUTH_DOMAIN: 'zeperai.firebaseapp.com'
-  _ALLOWED_EMAILS: 'owner@zeper.ai,admin@zeper.ai'
+  _ALLOWED_EMAILS: 'owner@zeper.ai,admin@zeper.ai,reachtoayush25@gmail.com'
 
 images:
   - '$_LOCATION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/motionclone-studio:$COMMIT_SHA'
