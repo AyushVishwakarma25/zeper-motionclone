@@ -28,13 +28,29 @@
       .replace(/>/g, '&gt;');
   }
 
-  function showToast(message, type = 'info') {
+  function showToast(message, type = 'info', action = null) {
     const container = $('toast-container');
     if (!container) return;
     const toast = document.createElement('div');
     toast.className = `toast-msg ${type}`;
     const icon = type === 'success' ? '✓ ' : (type === 'error' ? '⚠️ ' : 'ℹ️ ');
-    toast.textContent = `${icon}${message}`;
+    const textSpan = document.createElement('span');
+    textSpan.textContent = `${icon}${message}`;
+    toast.appendChild(textSpan);
+
+    if (action && action.label && action.onClick) {
+      const actBtn = document.createElement('button');
+      actBtn.type = 'button';
+      actBtn.className = 'toast-action-btn';
+      actBtn.textContent = action.label;
+      actBtn.onclick = (e) => {
+        e.stopPropagation();
+        try { action.onClick(); } catch (err) { console.error(err); }
+        toast.remove();
+      };
+      toast.appendChild(actBtn);
+    }
+
     toast.onclick = () => {
       toast.style.opacity = '0';
       toast.style.transform = 'translateY(10px)';
@@ -45,7 +61,15 @@
       toast.style.opacity = '0';
       toast.style.transform = 'translateY(10px)';
       setTimeout(() => toast.remove(), 250);
-    }, 3800);
+    }, action ? 6500 : 3800);
+  }
+
+  function formatDuration(seconds) {
+    const s = Math.round(Number(seconds) || 0);
+    if (s < 60) return `${s}s`;
+    const m = Math.floor(s / 60);
+    const rem = s % 60;
+    return rem ? `${m}m ${rem}s` : `${m}m`;
   }
 
   async function getValidToken() {
@@ -873,15 +897,164 @@
     }
   }
 
+  let lastGenerationParams = null;
+  let overlayTimerInterval = null;
+  let overlayStartTime = null;
+
+  function viewGeneratedVideo() {
+    hideGenerationSuccessBox();
+    $('btn-view-rebuilt')?.click();
+    renderVideoStage();
+    const player = $('dashboard-video-player');
+    if (player) {
+      player.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      player.currentTime = 0;
+      player.play().catch(() => {});
+    }
+  }
+  window.viewGeneratedVideo = viewGeneratedVideo;
+
+  function retryProjectGenerate() {
+    hideGenerationFailureBox();
+    triggerProjectGenerate(lastGenerationParams || { useExistingScenePlan: true, fps: 60 });
+  }
+  window.retryProjectGenerate = retryProjectGenerate;
+
+  function showGenerationSuccess({ timeFormatted, totalSeconds }) {
+    hideGenerationFailureBox();
+    hideNeedsAttentionBox();
+
+    const box = $('generation-success-box');
+    const badge = $('generation-time-badge');
+    if (badge) badge.textContent = `⏱️ in ${timeFormatted}`;
+    if (box) box.style.display = 'flex';
+
+    const renderTimeBadge = $('badge-render-time');
+    if (renderTimeBadge) {
+      renderTimeBadge.textContent = `⏱️ Generated in ${timeFormatted}`;
+      renderTimeBadge.style.display = 'inline-flex';
+    }
+    const monitorBadgeTime = $('monitor-badge-time');
+    if (monitorBadgeTime) {
+      monitorBadgeTime.textContent = `⏱️ ${timeFormatted}`;
+      monitorBadgeTime.style.display = 'inline-flex';
+    }
+
+    showToast(`🎬 Video is generated in ${timeFormatted}!`, 'success', {
+      label: 'View here ↗',
+      onClick: viewGeneratedVideo
+    });
+
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        const notif = new Notification('🎬 Video is generated!', {
+          body: `Your video was generated in ${timeFormatted}. Click here to view!`,
+          icon: '/favicon.ico'
+        });
+        notif.onclick = () => {
+          window.focus();
+          viewGeneratedVideo();
+        };
+      } catch {}
+    }
+
+    appendChatBubble(
+      'agent',
+      `🎬 Your 60 FPS Explainer Video is generated in ${timeFormatted}!`,
+      `<div style="margin-top:8px;"><button type="button" class="chat-action-btn" onclick="window.viewGeneratedVideo()">▶ View here ↗</button></div>`
+    );
+  }
+
+  function hideGenerationSuccessBox() {
+    const box = $('generation-success-box');
+    if (box) box.style.display = 'none';
+  }
+
+  function showGenerationFailure({ stage, error, issues, onRetry }) {
+    hideGenerationSuccessBox();
+    hideNeedsAttentionBox();
+
+    const box = $('generation-failure-box');
+    const reasonEl = $('generation-failure-reason');
+    const issuesEl = $('generation-failure-issues');
+    const retryBtn = $('btn-retry-generation');
+
+    const stageStr = stage || 'Video Generation';
+    const errorStr = error || 'An unexpected error occurred during rendering.';
+
+    if (reasonEl) {
+      reasonEl.innerHTML = `<strong>Stage:</strong> ${escapeHtml(stageStr)}<br><strong>Why:</strong> ${escapeHtml(errorStr)}`;
+    }
+
+    if (issuesEl) {
+      issuesEl.innerHTML = '';
+      if (issues && issues.length) {
+        issues.forEach(iss => {
+          const row = document.createElement('div');
+          row.className = 'issue-row';
+          row.innerHTML = `<span class="issue-code">[${escapeHtml(iss.code || 'ISSUE')}]</span> <span>${escapeHtml(iss.message || '')}</span>`;
+          issuesEl.appendChild(row);
+        });
+      }
+    }
+
+    if (retryBtn) {
+      retryBtn.onclick = () => {
+        if (typeof onRetry === 'function') onRetry();
+        else retryProjectGenerate();
+      };
+    }
+
+    if (box) box.style.display = 'flex';
+
+    showToast(`❌ Video generation failed: ${errorStr}`, 'error', {
+      label: '🔄 Retry',
+      onClick: () => {
+        if (typeof onRetry === 'function') onRetry();
+        else retryProjectGenerate();
+      }
+    });
+
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification('❌ Video Generation Failed', {
+          body: `Failed at ${stageStr}: ${errorStr}. Click to retry.`,
+          icon: '/favicon.ico'
+        });
+      } catch {}
+    }
+
+    appendChatBubble(
+      'agent',
+      `❌ Video generation failed at stage: ${stageStr}\nWhy: ${errorStr}`,
+      `<div style="margin-top:8px;"><button type="button" class="chat-action-btn retry-btn" onclick="window.retryProjectGenerate()">🔄 Retry Video Generation</button></div>`
+    );
+  }
+
+  function hideGenerationFailureBox() {
+    const box = $('generation-failure-box');
+    if (box) box.style.display = 'none';
+  }
+
   async function triggerProjectGenerate({ useExistingScenePlan = true, fps = 60 } = {}) {
     if (!activeJobId) {
       alert('Please select or create an explainer project first.');
       return;
     }
 
-    showOverlay(`Rendering ${fps} FPS Remotion Video…`, 'Synthesizing motion graphics, captions, sound effects, and music');
+    lastGenerationParams = { useExistingScenePlan, fps };
+    hideGenerationSuccessBox();
+    hideGenerationFailureBox();
+
+    if ('Notification' in window && Notification.permission === 'default') {
+      try { Notification.requestPermission().catch(() => {}); } catch {}
+    }
+
+    showOverlay(`Rendering ${fps} FPS Remotion Video…`, 'Synthesizing motion graphics, captions, sound effects, and music', true);
     updatePipelineStep(4);
     showToast(`🎬 Rendering ${fps} FPS video...`, 'info');
+
+    const renderStartTime = Date.now();
 
     try {
       const payload = {
@@ -903,39 +1076,50 @@
         try {
           const s = await callApi(`/api/dashboard/project/${activeJobId}/status`);
           if (s.stage) {
-            const msgEl = $('overlay-submessage');
-            if (msgEl) msgEl.textContent = s.stage + (s.progress ? ` (${s.progress}%)` : '');
+            const descEl = $('stage-overlay-desc');
+            if (descEl) descEl.textContent = s.stage + (s.progress ? ` (${s.progress}%)` : '');
           }
           if (s.state === 'needs_attention') {
             clearInterval(poll);
             hideOverlay();
+            const totalSec = s.elapsed_seconds || Math.round((Date.now() - renderStartTime) / 1000);
+            const timeFormatted = formatDuration(totalSec);
             updatePipelineStep(5);
             videoCacheKey = Date.now();
             projectState.preview_url = s.output_url || `/media/${activeJobId}/output.mp4`;
-            $('btn-view-rebuilt')?.click();
-            renderVideoStage();
+            viewGeneratedVideo();
             showNeedsAttentionBox(s.issues || []);
-            showToast('⚠️ Video rendered, but requires attention.', 'warning');
-            appendChatBubble('agent', '⚠️ Video rendered with issues that need attention. See the issues listed above.');
+            showToast(`⚠️ Video rendered in ${timeFormatted}, but requires attention.`, 'warning', {
+              label: 'View here ↗',
+              onClick: viewGeneratedVideo
+            });
+            appendChatBubble(
+              'agent',
+              `⚠️ Video rendered in ${timeFormatted} with issues that need attention. See the issues listed above.`,
+              `<div style="margin-top:8px;"><button type="button" class="chat-action-btn" onclick="window.viewGeneratedVideo()">▶ View here ↗</button></div>`
+            );
           } else if (s.state === 'ready' || s.stage === 'Complete' || (s.output_url && s.progress === 100)) {
             clearInterval(poll);
             hideOverlay();
             hideNeedsAttentionBox();
+            const totalSec = s.elapsed_seconds || Math.round((Date.now() - renderStartTime) / 1000);
+            const timeFormatted = formatDuration(totalSec);
             updatePipelineStep(5);
             videoCacheKey = Date.now();
             projectState.preview_url = s.output_url || `/media/${activeJobId}/output.mp4`;
 
-            // Switch to Preview tab
-            $('btn-view-rebuilt')?.click();
-            showToast('🎉 Explainer Video Rendered Successfully!', 'success');
-            renderVideoStage();
-            appendChatBubble('agent', `🎬 Your ${fps} FPS Explainer Video is ready! Watch the preview in the center stage or download below.`);
+            viewGeneratedVideo();
+            showGenerationSuccess({ timeFormatted, totalSeconds: totalSec });
           } else if (s.state === 'failed' || s.state === 'error') {
             clearInterval(poll);
             hideOverlay();
-            const err = s.error || 'Check server logs';
-            showToast('Render error: ' + err, 'error');
-            alert('Render failed: ' + err);
+            const err = s.error || 'Video generation failed. Check server logs.';
+            showGenerationFailure({
+              stage: s.stage || 'Rendering',
+              error: err,
+              issues: s.issues || [],
+              onRetry: retryProjectGenerate
+            });
           }
         } catch (err) {
           console.warn('Status poll warning:', err);
@@ -948,8 +1132,14 @@
         showToast('Insufficient credits to complete this generation.', 'error');
         alert('Insufficient credits: ' + e.message);
       } else {
-        showToast('Render initiation error: ' + e.message, 'error');
-        alert('Render initiation error: ' + e.message);
+        const errMsg = e.message || 'Failed to start generation.';
+        showToast('Render initiation error: ' + errMsg, 'error');
+        showGenerationFailure({
+          stage: 'Initiation',
+          error: errMsg,
+          issues: [],
+          onRetry: retryProjectGenerate
+        });
       }
     }
   }
@@ -973,8 +1163,16 @@
       return;
     }
 
-    showOverlay('Merging Code & Rendering 60 FPS MP4…', 'Transpiling Remotion JSX, generating voiceover audio, and compiling video');
+    hideGenerationSuccessBox();
+    hideGenerationFailureBox();
+
+    if ('Notification' in window && Notification.permission === 'default') {
+      try { Notification.requestPermission().catch(() => {}); } catch {}
+    }
+
+    showOverlay('Merging Code & Rendering 60 FPS MP4…', 'Transpiling Remotion JSX, generating voiceover audio, and compiling video', true);
     updatePipelineStep(4);
+    const pasteStartTime = Date.now();
 
     try {
       const res = await callApi('/api/dashboard/paste-and-render', {
@@ -997,54 +1195,95 @@
           if (j.status === 'needs_attention') {
             clearInterval(poll);
             hideOverlay();
+            const totalSec = Math.round((Date.now() - pasteStartTime) / 1000);
+            const timeFormatted = formatDuration(totalSec);
             updatePipelineStep(5);
             videoCacheKey = Date.now();
             projectState.preview_url = `/media/${activeJobId}/output.mp4`;
-            $('btn-view-rebuilt')?.click();
+            viewGeneratedVideo();
             showNeedsAttentionBox(j.issues || []);
-            showToast('⚠️ Merged with issues. Review Needs Attention list.', 'warning');
-            appendChatBubble('agent', '⚠️ Your custom code was merged, but some scenes require attention. See the issues list.');
+            showToast(`⚠️ Merged in ${timeFormatted} with issues. Review Needs Attention list.`, 'warning', {
+              label: 'View here ↗',
+              onClick: viewGeneratedVideo
+            });
+            appendChatBubble(
+              'agent',
+              `⚠️ Custom code merged in ${timeFormatted}, but some scenes require attention. See the issues list.`,
+              `<div style="margin-top:8px;"><button type="button" class="chat-action-btn" onclick="window.viewGeneratedVideo()">▶ View here ↗</button></div>`
+            );
           } else if (j.status === 'complete' || j.status === 'ready') {
             clearInterval(poll);
             hideOverlay();
             hideNeedsAttentionBox();
+            const totalSec = Math.round((Date.now() - pasteStartTime) / 1000);
+            const timeFormatted = formatDuration(totalSec);
             updatePipelineStep(5);
             videoCacheKey = Date.now();
             projectState.preview_url = `/media/${activeJobId}/output.mp4`;
             
-            // Switch to Preview tab to watch rendered MP4
-            $('btn-view-rebuilt')?.click();
-            showToast('🎉 60 FPS Explainer Video Rendered Successfully!', 'success');
-            appendChatBubble('agent', '🎉 Your custom JSX + voiceover was compiled and rendered into a 60 FPS MP4 video! Watch the preview above or download the file.');
+            viewGeneratedVideo();
+            showGenerationSuccess({ timeFormatted, totalSeconds: totalSec });
           } else if (j.status === 'error') {
             clearInterval(poll);
             hideOverlay();
-            showToast('Render error: ' + (j.error || 'Check server logs'), 'error');
-            alert('Render failed: ' + (j.error || 'Check server logs'));
+            const err = j.error || 'Check server logs';
+            showGenerationFailure({
+              stage: j.stage || 'Paste & Render',
+              error: err,
+              issues: j.issues || [],
+              onRetry: handlePasteAndRender
+            });
           }
         } catch {}
       }, 2500);
 
     } catch (e) {
       hideOverlay();
-      showToast('Merge & Render failed: ' + e.message, 'error');
-      alert('Merge & Render error: ' + e.message);
+      const errMsg = e.message || 'Merge & Render failed.';
+      showToast('Merge & Render failed: ' + errMsg, 'error');
+      showGenerationFailure({
+        stage: 'Paste & Render Merger',
+        error: errMsg,
+        issues: [],
+        onRetry: handlePasteAndRender
+      });
     }
   }
 
-  function showOverlay(title, desc) {
+  function showOverlay(title, desc, showTimer = false) {
     const el = $('stage-render-overlay');
     if (el) {
       const t = $('stage-overlay-title');
       const d = $('stage-overlay-desc');
+      const timerEl = $('stage-overlay-timer');
       if (t) t.textContent = title;
       if (d) d.textContent = desc;
+      if (timerEl) {
+        if (showTimer) {
+          timerEl.style.display = 'block';
+          timerEl.textContent = '⏱️ Time elapsed: 0s';
+          overlayStartTime = Date.now();
+          if (overlayTimerInterval) clearInterval(overlayTimerInterval);
+          overlayTimerInterval = setInterval(() => {
+            const elapsed = Math.round((Date.now() - overlayStartTime) / 1000);
+            timerEl.textContent = `⏱️ Time elapsed: ${formatDuration(elapsed)}`;
+          }, 1000);
+        } else {
+          timerEl.style.display = 'none';
+          if (overlayTimerInterval) clearInterval(overlayTimerInterval);
+          overlayTimerInterval = null;
+        }
+      }
       el.hidden = false;
       el.style.display = 'flex';
     }
   }
 
   function hideOverlay() {
+    if (overlayTimerInterval) {
+      clearInterval(overlayTimerInterval);
+      overlayTimerInterval = null;
+    }
     const el = $('stage-render-overlay');
     if (el) {
       el.hidden = true;
@@ -1371,6 +1610,23 @@ export const ExplainerScene = () => {
       hideNeedsAttentionBox();
       showToast('🔄 Retrying scenes...', 'info');
       triggerProjectGenerate({ useExistingScenePlan: true, fps: 60 });
+    });
+
+    // Success & Failure Banner Actions
+    $('btn-view-generated-video')?.addEventListener('click', () => {
+      viewGeneratedVideo();
+    });
+
+    $('btn-retry-generation')?.addEventListener('click', () => {
+      retryProjectGenerate();
+    });
+
+    $('btn-dismiss-success-banner')?.addEventListener('click', () => {
+      hideGenerationSuccessBox();
+    });
+
+    $('btn-dismiss-failure-banner')?.addEventListener('click', () => {
+      hideGenerationFailureBox();
     });
 
     // Timeline Preview Render Button

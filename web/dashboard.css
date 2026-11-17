@@ -952,6 +952,167 @@ body.dashboard-body {
   border-radius: var(--radius-pill);
 }
 
+/* Generation Success Notification Banner */
+.generation-success-card {
+  background: rgba(16, 185, 129, 0.14);
+  border: 1px solid rgba(16, 185, 129, 0.5);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.generation-success-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.success-badge {
+  font-size: 13px;
+  font-weight: 700;
+  color: #34d399;
+  letter-spacing: 0.3px;
+}
+.generation-time-badge {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #a7f3d0;
+  background: rgba(16, 185, 129, 0.2);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+}
+.btn-view-generated-video {
+  margin-left: auto;
+  background: #10b981;
+  color: #042f2e;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.btn-view-generated-video:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+/* Generation Failure Notification Card */
+.generation-failure-card {
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.generation-failure-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.error-badge {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f87171;
+  letter-spacing: 0.3px;
+}
+.btn-retry-generation {
+  margin-left: auto;
+  background: #ef4444;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.btn-retry-generation:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+.generation-failure-body {
+  font-size: 12px;
+  color: #fecaca;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.generation-failure-reason {
+  margin: 0;
+  line-height: 1.45;
+  color: #ffe4e6;
+  font-weight: 500;
+}
+.generation-failure-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.btn-dismiss-banner {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+}
+.btn-dismiss-banner:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Toast Action Button */
+.toast-action-btn {
+  margin-left: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #fff;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.toast-action-btn:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* Chat Action Buttons */
+.chat-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.chat-action-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+.chat-action-btn.retry-btn {
+  background: #ef4444;
+}
+
 /* Needs Attention Card & Issues Banner */
 .needs-attention-card {
   background: rgba(245, 158, 11, 0.12);

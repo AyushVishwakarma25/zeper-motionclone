@@ -1052,6 +1052,28 @@ def install(app, server):
         if report_file.is_file():
             try:
                 status_data['report'] = json.loads(report_file.read_text(encoding='utf-8'))
+                if status_data['report'].get('elapsed_seconds'):
+                    status_data['elapsed_seconds'] = status_data['report']['elapsed_seconds']
+            except Exception:
+                pass
+
+        # Check job.json for error or status updates
+        job_file = folder / 'job.json'
+        if job_file.is_file():
+            try:
+                job_data = json.loads(job_file.read_text(encoding='utf-8'))
+                if job_data.get('status') == 'error':
+                    status_data['state'] = 'failed'
+                    status_data['stage'] = job_data.get('stage') or 'Render failed'
+                    status_data['error'] = job_data.get('error') or status_data.get('error') or 'Generation failed'
+            except Exception:
+                pass
+
+        # Check issues.json if issues not yet loaded
+        issues_file = folder / 'issues.json'
+        if not status_data.get('issues') and issues_file.is_file():
+            try:
+                status_data['issues'] = json.loads(issues_file.read_text(encoding='utf-8'))
             except Exception:
                 pass
 

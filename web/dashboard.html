@@ -261,6 +261,7 @@
           </button>
           <span class="meta-pill" id="badge-active-ratio">9:16 Reel</span>
           <span class="meta-pill" id="badge-active-duration">30.0s</span>
+          <span class="meta-pill" id="badge-render-time" style="display:none;background:rgba(16,185,129,0.2);color:#34d399;font-weight:600;">⏱️ 0s</span>
         </div>
       </div>
 
@@ -271,6 +272,7 @@
           <div class="monitor-header">
             <span class="monitor-label" id="monitor-video-label">📹 Active Video</span>
             <span class="monitor-badge" id="monitor-badge-status">60 FPS</span>
+            <span class="monitor-badge" id="monitor-badge-time" style="display:none;background:#10b981;color:#fff;">⏱️ 0s</span>
           </div>
           <div class="stage-player-wrap aspect-9-16" id="stage-viewport-container">
             <!-- Video Element (Autoscaled with Aspect Ratio & Max Constraints) -->
@@ -294,12 +296,36 @@
               <div class="neon-spinner"></div>
               <strong id="stage-overlay-title">Processing Video…</strong>
               <p id="stage-overlay-desc">Analyzing motion keyframes & structure</p>
+              <div class="stage-overlay-timer-badge" id="stage-overlay-timer" style="margin-top:8px;font-size:12px;color:#a5b4fc;font-weight:600;display:none;">⏱️ Time elapsed: 0s</div>
             </div>
           </div>
         </div>
 
         <!-- 70% RIGHT: Blueprint, Story Brief & Code Studio Workspace -->
         <div class="stage-workspace-column" id="stage-workspace-column">
+          <!-- Generation Success Notification Banner -->
+          <div class="generation-success-card" id="generation-success-box" style="display:none;">
+            <div class="generation-success-header">
+              <span class="success-badge">🎬 Video is generated!</span>
+              <span class="generation-time-badge" id="generation-time-badge">⏱️ in 0s</span>
+              <button type="button" class="btn-view-generated-video" id="btn-view-generated-video">▶ View here ↗</button>
+              <button type="button" class="btn-dismiss-banner" id="btn-dismiss-success-banner" title="Dismiss">✕</button>
+            </div>
+          </div>
+
+          <!-- Generation Failure Notification Card with Why & Retry Option -->
+          <div class="generation-failure-card" id="generation-failure-box" style="display:none;">
+            <div class="generation-failure-header">
+              <span class="error-badge">❌ Video Generation Failed</span>
+              <button type="button" class="btn-retry-generation" id="btn-retry-generation">🔄 Retry Generation</button>
+              <button type="button" class="btn-dismiss-banner" id="btn-dismiss-failure-banner" title="Dismiss">✕</button>
+            </div>
+            <div class="generation-failure-body">
+              <p class="generation-failure-reason" id="generation-failure-reason">Why: An error occurred during rendering.</p>
+              <div class="generation-failure-issues" id="generation-failure-issues"></div>
+            </div>
+          </div>
+
           <!-- Needs Attention Notification Box -->
           <div class="needs-attention-card" id="needs-attention-box" style="display:none;">
             <div class="needs-attention-header">

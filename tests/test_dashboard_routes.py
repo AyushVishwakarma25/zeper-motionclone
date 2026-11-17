@@ -460,3 +460,52 @@ def test_unhandled_route_error_returns_structured_500(monkeypatch, headers):
         assert data['code'] == 'INTERNAL_SERVER_ERROR'
         assert 'request_id' in data
         assert 'Unexpected internal database crash' in data['error']
+
+
+# --- 13. /api/dashboard/project/{id}/status generation time and failure details ---
+def test_project_status_returns_elapsed_seconds_on_success(sample_project, headers):
+    folder = server.DATA / sample_project
+    (folder / 'output.mp4').write_bytes(b'fake-video-bytes')
+    report = {
+        'status': 'ready',
+        'elapsed_seconds': 42.5,
+        'output_mp4': 'output.mp4'
+    }
+    (folder / 'report.json').write_text(json.dumps(report), encoding='utf-8')
+    pipeline_status = {
+        'state': 'ready',
+        'stage': 'Complete',
+        'progress': 100
+    }
+    (folder / 'pipeline_status.json').write_text(json.dumps(pipeline_status), encoding='utf-8')
+
+    with TestClient(server.app) as client:
+        res = client.get(f'/api/dashboard/project/{sample_project}/status', headers=headers)
+        assert res.status_code == 200
+        data = res.json()
+        assert data['state'] == 'ready'
+        assert data['elapsed_seconds'] == 42.5
+        assert data['output_url'] == f'/media/{sample_project}/output.mp4'
+
+
+def test_project_status_returns_error_details_on_failure(sample_project, headers):
+    folder = server.DATA / sample_project
+    pipeline_status = {
+        'state': 'failed',
+        'stage': 'Rendering Remotion video',
+        'progress': 30,
+        'error': 'Cloud TTS rate limit exceeded'
+    }
+    (folder / 'pipeline_status.json').write_text(json.dumps(pipeline_status), encoding='utf-8')
+    (folder / 'issues.json').write_text(json.dumps([{'code': 'TTS_FAILED', 'message': 'Rate limit'}]), encoding='utf-8')
+
+    with TestClient(server.app) as client:
+        res = client.get(f'/api/dashboard/project/{sample_project}/status', headers=headers)
+        assert res.status_code == 200
+        data = res.json()
+        assert data['state'] == 'failed'
+        assert data['stage'] == 'Rendering Remotion video'
+        assert data['error'] == 'Cloud TTS rate limit exceeded'
+        assert len(data['issues']) == 1
+        assert data['issues'][0]['code'] == 'TTS_FAILED'
+
