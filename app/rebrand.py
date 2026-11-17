@@ -549,17 +549,17 @@ def animate_screenshot_layers(folder: Path, req: AnimateScreenshotRequest) -> di
 
 
 def render_hyperframes_output(folder: Path, cancel: threading.Event, progress=None) -> Path:
-    """Renders the current rebuild/ project into output.mp4 at 60 FPS."""
+    """Renders the current rebuild/ project into output.mp4 at 30 FPS."""
     rebuild_dir = folder / 'rebuild'
     if not (rebuild_dir / 'index.html').is_file():
         raise ValueError('Rebuild project index.html not found.')
 
     source_path = folder / 'source.mp4'
-    media = probe(source_path) if source_path.is_file() else {'fps': 60, 'audio': True}
-    count, fps = frame_info(source_path, cancel) if source_path.is_file() else (1800, '60/1')
+    media = probe(source_path) if source_path.is_file() else {'fps': 30, 'audio': True}
+    count, fps = frame_info(source_path, cancel) if source_path.is_file() else (900, '30/1')
 
     if progress:
-        progress('Rendering updated 60 FPS animation in HyperFrames', 10)
+        progress('Rendering updated 30 FPS animation in HyperFrames', 10)
 
     # Clean previous output
     output_mp4 = folder / 'output.mp4'

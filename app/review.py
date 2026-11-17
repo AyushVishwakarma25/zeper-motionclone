@@ -18,6 +18,34 @@ from . import ai, media, remotion
 logger = logging.getLogger("motionclone.review")
 
 
+import re
+
+CONTAMINATION_PATTERNS = [
+    r'enable\s+subtitle',
+    r'subtitle\s+layer',
+    r'layer\s+rendering',
+    r'field\s+mapping',
+    r'map\s+to\s+the\s+subtitle',
+    r'remotion\s+render',
+    r'component\s+prop',
+    r'fix\s+the\s+scene',
+    r'correct\s+field',
+    r'developer\s+instruction',
+    r'code\s+scene',
+    r'meta[-\s]instruction',
+    r'css\s+selector',
+    r'inspect\s+code',
+]
+
+
+def is_contaminated_text(text: str | None) -> bool:
+    """Detects whether text contains internal engineering/debugging meta-instructions."""
+    if not text or not isinstance(text, str):
+        return False
+    lower = text.lower().strip()
+    return any(re.search(pat, lower) for pat in CONTAMINATION_PATTERNS)
+
+
 class SuggestedFix(BaseModel):
     template: str | None = None
     text_adjust: str | None = None
@@ -196,10 +224,10 @@ def run_quality_review_loop(
     brief: Any,
     cancel: threading.Event | None = None,
     progress_cb: Callable[[str, int], None] | None = None,
-    max_passes: int = 3
+    max_passes: int = 1
 ) -> ReviewPassReport:
-    """Executes the multi-pass QA review loop.
-    Re-renders failed scenes and iterates up to max_passes (default 3).
+    """Executes the single-pass QA review evaluation (MotionClone V3 efficient verification).
+    Evaluates visual quality, readability, and pacing without triggering repetitive re-render loops.
     """
     project_dir = Path(project_dir).resolve()
     review_dir = project_dir / "review"
@@ -263,7 +291,7 @@ def run_quality_review_loop(
                     if fix.template:
                         target_sc["template"] = fix.template
                         changed = True
-                    if fix.text_adjust:
+                    if fix.text_adjust and not is_contaminated_text(fix.text_adjust) and len(fix.text_adjust.split()) <= 12:
                         target_sc["headline"] = fix.text_adjust
                         changed = True
 

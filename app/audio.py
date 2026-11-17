@@ -175,12 +175,17 @@ def generate_scene_voiceovers(
     scenes: list[dict],
     language: str = 'en',
     output_dir: Optional[Path] = None,
+    voice_id: Optional[str] = None,
     cancel: Optional[Any] = None,
     adjust_durations: bool = False
 ) -> Path:
-    """Generates per-scene voiceover clips, sets scene duration to max(planned, clip + 0.3s),
+    """Generates per-scene voiceover clips using Kokoro neural TTS (with automatic fallback),
+    sets scene duration to max(planned, clip + 0.3s),
     and builds the final audio placing each clip at its scene start.
     """
+    from .tts import resolve_voice_id, get_tts_provider
+
+    chosen_voice = resolve_voice_id(voice_id)
     folder = Path(output_dir).resolve() if output_dir else Path('data').resolve()
     folder.mkdir(parents=True, exist_ok=True)
     final_vo = folder / 'voiceover.mp3'
@@ -192,45 +197,68 @@ def generate_scene_voiceovers(
 
     for idx, sc in enumerate(scenes):
         planned_dur = float(sc.get('duration_seconds') or sc.get('duration') or 3.0)
-        text = (
-            sc.get('voiceover') or
-            sc.get('voiceover_script') or
-            sc.get('voiceover_script_en') or
-            sc.get('voiceover_script_hi') or
-            sc.get('headline') or
-            ''
-        ).strip()
+        # Select narration text for requested language
+        if language == 'hi':
+            text = (sc.get('voiceover_script_hi') or sc.get('voiceover_script') or sc.get('voiceover') or sc.get('headline') or '').strip()
+        elif language == 'en_hi':
+            text = (sc.get('voiceover_script_hi') or sc.get('voiceover_script_en') or sc.get('voiceover_script') or sc.get('voiceover') or sc.get('headline') or '').strip()
+        else:
+            text = (sc.get('voiceover_script_en') or sc.get('voiceover_script') or sc.get('voiceover') or sc.get('headline') or '').strip()
 
         clip_path = folder / f'scene_{idx}_raw.mp3'
+        raw_wav_path = folder / f'scene_{idx}_raw.wav'
         padded_path = folder / f'scene_{idx}_padded.mp3'
 
         if text:
             tts_success = False
+            # 1. Try Kokoro Natural TTS Provider First
             try:
-                synthesize_voiceover(text, language=language, output_path=clip_path, is_ssml=False)
-                tts_success = True
-            except Exception as tts_err:
-                logger.error(f"TTS synthesis failed for scene {sc.get('id', idx)}: {tts_err}")
-                issues.append({
-                    "code": "TTS_FAILED",
-                    "scene_id": sc.get("id") or f"scene_{idx}",
-                    "message": str(tts_err)
-                })
-                if os.getenv('ALLOW_TONE_FALLBACK', '0') == '1':
-                    duration = max(3.0, len(text.split()) * 0.4)
+                kokoro_prov = get_tts_provider("kokoro")
+                kokoro_prov.synthesize_scene(
+                    text=text,
+                    voice_id=chosen_voice,
+                    language=language,
+                    output_path=raw_wav_path,
+                    cancel=cancel
+                )
+                if raw_wav_path.is_file() and raw_wav_path.stat().st_size > 512:
                     run([
                         'ffmpeg', '-y', '-v', 'error',
-                        '-f', 'lavfi', '-i', f'sine=frequency=320:duration={duration}',
-                        '-c:a', 'libmp3lame', '-b:a', '192k', str(clip_path)
-                    ])
-                else:
-                    run([
-                        'ffmpeg', '-y', '-v', 'error',
-                        '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
-                        '-t', str(planned_dur),
+                        '-i', str(raw_wav_path),
                         '-c:a', 'libmp3lame', '-b:a', '192k',
                         str(clip_path)
-                    ])
+                    ], cancel=cancel)
+                    tts_success = True
+            except Exception as kokoro_err:
+                logger.warning(f"Kokoro TTS synthesis attempt failed ({kokoro_err}), falling back to Cloud TTS...")
+
+            # 2. Fallback to Cloud TTS if Kokoro was not successful
+            if not tts_success:
+                try:
+                    synthesize_voiceover(text, language=language, output_path=clip_path, is_ssml=False)
+                    tts_success = True
+                except Exception as tts_err:
+                    logger.error(f"TTS synthesis failed for scene {sc.get('id', idx)}: {tts_err}")
+                    issues.append({
+                        "code": "TTS_FAILED",
+                        "scene_id": sc.get("id") or f"scene_{idx}",
+                        "message": str(tts_err)
+                    })
+                    if os.getenv('ALLOW_TONE_FALLBACK', '0') == '1':
+                        duration = max(3.0, len(text.split()) * 0.4)
+                        run([
+                            'ffmpeg', '-y', '-v', 'error',
+                            '-f', 'lavfi', '-i', f'sine=frequency=320:duration={duration}',
+                            '-c:a', 'libmp3lame', '-b:a', '192k', str(clip_path)
+                        ])
+                    else:
+                        run([
+                            'ffmpeg', '-y', '-v', 'error',
+                            '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
+                            '-t', str(planned_dur),
+                            '-c:a', 'libmp3lame', '-b:a', '192k',
+                            str(clip_path)
+                        ])
 
             try:
                 probe_res = json.loads(run([

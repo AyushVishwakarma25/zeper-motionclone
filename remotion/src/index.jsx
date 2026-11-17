@@ -45,7 +45,8 @@ function resolveDimensions(props) {
     }
   }
 
-  const fps = props?.media?.fps || props?.fps || 30;
+  // Canonical MotionClone V3 Frame Rate: 30 FPS strictly. 60 FPS is not supported.
+  const fps = 30;
 
   const allScenes = (props?.scene_plan?.scenes && Array.isArray(props.scene_plan.scenes) && props.scene_plan.scenes.length > 0)
     ? props.scene_plan.scenes
@@ -85,7 +86,7 @@ function Root() {
           return {
             width: meta.width,
             height: meta.height,
-            fps: meta.fps,
+            fps: 30,
             durationInFrames: meta.durationInFrames,
             props: {
               ...props,
@@ -93,8 +94,8 @@ function Root() {
                 ...(props?.media || {}),
                 width: meta.width,
                 height: meta.height,
-                fps: meta.fps,
-                duration: meta.durationInFrames / meta.fps
+                fps: 30,
+                duration: meta.durationInFrames / 30
               }
             }
           };

@@ -429,7 +429,7 @@ export function ComparisonSplit({
 // 5. BULLET LIST TEMPLATE (Sequential reveal with checkmarks)
 export function BulletList({
   headline = 'Key Architectural Pillars',
-  bullets = ['Real-time Vertex AI integration', 'Cloud TTS neural voiceover', '60 FPS broadcast Remotion render', 'Single source of truth pipeline'],
+  bullets = ['Real-time Vertex AI integration', 'Cloud TTS neural voiceover', '30 FPS broadcast Remotion render', 'Single source of truth pipeline'],
   accent = '#00f2fe',
   bg = '#0a0a12'
 }) {
@@ -924,7 +924,7 @@ export function SceneSwitch({scene = {}, logo = null}) {
       return (
         <ComparisonSplit
           optionA={scene.optionA || {title: 'Manual Video Edit', desc: 'Hours of timeline tweaking'}}
-          optionB={scene.optionB || {title: 'MotionClone AI', desc: 'Instant 60 FPS compilation'}}
+          optionB={scene.optionB || {title: 'MotionClone AI', desc: 'Instant 30 FPS compilation'}}
           headline={headline}
           accent={accent}
           bg={bg}
@@ -992,6 +992,47 @@ export function SceneSwitch({scene = {}, logo = null}) {
   }
 }
 
+export function SubtitleOverlay({text, accent = '#00f2fe'}) {
+  const {width, height} = useVideoConfig();
+  const theme = getTheme(width, height);
+  if (!text || typeof text !== 'string' || text.trim() === '') return null;
+  return (
+    <div style={{
+      position: 'absolute',
+      bottom: Math.max(28, Math.round(theme.safeMargins.bottom * 0.7)),
+      left: 0,
+      right: 0,
+      display: 'flex',
+      justifyContent: 'center',
+      padding: '0 24px',
+      pointerEvents: 'none',
+      zIndex: 100
+    }}>
+      <div style={{
+        background: 'rgba(8, 10, 16, 0.88)',
+        backdropFilter: 'blur(12px)',
+        border: '1px solid rgba(255, 255, 255, 0.12)',
+        borderRadius: '999px',
+        padding: '8px 24px',
+        maxWidth: '90%',
+        textAlign: 'center',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)'
+      }}>
+        <span style={{
+          color: '#ffffff',
+          fontFamily: theme.fontFamilies.sans,
+          fontSize: `${Math.round(theme.typeScale.body * 0.95)}px`,
+          fontWeight: 600,
+          letterSpacing: '-0.2px',
+          lineHeight: 1.35
+        }}>
+          {text}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // Main Universal Explainer Composition
 export function MotionComposition(props) {
   const {plan, audio, logo, scene_plan, scenes} = props;
@@ -1027,6 +1068,12 @@ export function MotionComposition(props) {
               durationInFrames={durationFrames}
             >
               <SceneSwitch scene={scene} logo={logo} />
+              {(scene.voiceover_script_hi || scene.voiceover_script_en || scene.subtitle) && (
+                <SubtitleOverlay
+                  text={scene.voiceover_script_hi || scene.voiceover_script_en || scene.subtitle}
+                  accent={scene.accent || '#00f2fe'}
+                />
+              )}
             </Sequence>
           );
         });

@@ -57,6 +57,24 @@
         <button type="button" class="lang-pill" data-lang="en_hi" title="Bilingual English + Hindi">EN + HI</button>
       </div>
 
+      <!-- Target Duration Switcher (Phase 2) -->
+      <div class="segmented-control" role="group" aria-label="Target Video Duration" id="duration-control-group">
+        <button type="button" class="duration-pill active" data-duration="30s" title="30 Seconds (~60-70 words)">30s</button>
+        <button type="button" class="duration-pill" data-duration="1m" title="1 Minute (~120-140 words)">1m</button>
+        <button type="button" class="duration-pill" data-duration="2m" title="2 Minutes (~240-280 words)">2m</button>
+        <button type="button" class="duration-pill" data-duration="4m" title="4 Minutes (~480-560 words)">4m</button>
+        <button type="button" class="duration-pill" data-duration="6m" title="6 Minutes (~720-840 words)">6m</button>
+        <button type="button" class="duration-pill" data-duration="8m" title="8 Minutes (~960-1,120 words)">8m</button>
+        <button type="button" class="duration-pill" data-duration="10m" title="10 Minutes (~1,200-1,400 words)">10m</button>
+      </div>
+
+      <!-- Natural Kokoro Voice Selector (Phase 4) -->
+      <div class="segmented-control" role="group" aria-label="Narration Voice" id="voice-control-group">
+        <button type="button" class="voice-pill active" data-voice="hm_omega" title="Omega (Male — Indian Hindi/English)">🎙️ Omega (M)</button>
+        <button type="button" class="voice-pill" data-voice="hf_beta" title="Beta (Female — Indian Hindi/English)">🎙️ Beta (F)</button>
+        <button type="button" class="voice-preview-btn" id="btn-preview-voice" title="Listen to Voice Audition Sample" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:6px;cursor:pointer;padding:4px 8px;color:#e4e4e7;font-size:12px;font-weight:600;">▶ Audition</button>
+      </div>
+
       <!-- Signed-in user email badge -->
       <span class="user-email-badge" id="user-email-display" style="display:none;"></span>
 
@@ -247,8 +265,8 @@
           <button type="button" class="stage-tab-btn" id="btn-view-blueprint" title="Inspect AI deconstruction blueprint & set story topic">
             <span class="tab-step-badge">2</span> 📐 Blueprint
           </button>
-          <button type="button" class="stage-tab-btn" id="btn-view-rebuilt" title="Watch rendered 60 FPS video & edit scenes">
-            <span class="tab-step-badge">3</span> 🎬 60 FPS Preview
+          <button type="button" class="stage-tab-btn" id="btn-view-rebuilt" title="Watch rendered 30 FPS video & edit scenes">
+            <span class="tab-step-badge">3</span> 🎬 30 FPS Preview
           </button>
           <button type="button" class="stage-tab-btn" id="btn-view-merger" title="Paste Remotion JSX & script to render directly">
             <span class="tab-step-badge">4</span> ⚡ Paste & Render
@@ -271,7 +289,7 @@
         <div class="stage-preview-column" id="stage-preview-column">
           <div class="monitor-header">
             <span class="monitor-label" id="monitor-video-label">📹 Active Video</span>
-            <span class="monitor-badge" id="monitor-badge-status">60 FPS</span>
+            <span class="monitor-badge" id="monitor-badge-status">30 FPS</span>
             <span class="monitor-badge" id="monitor-badge-time" style="display:none;background:#10b981;color:#fff;">⏱️ 0s</span>
           </div>
           <div class="stage-player-wrap aspect-9-16" id="stage-viewport-container">
@@ -373,7 +391,7 @@
             <div class="merger-deck-header">
               <div class="merger-title-wrap">
                 <h3>⚡ Paste & Render Merger</h3>
-                <p>Paste Remotion JSX Code or JSON Scene Plan + Voiceover Script to compile and render a 60 FPS MP4 in ~15–25 seconds</p>
+                <p>Paste Remotion JSX Code or JSON Scene Plan + Voiceover Script to compile and render a 30 FPS MP4 in ~15–25 seconds</p>
               </div>
               <div class="merger-actions-wrap" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                 <span class="credit-estimate-pill" id="credit-estimate-merger" title="Estimated credits for final render">⚡ Est: <span id="estimate-credits-merger-val">20</span> credits</span>
@@ -429,8 +447,8 @@
               <div class="guide-step-row">
                 <span class="guide-badge">Step 3</span>
                 <div>
-                  <strong>Render Final 60 FPS Video</strong>
-                  <p>Synthesizes Remotion motion graphics, bilingual audio narration, sound effects, and renders in 60 FPS.</p>
+                  <strong>Render Final 30 FPS Video</strong>
+                  <p>Synthesizes Remotion motion graphics, bilingual audio narration, sound effects, and renders in 30 FPS.</p>
                 </div>
               </div>
             </div>
@@ -607,7 +625,7 @@
 
         <div class="footer-export-row">
           <button type="button" class="btn-export-primary" id="btn-render-final-mp4">
-            🎬 Render 60 FPS MP4
+            🎬 Render 30 FPS MP4
           </button>
           <div class="export-links-group">
             <a class="export-link-btn" id="btn-download-mp4" href="#" download="explainer-video.mp4" title="Download Rendered MP4">

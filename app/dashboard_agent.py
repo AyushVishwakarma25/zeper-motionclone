@@ -114,6 +114,13 @@ class SceneItem(BaseModel):
         "dashboard_3d_float",
         "interactive_cursor_click",
         "fact_card",
+        "stat_counter",
+        "comparison_split",
+        "bullet_list",
+        "quote",
+        "image_full_bleed",
+        "screen_capture_frame",
+        "cta_end_card",
         "title_card",
         "lower_third",
         "transparent_callout"
@@ -355,6 +362,138 @@ def _fallback_blueprint(reference_meta: dict[str, Any], aspect: str = "9:16") ->
     )
 
 
+# --- Duration-Aware Planning & Storytelling System (Phase 2) ---
+
+DURATION_CONFIGS: dict[str, dict[str, Any]] = {
+    "30s": {
+        "seconds": 30.0,
+        "label": "30 Seconds",
+        "scene_count": "5 to 7",
+        "min_scenes": 5,
+        "max_scenes": 7,
+        "word_range": "60–70 words",
+        "structure": "Hook -> Problem -> Core Solution -> Feature Highlight -> Call to Action"
+    },
+    "1m": {
+        "seconds": 60.0,
+        "label": "1 Minute",
+        "scene_count": "8 to 12",
+        "min_scenes": 8,
+        "max_scenes": 12,
+        "word_range": "120–140 words",
+        "structure": "Hook -> Context -> Problem Breakdown -> Solution Architecture -> Key Benefits -> Proof Point -> CTA"
+    },
+    "2m": {
+        "seconds": 120.0,
+        "label": "2 Minutes",
+        "scene_count": "14 to 20",
+        "min_scenes": 14,
+        "max_scenes": 20,
+        "word_range": "240–280 words",
+        "structure": "Prologue -> Act 1 (Status Quo) -> Act 2 (Breakthrough) -> Act 3 (Walkthrough & Benefits) -> Epilogue & Next Steps"
+    },
+    "4m": {
+        "seconds": 240.0,
+        "label": "4 Minutes",
+        "scene_count": "24 to 34",
+        "min_scenes": 24,
+        "max_scenes": 34,
+        "word_range": "480–560 words",
+        "structure": "Chaptered Narrative: 1. Overview & Hook -> 2. The Core Problem -> 3. Step-by-Step System Architecture -> 4. Case Studies -> 5. Capabilities -> 6. Conclusion"
+    },
+    "6m": {
+        "seconds": 360.0,
+        "label": "6 Minutes",
+        "scene_count": "32 to 44",
+        "min_scenes": 32,
+        "max_scenes": 44,
+        "word_range": "720–840 words",
+        "structure": "Deep Dive Documentary: Multi-chapter storytelling with recurring callbacks, varied visual pacing, diagrams, and comprehensive feature breakdowns."
+    },
+    "8m": {
+        "seconds": 480.0,
+        "label": "8 Minutes",
+        "scene_count": "40 to 55",
+        "min_scenes": 40,
+        "max_scenes": 55,
+        "word_range": "960–1,120 words",
+        "structure": "Masterclass / Technical Deep-Dive: Progressive chapter breakdown, case studies, comparative analysis, workflow architecture, and enterprise takeaways."
+    },
+    "10m": {
+        "seconds": 600.0,
+        "label": "10 Minutes",
+        "scene_count": "48 to 65",
+        "min_scenes": 48,
+        "max_scenes": 65,
+        "word_range": "1,200–1,400 words",
+        "structure": "Full-Length Master Explainer: Multi-chapter documentary style with distinct thematic segments, dramatic retention hooks every 45-60s, rich infographic scenes, and complete storytelling arc."
+    }
+}
+
+
+def parse_target_duration(duration_input: str | float | int | None) -> tuple[str, float]:
+    """Parse duration input into canonical key ('30s', '1m', etc.) and float seconds."""
+    if not duration_input:
+        return "30s", 30.0
+    s = str(duration_input).strip().lower()
+    mapping = {
+        "30s": 30.0, "30": 30.0, "30sec": 30.0, "30second": 30.0, "30seconds": 30.0,
+        "1m": 60.0, "1min": 60.0, "1minute": 60.0, "60": 60.0, "60s": 60.0,
+        "2m": 120.0, "2min": 120.0, "2minutes": 120.0, "120": 120.0, "120s": 120.0,
+        "4m": 240.0, "4min": 240.0, "4minutes": 240.0, "240": 240.0, "240s": 240.0,
+        "6m": 360.0, "6min": 360.0, "6minutes": 360.0, "360": 360.0, "360s": 360.0,
+        "8m": 480.0, "8min": 480.0, "8minutes": 480.0, "480": 480.0, "480s": 480.0,
+        "10m": 600.0, "10min": 600.0, "10minutes": 600.0, "600": 600.0, "600s": 600.0,
+    }
+    for k, v in mapping.items():
+        if s == k:
+            canonical_key = f"{int(v)}s" if v < 60 else f"{int(v // 60)}m"
+            return canonical_key, v
+    try:
+        val = float(s)
+        closest_key = min(DURATION_CONFIGS.keys(), key=lambda k: abs(DURATION_CONFIGS[k]["seconds"] - val))
+        return closest_key, DURATION_CONFIGS[closest_key]["seconds"]
+    except ValueError:
+        return "30s", 30.0
+
+
+# --- Content Contamination Elimination (Phase 5) ---
+
+CONTAMINATION_PATTERNS = [
+    r'enable\s+subtitle',
+    r'subtitle\s+layer',
+    r'layer\s+rendering',
+    r'field\s+mapping',
+    r'map\s+to\s+the\s+subtitle',
+    r'remotion\s+render',
+    r'component\s+prop',
+    r'fix\s+the\s+scene',
+    r'correct\s+field',
+    r'developer\s+instruction',
+    r'code\s+scene',
+    r'meta[-\s]instruction',
+    r'css\s+selector',
+    r'inspect\s+code',
+]
+
+
+def is_contaminated_text(text: str | None) -> bool:
+    """Detects whether text contains internal engineering/debugging meta-instructions."""
+    if not text or not isinstance(text, str):
+        return False
+    lower = text.lower().strip()
+    return any(re.search(pat, lower) for pat in CONTAMINATION_PATTERNS)
+
+
+def cleanse_scene_text(text: str | None, fallback: str = "") -> str:
+    """Return text stripped of meta-instructions or fallback if contaminated."""
+    if not text:
+        return fallback
+    if is_contaminated_text(text):
+        return fallback
+    return text.strip()
+
+
 def generate_scene_plan(
     blueprint: BlueprintStructure,
     user_story: str = "AI explainer video",
@@ -363,7 +502,8 @@ def generate_scene_plan(
     language: str = "en",
     aspect: str = "9:16",
     uploaded_assets: list[str] = None,
-    creative_brief: str = ""
+    creative_brief: str = "",
+    target_duration: str = "30s"
 ) -> ExplainerScenePlan:
     """Adapts a Blueprint into an original Scene Plan using Remotion templates with English & Hindi scripts."""
     if creative_brief and not user_story:
@@ -373,10 +513,15 @@ def generate_scene_plan(
 
     client, model, _ = get_gemini_client()
     assets_list = uploaded_assets or []
+    canonical_key, target_seconds = parse_target_duration(target_duration)
+    dur_cfg = DURATION_CONFIGS[canonical_key]
 
     prompt = (
-        "You are an expert Motion Video Producer for high-growth tech startups.\n"
-        "Create an original 30-second Remotion Explainer Scene Plan by applying the provided Blueprint to the user's story.\n\n"
+        "You are an expert Motion Video Producer and Creative Director for high-growth tech startups.\n"
+        f"Create an original {dur_cfg['label']} Remotion Explainer Scene Plan by applying the provided Blueprint to the user's story.\n\n"
+        f"TARGET DURATION: {target_seconds:.1f} seconds ({dur_cfg['label']})\n"
+        f"TARGET WORD COUNT: Approximately {dur_cfg['word_range']} (narration pacing at 120-140 words per minute)\n"
+        f"NARRATIVE STRUCTURE: {dur_cfg['structure']}\n"
         f"BRAND: {brand_name}\n"
         f"TAGLINE: {brand_tagline}\n"
         f"USER STORY / BRIEF: {user_story}\n"
@@ -385,19 +530,24 @@ def generate_scene_plan(
         f"AVAILABLE USER ASSETS: {json.dumps(assets_list)}\n\n"
         f"STYLE BLUEPRINT TO FOLLOW:\n{blueprint.model_dump_json(indent=2)}\n\n"
         "SCENE DESIGN RULES:\n"
-        "1. Divide the 30-second duration into 5 to 7 crisp scenes matching the blueprint shots.\n"
+        f"1. Divide the {target_seconds:.1f}-second duration into {dur_cfg['scene_count']} crisp scenes matching the narrative structure.\n"
         "2. Template mappings (choose the best Remotion template for each scene):\n"
         "   - 'kinetic_text': high energy typography for hook or bold statements\n"
         "   - 'dashboard_3d_float': showcase uploaded screenshot with smooth 3D float\n"
         "   - 'interactive_cursor_click': animated mouse cursor clicking UI with ripple\n"
         "   - 'fact_card': clear value metric / feature stat card\n"
+        "   - 'stat_counter': animated numerical growth or percentage counter\n"
+        "   - 'comparison_split': before vs after or problem vs solution comparison\n"
+        "   - 'bullet_list': structured feature or benefit bullets\n"
+        "   - 'quote': memorable testimonial or vision statement\n"
         "   - 'title_card': bold intro or hero headline\n"
         "   - 'lower_third': subtle overlay on visuals\n"
         "   - 'transparent_callout': floating badge with key metric\n"
-        "3. Copywriting: Punchy, modern, no fluff. Keep headlines under 8 words.\n"
+        "   - 'cta_end_card': final call to action card with handle/link\n"
+        "3. Copywriting: Punchy, modern, no fluff. Keep headlines under 8 words. DO NOT output code or developer instructions.\n"
         "4. Hindi voiceover: Natural, modern conversational Hindustani/Hinglish (e.g., 'Agar aap bhi video creation me ghanto bita rahe hain...').\n"
         "5. If user assets exist, assign them to relevant scenes (e.g. dashboard_3d_float).\n"
-        "6. Ensure the sum of scene duration_seconds is exactly ~30s."
+        f"6. Ensure the sum of scene duration_seconds is exactly ~{target_seconds:.1f}s."
     )
 
     config = types.GenerateContentConfig(
@@ -416,8 +566,9 @@ def generate_scene_plan(
 
         if res and res.text:
             text = res.text.strip()
+            parsed_plan = None
             try:
-                return ExplainerScenePlan.model_validate_json(text)
+                parsed_plan = ExplainerScenePlan.model_validate_json(text)
             except Exception:
                 if not text.endswith('}'):
                     if text.rfind(']') < text.rfind('['):
@@ -425,82 +576,126 @@ def generate_scene_plan(
                     else:
                         text += '\n}'
                 try:
-                    return ExplainerScenePlan.model_validate_json(text)
+                    parsed_plan = ExplainerScenePlan.model_validate_json(text)
                 except Exception:
                     pass
-    except Exception as e:
-        logger.warning(f"Gemini scene plan error: {e}. Falling back to default scene plan.")
 
-    # Fallback default 5-scene plan
-    scenes = [
-        SceneItem(
-            id=1,
-            title="Hook / Punchy Statement",
-            template="kinetic_text",
-            start_seconds=0.0,
-            duration_seconds=3.0,
-            headline="Stop Wasting Hours On Video",
-            subtitle=brand_name,
-            voiceover_script_en=f"Creating product videos used to take days. Now, {brand_name} changes everything.",
-            voiceover_script_hi=f"वीडियो बनाने में अब दिनों का समय बर्बाद नहीं होगा। {brand_name} से यह सब बदल गया है।",
-            transition="cut"
-        ),
-        SceneItem(
-            id=2,
-            title="Interactive Demo / UI",
-            template="interactive_cursor_click" if not assets_list else "dashboard_3d_float",
-            start_seconds=3.0,
-            duration_seconds=7.0,
-            headline="Seamless AI Workflow",
-            subtitle="Built for high-growth tech teams",
-            voiceover_script_en="Simply drop your reference video or screenshots, and watch the AI construct every scene instantly.",
-            voiceover_script_hi="बस अपना वीडियो या स्क्रीनशॉट ड्रॉप करें, और AI तुरंत हर सीन तैयार कर देगा।",
-            assigned_asset=assets_list[0] if assets_list else "",
-            transition="wipe"
-        ),
-        SceneItem(
-            id=3,
-            title="Core Metric & Value Prop",
-            template="fact_card",
-            start_seconds=10.0,
-            duration_seconds=7.0,
-            headline="10x Faster Video Production",
-            subtitle="Editable 60 FPS Remotion output",
-            voiceover_script_en="Export fully editable code and render broadcast-ready 60 FPS video in seconds.",
-            voiceover_script_hi="पूरी तरह से एडिटेबल कोड एक्सपोर्ट करें और सेकंडों में 60 FPS वीडियो रेंडर करें।",
-            transition="zoom"
-        ),
-        SceneItem(
-            id=4,
-            title="Product Feature Showcase",
-            template="dashboard_3d_float" if len(assets_list) > 1 else "kinetic_text",
-            start_seconds=17.0,
-            duration_seconds=8.0,
-            headline=brand_tagline or "Autonomous Motion Graphics",
-            subtitle="No complex timeline software needed",
-            voiceover_script_en="Customize typography, colors, and pacing with conversational AI prompts.",
-            voiceover_script_hi="सरल AI प्रॉम्प्ट्स के साथ टाइपोग्राफी, रंग और पेसिंग कस्टमाइज़ करें।",
-            assigned_asset=assets_list[1] if len(assets_list) > 1 else "",
-            transition="cut"
-        ),
-        SceneItem(
-            id=5,
-            title="Call To Action",
-            template="title_card",
-            start_seconds=25.0,
-            duration_seconds=5.0,
-            headline=f"Try {brand_name} Today",
-            subtitle="Get started free at zeperai.com",
-            voiceover_script_en="Start building original product explainers today. Get started now.",
-            voiceover_script_hi="आज ही अपने ओरिजिनल प्रोडक्ट एक्सप्लेनर बनाना शुरू करें।",
-            transition="smooth"
-        )
+            if parsed_plan and parsed_plan.scenes:
+                # Sanitize content against developer/meta instructions (Phase 5)
+                for idx, sc in enumerate(parsed_plan.scenes):
+                    sc.headline = cleanse_scene_text(sc.headline, f"Chapter {idx + 1}")
+                    sc.subtitle = cleanse_scene_text(sc.subtitle, "")
+                    sc.voiceover_script_en = cleanse_scene_text(sc.voiceover_script_en, "")
+                    sc.voiceover_script_hi = cleanse_scene_text(sc.voiceover_script_hi, "")
+                parsed_plan.duration_seconds = target_seconds
+                return parsed_plan
+    except Exception as e:
+        logger.warning(f"Gemini scene plan error: {e}. Falling back to dynamic duration-aware scene plan.")
+
+    return build_dynamic_scene_plan(
+        brand_name=brand_name,
+        brand_tagline=brand_tagline,
+        assets_list=assets_list,
+        target_seconds=target_seconds,
+        language=language,
+        aspect=aspect
+    )
+
+def build_dynamic_scene_plan(
+    brand_name: str,
+    brand_tagline: str,
+    assets_list: list[str],
+    target_seconds: float,
+    language: str,
+    aspect: str
+) -> ExplainerScenePlan:
+    """Builds a rich, duration-aware scene plan across all Remotion templates for any duration (30s to 10m)."""
+    # Template rotation palette to prevent repeating adjacent animations
+    template_rotation = [
+        "kinetic_text", "interactive_cursor_click", "fact_card", "stat_counter",
+        "dashboard_3d_float", "comparison_split", "bullet_list", "quote",
+        "title_card", "lower_third", "transparent_callout"
     ]
+    
+    # Calculate scene count and average duration
+    if target_seconds <= 30.0:
+        target_scene_count = 5
+    elif target_seconds <= 60.0:
+        target_scene_count = 10
+    elif target_seconds <= 120.0:
+        target_scene_count = 18
+    elif target_seconds <= 240.0:
+        target_scene_count = 32
+    elif target_seconds <= 360.0:
+        target_scene_count = 42
+    elif target_seconds <= 480.0:
+        target_scene_count = 52
+    else:
+        target_scene_count = 60
+
+    avg_dur = round(target_seconds / target_scene_count, 1)
+    scenes: list[SceneItem] = []
+    curr_time = 0.0
+
+    chapters = [
+        ("The Modern Challenge", "Stop Wasting Time On Outdated Workflows", f"Traditional methods consume hours. {brand_name} modernizes everything.", f"पारंपरिक तरीकों में घंटों बर्बाद होते हैं। {brand_name} सब कुछ आसान बनाता है।"),
+        ("The AI Breakthrough", "Autonomous Media Architecture", "Our neural engine translates ideas into frame-accurate broadcast animations.", "हमारा न्यूरल इंजन आपके विचारों को सटीक ब्रॉडकास्ट एनिमेशन में बदलता है।"),
+        ("Live Interactive Demo", "Instant Visual Synthesis", "Simply provide a reference or prompt, and full compositions render in seconds.", "बस एक संदर्भ या प्रॉम्प्ट दें, और पूरे कंपोजिशन सेकंडों में रेंडर हो जाते हैं।"),
+        ("Proven Efficiency", "10x Faster Turnaround", "High-growth creative teams ship 10x more content without extra headcount.", "क्रिएटिव टीमें बिना अतिरिक्त लोगों के 10 गुना अधिक कंटेंट तैयार करती हैं।"),
+        ("Side-by-Side Comparison", "Manual Timeline vs Neural Flow", "Replace complex manual timelines with intelligent automated motion design.", "जटिल मैनुअल टाइमलाइन को इंटेलिजेंट ऑटोमेटेड मोशन डिज़ाइन से बदलें।"),
+        ("Production Capabilities", "Broadcast 30 FPS Standard", "Every render uses strict 30 FPS H.264 video with sidechain ducked audio.", "हर रेंडर में साइडचेन डक्ड ऑडियो के साथ 30 FPS H.264 वीडियो मिलता है।"),
+        ("Creative Precision", "Pixel-Perfect Layouts", "Enjoy full control over color palettes, typography, and motion curves.", "रंगों, टाइपोग्राफी और मोशन कर्व्स पर पूरा नियंत्रण प्राप्त करें।"),
+        ("Industry Testimonial", "The Future of Video Production", "MotionClone has completely reimagined how we communicate technical ideas.", "मोशनक्लोन ने तकनीकी विचारों को समझाने के तरीके को पूरी तरह से बदल दिया है।"),
+        ("Enterprise Scalability", "Cloud-Native Rendering", "Scales seamlessly from 30-second reels to comprehensive 10-minute masterclasses.", "30 सेकंड की रील से लेकर 10 मिनट के मास्टरक्लास तक आसानी से स्केल करें।"),
+        ("Next-Gen Voice", "Natural Conversational Narration", "Powered by Kokoro Indian Hindi and English voices for engaging storytelling.", "आकर्षक कहानी कहने के लिए कोकोरो इंडियन हिंदी और अंग्रेजी आवाज़ें।")
+    ]
+
+    for i in range(target_scene_count):
+        is_last = (i == target_scene_count - 1)
+        dur = round(target_seconds - curr_time, 1) if is_last else avg_dur
+        if dur <= 0:
+            dur = 3.0
+
+        if is_last:
+            tmpl = "cta_end_card"
+            title = "Final Call to Action"
+            hl = f"Experience {brand_name}"
+            sub = "Get started free today"
+            vo_en = f"Start creating professional explainers in minutes. Try {brand_name} now."
+            vo_hi = f"मिनटों में प्रोफेशनल एक्सप्लेनर बनाना शुरू करें। {brand_name} अभी आज़माएं।"
+        else:
+            tmpl = template_rotation[i % len(template_rotation)]
+            ch_idx = i % len(chapters)
+            title, hl, vo_en, vo_hi = chapters[ch_idx]
+            sub = brand_tagline if i % 2 == 0 else f"Chapter {i + 1}"
+
+        # Assign asset if available
+        assigned_asset = ""
+        if assets_list and tmpl in ("dashboard_3d_float", "interactive_cursor_click", "image_full_bleed"):
+            assigned_asset = assets_list[i % len(assets_list)]
+
+        scenes.append(
+            SceneItem(
+                id=i + 1,
+                title=title,
+                template=tmpl,
+                start_seconds=round(curr_time, 2),
+                duration_seconds=dur,
+                headline=hl,
+                subtitle=sub,
+                voiceover_script_en=vo_en,
+                voiceover_script_hi=vo_hi,
+                assigned_asset=assigned_asset,
+                transition="wipe" if i % 3 == 0 else ("zoom" if i % 3 == 1 else "cut")
+            )
+        )
+        curr_time += dur
+
     return ExplainerScenePlan(
         title=f"{brand_name} Explainer",
         aspect=aspect if aspect in ("9:16", "16:9", "1:1") else "9:16",
-        language=language if language in ("en", "hi", "bilingual") else "en",
-        duration_seconds=30.0,
+        language=language if language in ("en", "hi", "bilingual", "en_hi") else "en",
+        duration_seconds=target_seconds,
         scenes=scenes
     )
 

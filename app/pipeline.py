@@ -204,6 +204,7 @@ def step_plan(
     brand_name: str = "Zeper AI",
     language: str = "en",
     aspect: str = "9:16",
+    target_duration: str = "30s",
     cancel: threading.Event | None = None,
     progress_cb: Callable[[str, int], None] | None = None
 ) -> dict[str, Any]:
@@ -224,7 +225,8 @@ def step_plan(
         creative_brief=creative_brief,
         brand_name=brand_name,
         language=language,
-        aspect=aspect
+        aspect=aspect,
+        target_duration=target_duration
     )
     data = scene_plan.model_dump()
     scene_plan_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -270,6 +272,7 @@ def step_assets(
     project_dir: Path,
     scenes: list[dict[str, Any]],
     language: str = "en",
+    voice_id: str = "hm_omega",
     cancel: threading.Event | None = None,
     progress_cb: Callable[[str, int], None] | None = None
 ) -> Path:
@@ -277,11 +280,12 @@ def step_assets(
     if progress_cb:
         progress_cb("Synthesizing voice-over narration...", 40)
 
-    # 1. Voiceover synthesis
+    # 1. Voiceover synthesis using Natural Kokoro TTS
     vo_path = audio.generate_scene_voiceovers(
         scenes=scenes,
         language=language,
         output_dir=project_dir,
+        voice_id=voice_id,
         cancel=cancel,
         adjust_durations=True
     )
@@ -365,8 +369,11 @@ def step_assemble(
     progress_cb: Callable[[str, int], None] | None = None
 ) -> Path:
     """Step 5: Render with Remotion, mix ducked audio with normalisation (-14.0 LUFS)."""
+    if fps == 60:
+        raise ValueError("60 FPS is not supported. MotionClone V3 canonical frame rate is strictly 30 FPS.")
+    fps = 30
     if progress_cb:
-        progress_cb(f"Rendering Remotion visual sequences ({fps} FPS)...", 60)
+        progress_cb("Rendering Remotion visual sequences (30 FPS)...", 60)
 
     # Audio mix
     audio.ensure_music_library()
@@ -448,6 +455,8 @@ def run_pipeline(
     aspect: str = "9:16",
     language: str = "en",
     music_track: str = "tech_upbeat",
+    voice_id: str = "hm_omega",
+    target_duration: str = "30s",
     use_existing_scene_plan: bool = False,
     fps: int = 30,
     user_id: str = "default_user",
@@ -511,6 +520,7 @@ def run_pipeline(
                 brand_name=brand_name,
                 language=language,
                 aspect=aspect,
+                target_duration=target_duration,
                 cancel=cancel,
                 progress_cb=progress_cb
             )
@@ -526,12 +536,16 @@ def run_pipeline(
             project_dir=project_dir,
             scenes=scenes,
             language=language,
+            voice_id=voice_id,
             cancel=cancel,
             progress_cb=progress_cb
         )
 
         # 5. Assemble
-        write_status(f"Assembling and rendering {fps} FPS MP4", 65)
+        if fps == 60:
+            raise ValueError("60 FPS is not supported. MotionClone V3 canonical frame rate is strictly 30 FPS.")
+        fps = 30
+        write_status("Assembling and rendering 30 FPS MP4", 65)
         output_mp4 = step_assemble(
             project_dir=project_dir,
             scenes=scenes,

@@ -1,0 +1,61 @@
+{
+  "system": "MotionClone V3 Natural Voice Architecture",
+  "providers": [
+    {
+      "provider": "kokoro-onnx",
+      "model_version": "v1.0",
+      "license": "Apache-2.0",
+      "license_url": "https://huggingface.co/hexgrad/Kokoro-82M/blob/main/LICENSE",
+      "commercial_use_allowed": true,
+      "weights_source": "hexgrad/Kokoro-82M (ONNX export by thewh1teagle)",
+      "sample_rate_hz": 24000,
+      "default_voices": {
+        "male": "hm_omega",
+        "female": "hf_beta"
+      },
+      "voices": [
+        {
+          "id": "hm_omega",
+          "name": "Omega (Male)",
+          "gender": "male",
+          "language": "hi",
+          "language_name": "Hindi (India)",
+          "accent": "Indian English / Hindi",
+          "sample_preview_url": "/api/dashboard/tts/preview?voice=hm_omega",
+          "description": "Natural, resonant Indian male narrator voice optimized for explainer videos."
+        },
+        {
+          "id": "hf_beta",
+          "name": "Beta (Female)",
+          "gender": "female",
+          "language": "hi",
+          "language_name": "Hindi (India)",
+          "accent": "Indian English / Hindi",
+          "sample_preview_url": "/api/dashboard/tts/preview?voice=hf_beta",
+          "description": "Clear, articulate Indian female narrator voice ideal for instructional content."
+        }
+      ]
+    },
+    {
+      "provider": "google-cloud-tts",
+      "license": "Google Cloud Platform Terms of Service",
+      "commercial_use_allowed": true,
+      "voices": [
+        {
+          "id": "hi-IN-Neural2-A",
+          "name": "Cloud Neural Female",
+          "gender": "female",
+          "language": "hi",
+          "language_name": "Hindi (India)"
+        },
+        {
+          "id": "en-US-Journey-F",
+          "name": "Journey Natural Female",
+          "gender": "female",
+          "language": "en",
+          "language_name": "English (US)"
+        }
+      ]
+    }
+  ]
+}

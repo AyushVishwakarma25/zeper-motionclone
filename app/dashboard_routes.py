@@ -76,6 +76,8 @@ class ScenePlanGenerateRequest(BaseModel):
     brand_tagline: str = ""
     language: str = "en"
     aspect: str = "9:16"
+    target_duration: str = "30s"
+    voice_id: str = "hm_omega"
     music_track_id: str = "tech_upbeat"
 
 
@@ -146,6 +148,8 @@ class GenerateProjectRequest(BaseModel):
     language: str | None = "en"
     aspect: str | None = "9:16"
     music_track: str | None = "tech_upbeat"
+    voice_id: str | None = "hm_omega"
+    duration: str | None = "30s"
     use_existing_scene_plan: bool = False
     fps: int = 30
 
@@ -482,7 +486,8 @@ def install(app, server):
                 brand_tagline=req.brand_tagline,
                 language=req.language,
                 aspect=req.aspect,
-                uploaded_assets=assets
+                uploaded_assets=assets,
+                target_duration=req.target_duration
             )
             plan.music_track_id = req.music_track_id
         except ValueError as ve:
@@ -838,6 +843,8 @@ def install(app, server):
         title: str = Form(""),
         aspect: str = Form("9:16"),
         language: str = Form("en"),
+        duration: str = Form("30s"),
+        voice_id: str = Form("hm_omega"),
         reference_url: str = Form(""),
         reference_file: UploadFile | None = File(None)
     ):
@@ -905,6 +912,9 @@ def install(app, server):
                 "name": project_name,
                 "aspect": aspect,
                 "language": language,
+                "duration": duration,
+                "target_duration": duration,
+                "voice_id": voice_id,
                 "stage": "Reference loaded",
                 "status": "draft",
                 "reference_url": clean_ref_url,
@@ -960,7 +970,12 @@ def install(app, server):
         aspect = req.aspect or project_state.get('aspect') or '9:16'
         language = req.language or project_state.get('language') or 'en'
         music_track = req.music_track or project_state.get('music_track') or 'tech_upbeat'
-        fps = 60 if req.fps == 60 else 30
+        if req and req.fps == 60:
+            raise HTTPException(
+                status_code=400,
+                detail="60 FPS is not supported. MotionClone V3 canonical frame rate is strictly 30 FPS."
+            )
+        fps = 30
 
         # User identification for credit gate
         user = getattr(request.state, 'user', None) or {}
@@ -994,12 +1009,17 @@ def install(app, server):
                 }
             )
 
+        voice_id = (req and req.voice_id) or project_state.get('voice_id') or 'hm_omega'
+        target_duration = (req and req.duration) or project_state.get('duration') or '30s'
+
         # Update dashboard_project.json
         project_state.update({
             'name': user_brief,
             'aspect': aspect,
             'language': language,
             'music_track': music_track,
+            'voice_id': voice_id,
+            'duration': target_duration,
             'fps': fps,
             'stage': 'Generating video…',
             'status': 'processing'
@@ -1016,6 +1036,8 @@ def install(app, server):
                     aspect=aspect,
                     language=language,
                     music_track=music_track,
+                    voice_id=voice_id,
+                    target_duration=target_duration,
                     use_existing_scene_plan=req.use_existing_scene_plan,
                     fps=fps,
                     user_id=user_id,
@@ -1028,7 +1050,7 @@ def install(app, server):
         return {
             "status": "started",
             "job_id": id,
-            "message": f"Full generation pipeline started ({fps} FPS)."
+            "message": f"Full generation pipeline started (30 FPS, {target_duration})."
         }
 
     @app.get('/api/dashboard/project/{id}/status')
@@ -1084,3 +1106,25 @@ def install(app, server):
             status_data['signed_output_url'] = status_data['report']['signed_output_url']
 
         return status_data
+
+    @app.get('/api/dashboard/tts/voices')
+    def api_get_tts_voices():
+        from .tts import get_supported_voices, get_license_registry
+        return {
+            "voices": get_supported_voices(),
+            "registry": get_license_registry()
+        }
+
+    @app.get('/api/dashboard/tts/preview')
+    def api_tts_preview(voice: str = "hm_omega"):
+        from fastapi.responses import FileResponse
+        from .tts import get_tts_provider, resolve_voice_id
+        resolved = resolve_voice_id(voice)
+        provider = get_tts_provider("kokoro")
+        sample_text = "नमस्ते, यह मोशनक्लोन का नया नेचुरल वॉयस सिस्टम है।" if resolved.startswith("h") else "Hello, welcome to MotionClone Studio."
+        preview_dir = server.DATA / 'tts_previews'
+        preview_dir.mkdir(parents=True, exist_ok=True)
+        out_wav = preview_dir / f"preview_{resolved}.wav"
+        if not out_wav.is_file() or out_wav.stat().st_size < 1000:
+            provider.synthesize_scene(sample_text, voice_id=resolved, language="hi", output_path=out_wav)
+        return FileResponse(out_wav, media_type="audio/wav")

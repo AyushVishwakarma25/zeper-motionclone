@@ -4,6 +4,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
+import os from 'node:os';
+
+const cpuCount = os.cpus()?.length || 2;
+const defaultConcurrency = Math.min(4, Math.max(1, Math.floor(cpuCount / 2) || 1));
+const concurrency = parseInt(process.env.REMOTION_CONCURRENCY || '', 10) || defaultConcurrency;
 const root = path.dirname(fileURLToPath(import.meta.url));
 const projectFile = path.resolve(process.argv[2] || path.join(root,'public/project.json'));
 const destination = path.resolve(process.argv[3] || path.join(root,'out/video.mp4'));
@@ -94,7 +99,7 @@ try {
       proresProfile: '4444',
       pixelFormat: 'yuva444p10le',
       imageFormat: 'png',
-      concurrency: 2,
+      concurrency: concurrency,
       browserExecutable,
       chromeMode: 'chrome-for-testing',
       cancelSignal,
@@ -111,7 +116,7 @@ try {
       outputLocation: destination,
       codec: 'h264',
       crf: preview ? 24 : 18,
-      concurrency: 2,
+      concurrency: concurrency,
       browserExecutable,
       chromeMode: 'chrome-for-testing',
       cancelSignal,

@@ -7,6 +7,8 @@
   let projectState = null;
   let activeAspect = '9:16';
   let activeLanguage = 'en';
+  let activeDuration = '30s';
+  let activeVoice = 'hm_omega';
   let activeSceneIndex = 0;
   let chatHistory = [];
   let isSendingChat = false;
@@ -339,6 +341,12 @@
       if (projectState.language) {
         setLanguage(projectState.language);
       }
+      if (projectState.duration || projectState.target_duration) {
+        setTargetDuration(projectState.duration || projectState.target_duration);
+      }
+      if (projectState.voice_id) {
+        setVoice(projectState.voice_id);
+      }
       renderAllViews();
       updateCreditEstimate();
       updateCreditBalance();
@@ -406,6 +414,49 @@
     if (projectState && projectState.scene_plan) {
       renderSceneInspector();
     }
+  }
+
+  // Target Duration Switcher (Phase 2)
+  function setTargetDuration(dur) {
+    activeDuration = dur || '30s';
+    if (projectState) {
+      projectState.duration = activeDuration;
+      projectState.target_duration = activeDuration;
+    }
+    document.querySelectorAll('.duration-pill').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.duration === activeDuration);
+    });
+    const durBadge = $('badge-active-duration');
+    if (durBadge) {
+      durBadge.textContent = activeDuration;
+    }
+    const timelineLabel = $('timeline-duration-label');
+    if (timelineLabel) {
+      timelineLabel.textContent = `${activeDuration} Target`;
+    }
+  }
+
+  // Narration Voice Switcher (Phase 4)
+  function setVoice(voiceId) {
+    activeVoice = voiceId || 'hm_omega';
+    if (projectState) {
+      projectState.voice_id = activeVoice;
+    }
+    document.querySelectorAll('.voice-pill').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.voice === activeVoice);
+    });
+  }
+
+  let previewAudioObj = null;
+  function previewVoiceAudition(voiceId) {
+    const v = voiceId || activeVoice || 'hm_omega';
+    if (previewAudioObj) {
+      previewAudioObj.pause();
+      previewAudioObj = null;
+    }
+    previewAudioObj = new Audio(`/api/dashboard/tts/preview?voice=${v}&t=${Date.now()}`);
+    previewAudioObj.play().catch(e => console.warn('Voice preview error:', e));
+    showToast(`🎙️ Auditioning voice: ${v === 'hm_omega' ? 'Omega (Male)' : 'Beta (Female)'}...`, 'info');
   }
 
   // Pipeline Step Updater
@@ -749,7 +800,7 @@
           <div class="chat-card">
             <div class="chat-card-title">🎬 6-Scene Remotion Plan Ready</div>
             <p style="font-size:11px; margin:0 0 6px; color:var(--muted);">Kinetic hooks, 3D screenshots, and bilingual audio scripts configured.</p>
-            <button type="button" class="chat-card-btn" id="btn-render-preview-chat">⚡ Render 60 FPS Remotion Preview</button>
+            <button type="button" class="chat-card-btn" id="btn-render-preview-chat">⚡ Render 30 FPS Remotion Preview</button>
           </div>
         `;
       }
@@ -867,6 +918,8 @@
           brand_tagline: 'From reference video to editable motion.',
           language: activeLanguage,
           aspect: activeAspect,
+          target_duration: activeDuration,
+          voice_id: activeVoice,
           music_track_id: $('music-track-select')?.value || 'tech_upbeat'
         })
       });
@@ -880,9 +933,9 @@
 
       appendChatBubble('agent', `🎉 ${res.message}`, `
         <div class="chat-card">
-          <div class="chat-card-title">🎬 Step 3: Render 60 FPS Video</div>
+          <div class="chat-card-title">🎬 Step 3: Render 30 FPS Video</div>
           <p style="font-size:11px; margin:0 0 6px; color:var(--muted);">${res.scene_plan.scenes.length} Remotion scenes with synchronized sound effects and voiceover.</p>
-          <button type="button" class="chat-card-btn" id="btn-auto-render">🚀 Render 60 FPS Video Now</button>
+          <button type="button" class="chat-card-btn" id="btn-auto-render">🚀 Render 30 FPS Video Now</button>
         </div>
       `);
 
@@ -960,7 +1013,7 @@
 
     appendChatBubble(
       'agent',
-      `🎬 Your 60 FPS Explainer Video is generated in ${timeFormatted}!`,
+      `🎬 Your 30 FPS Explainer Video is generated in ${timeFormatted}!`,
       `<div style="margin-top:8px;"><button type="button" class="chat-action-btn" onclick="window.viewGeneratedVideo()">▶ View here ↗</button></div>`
     );
   }
@@ -1060,9 +1113,9 @@
       try { Notification.requestPermission().catch(() => {}); } catch {}
     }
 
-    showOverlay(`Rendering ${fps} FPS Remotion Video…`, 'Synthesizing motion graphics, captions, sound effects, and music', true);
+    showOverlay('Rendering 30 FPS Remotion Video…', 'Synthesizing motion graphics, captions, sound effects, and music', true);
     updatePipelineStep(4);
-    showToast(`🎬 Rendering ${fps} FPS video...`, 'info');
+    showToast('🎬 Rendering 30 FPS video...', 'info');
 
     const renderStartTime = Date.now();
 
@@ -1071,9 +1124,11 @@
         brief: projectState?.name || "AI Explainer Video",
         language: activeLanguage || projectState?.language || "en",
         aspect: activeAspect || projectState?.aspect || "9:16",
+        duration: activeDuration || projectState?.duration || "30s",
+        voice_id: activeVoice || projectState?.voice_id || "hm_omega",
         music_track: $('music-track-select')?.value || projectState?.music_track || "tech_upbeat",
         use_existing_scene_plan: Boolean(useExistingScenePlan),
-        fps: Number(fps) || 60
+        fps: 30
       };
 
       await callApi(`/api/dashboard/project/${activeJobId}/generate`, {
@@ -1189,7 +1244,7 @@
       try { Notification.requestPermission().catch(() => {}); } catch {}
     }
 
-    showOverlay('Merging Code & Rendering 60 FPS MP4…', 'Transpiling Remotion JSX, generating voiceover audio, and compiling video', true);
+    showOverlay('Merging Code & Rendering 30 FPS MP4…', 'Transpiling Remotion JSX, generating voiceover audio, and compiling video', true);
     updatePipelineStep(4);
     const pasteStartTime = Date.now();
 
@@ -1205,7 +1260,7 @@
         })
       });
 
-      showToast('🚀 Code merged! Compiling 60 FPS video...', 'info');
+      showToast('🚀 Code merged! Compiling 30 FPS video...', 'info');
 
       // Poll job status until complete or error
       const poll = setInterval(async () => {
@@ -1349,6 +1404,8 @@
       fd.append('name', name);
       fd.append('aspect', activeAspect);
       fd.append('language', activeLanguage);
+      fd.append('duration', activeDuration);
+      fd.append('voice_id', activeVoice);
 
       try {
         const created = await callApi('/api/dashboard/create-project', {
@@ -1371,6 +1428,22 @@
     // Language Buttons
     document.querySelectorAll('.lang-pill').forEach(btn => {
       btn.onclick = () => setLanguage(btn.dataset.lang);
+    });
+
+    // Duration Buttons (Phase 2)
+    document.querySelectorAll('.duration-pill').forEach(btn => {
+      btn.onclick = () => setTargetDuration(btn.dataset.duration);
+    });
+
+    // Voice Buttons (Phase 4)
+    document.querySelectorAll('.voice-pill').forEach(btn => {
+      btn.onclick = () => setVoice(btn.dataset.voice);
+    });
+
+    // Voice Audition Preview Button
+    $('btn-preview-voice')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      previewVoiceAudition(activeVoice);
     });
 
     // Quick Suggestion Pills
@@ -1483,7 +1556,7 @@
       if (insights) insights.style.display = 'flex';
       const player = $('dashboard-video-player');
       const label = $('monitor-video-label');
-      if (label) label.textContent = '🎬 60 FPS Preview';
+      if (label) label.textContent = '🎬 30 FPS Preview';
       if (player && activeJobId) {
         player.style.display = 'block';
         player.src = `/media/${activeJobId}/output.mp4?v=${videoCacheKey}`;
@@ -1602,7 +1675,7 @@ export const ExplainerScene = () => {
           Autonomous AI Platform
         </h1>
         <p style={{ fontSize: 26, color: '#94a3b8', margin: 0 }}>
-          From Reference Video to 60 FPS Remotion Motion Graphics
+          From Reference Video to 30 FPS Remotion Motion Graphics
         </p>
       </div>
     </AbsoluteFill>
@@ -1933,7 +2006,7 @@ export const ExplainerScene = () => {
     hideOverlay();
 
     // Greeting Message
-    appendChatBubble('agent', '👋 Welcome to MotionClone: Reference-to-Video Explainer Studio! I am your AI Creative Director. Upload a reference video or paste JSX in "Paste & Render" to build an original 60 FPS motion graphics explainer.');
+    appendChatBubble('agent', '👋 Welcome to MotionClone: Reference-to-Video Explainer Studio! I am your AI Creative Director. Upload a reference video or paste JSX in "Paste & Render" to build an original 30 FPS motion graphics explainer.');
 
     // Pre-fill sample Remotion JSX into merger tab
     const mergerJsx = $('merger-jsx-input');
@@ -1968,7 +2041,7 @@ export const ExplainerScene = () => {
           Autonomous AI Platform
         </h1>
         <p style={{ fontSize: 26, color: '#94a3b8', margin: 0 }}>
-          From Reference Video to 60 FPS Remotion Motion Graphics
+          From Reference Video to 30 FPS Remotion Motion Graphics
         </p>
       </div>
     </AbsoluteFill>

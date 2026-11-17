@@ -54,7 +54,10 @@ def write_project(folder, plan, brief, fps=None, *args, **kwargs):
     else:
         width, height = 1080, 1920  # Default 9:16 vertical reel
 
-    fps = int(fps or dashboard_data.get('fps') or scene_plan_data.get('fps') or 30)
+    raw_fps = fps or dashboard_data.get('fps') or scene_plan_data.get('fps')
+    if raw_fps and int(raw_fps) == 60:
+        raise ValueError("60 FPS is not supported. MotionClone V3 canonical frame rate is strictly 30 FPS.")
+    fps = 30
 
     # 2. Extract scenes and normalise duration fields
     scenes = (
@@ -74,12 +77,13 @@ def write_project(folder, plan, brief, fps=None, *args, **kwargs):
         for s in scenes
     )
     lang = dashboard_data.get('language') or scene_plan_data.get('language') or 'en'
+    voice_id = dashboard_data.get('voice_id') or scene_plan_data.get('voice_id') or 'hm_omega'
     from . import audio
     audio.ensure_music_library()
 
     if has_narration and not (folder / 'voiceover.mp3').is_file():
         try:
-            audio.generate_scene_voiceovers(scenes, language=lang, output_dir=folder, cancel=None)
+            audio.generate_scene_voiceovers(scenes, language=lang, output_dir=folder, voice_id=voice_id, cancel=None)
         except Exception as exc:
             logger.error(f"Voiceover TTS synthesis failed: {exc}")
             raise RuntimeError(f"Voiceover TTS synthesis failed: {exc}") from exc
@@ -207,7 +211,7 @@ def export_project(folder, plan, brief):
             '## Commands\n'
             '- Preview Live Studio:\n'
             '  `npm run studio`\n\n'
-            '- Export MP4 (H.264, 60fps):\n'
+            '- Export MP4 (H.264, 30fps):\n'
             '  `npx remotion render Motion out/video.mp4 --codec=h264 --crf=18`\n\n'
             '- Export Transparent Overlay (ProRes 4444 with real alpha channel for Premiere/Final Cut/CapCut/DaVinci):\n'
             '  `npx remotion render TransparentOverlay out/overlay.mov --codec=prores --prores-profile=4444 --pixel-format=yuva444p10le --image-format=png`\n\n'
@@ -228,6 +232,9 @@ def export_project(folder, plan, brief):
 
 
 def render(folder, plan, brief, cancel=None, progress=None, *, preview=False, format='mp4', composition='Motion', fps=None):
+    if fps and int(fps) == 60:
+        raise ValueError("60 FPS is not supported. MotionClone V3 canonical frame rate is strictly 30 FPS.")
+    fps = 30
     if cancel is None:
         cancel = threading.Event()
     if progress is None:

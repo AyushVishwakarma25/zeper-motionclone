@@ -147,7 +147,7 @@
       if (dot && title) {
         if (s.gemini) {
           dot.className = 'status-dot connected';
-          title.textContent = 'Google Gemini 2.5 & Remotion 60 FPS Ready';
+          title.textContent = 'Google Gemini 2.5 & Remotion 30 FPS Ready';
           if (desc) desc.textContent = 'Hardware-accelerated Remotion rendering, interactive cursor physics, and synchronized sound design active.';
         } else {
           dot.className = 'status-dot';
@@ -247,7 +247,7 @@
             <span class="master-badge">4-Zone Studio Pro</span>
             <div>
               <h2>Master Studio Pro · 4-Zone Video Creator</h2>
-              <p>Unified Creative Intelligence, 60 FPS Viewport, Visual Layer Inspector & Timeline</p>
+              <p>Unified Creative Intelligence, 30 FPS Viewport, Visual Layer Inspector & Timeline</p>
             </div>
           </div>
           <div class="master-project-bar">
@@ -318,7 +318,7 @@
           <div class="zone1-box zone1-screenshot-box">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
               <label class="zone1-label" style="margin:0;">📸 Website & Dashboard Screenshot</label>
-              <span class="badge-fps-pill">60 FPS Motion</span>
+              <span class="badge-fps-pill">30 FPS Motion</span>
             </div>
 
             <div class="screenshot-dropzone" id="screenshot-dropzone">
@@ -360,13 +360,13 @@
                 ${isAnimatingScreenshot ? '⚡ Animating into Scene…' : '⚡ Animate into HyperFrames Scene'}
               </button>
               <button type="button" class="btn-render-full-showcase-btn" id="btn-render-full-showcase" ${isRendering ? 'disabled' : ''}>
-                ${isRendering ? '⏳ Rendering 60 FPS Video…' : '✨ Render Full 60 FPS Video (with Audio)'}
+                ${isRendering ? '⏳ Rendering 30 FPS Video…' : '✨ Render Full 30 FPS Video (with Audio)'}
               </button>
             </div>
           </div>
         </aside>
 
-        <!-- ZONE 2: UNIFIED 60 FPS VIEWPORT & CANVAS -->
+        <!-- ZONE 2: UNIFIED 30 FPS VIEWPORT & CANVAS -->
         <main class="zone-panel zone-2-viewport" id="zone-2-viewport">
           <div class="zone-panel-header viewport-header">
             <div class="viewport-pills">
@@ -374,7 +374,7 @@
               <button type="button" class="vp-pill ${previewMode === 'source' ? 'active' : ''}" id="btn-show-source">📹 Reference</button>
             </div>
             <div class="viewport-specs">
-              <span class="badge-fps">60 FPS</span>
+              <span class="badge-fps">30 FPS</span>
               <span class="badge-ratio">${projectData ? `${projectData.width || 1080}×${projectData.height || 1920}` : '9:16 Vertical Reel'}</span>
             </div>
           </div>
@@ -383,7 +383,7 @@
             <video id="master-video-player" controls playsinline preload="auto" src="/media/${activeJobId}/${previewMode === 'rebuilt' ? 'output.mp4' : 'source.mp4'}${previewMode === 'rebuilt' ? '?v=' + videoCacheKey : ''}"></video>
             <div id="render-overlay" class="render-overlay" ${isRendering ? '' : 'hidden'}>
               <div class="spinner-neon"></div>
-              <p>Rendering 60 FPS Remotion Video…</p>
+              <p>Rendering 30 FPS Remotion Video…</p>
             </div>
           </div>
 
@@ -454,7 +454,7 @@
             </a>
 
             <button type="button" class="btn-dock primary-action btn-render-master" id="btn-render-master-video" ${isRendering ? 'disabled' : ''}>
-              ${isRendering ? '🎬 Rendering 60 FPS…' : '🎬 Render 60 FPS Video'}
+              ${isRendering ? '🎬 Rendering 30 FPS…' : '🎬 Render 30 FPS Video'}
             </button>
           </div>
         </footer>
@@ -599,7 +599,7 @@
           if (updated) {
             projectData = updated;
             activeTab = 'layers';
-            alert(`Success! All scenes re-branded to "${brand.company_name}". Review the layers and click Render 60 FPS Video.`);
+            alert(`Success! All scenes re-branded to "${brand.company_name}". Review the layers and click Render 30 FPS Video.`);
           }
         } catch (err) {
           alert('Rebrand error: ' + err.message);
@@ -649,7 +649,7 @@
       };
     }
 
-    // Re-Render 60 FPS Video
+    // Re-Render 30 FPS Video
     const btnRender = $('btn-render-master-video');
     if (btnRender) {
       btnRender.onclick = async () => {
@@ -670,7 +670,7 @@
                 videoCacheKey = Date.now();
                 renderStudio();
                 if (window.openProject) window.openProject(activeJobId);
-                alert('🎬 Re-render complete! Your rebranded 60 FPS video is ready.');
+                alert('🎬 Re-render complete! Your rebranded 30 FPS video is ready.');
               } else if (job.status === 'error') {
                 clearInterval(pollRender);
                 isRendering = false;
@@ -765,7 +765,7 @@
       };
     }
 
-    // Render Full 60 FPS Video with Sound Design directly
+    // Render Full 30 FPS Video with Sound Design directly
     const btnFullShowcase = $('btn-render-full-showcase');
     if (btnFullShowcase) {
       btnFullShowcase.onclick = async () => {
@@ -795,7 +795,7 @@
                   player.load();
                   player.play().catch(() => {});
                 }
-                alert('🎬 Full 60 FPS video render complete! Synced sound effects and motion graphics are ready.');
+                alert('🎬 Full 30 FPS video render complete! Synced sound effects and motion graphics are ready.');
               } else if (job.status === 'error') {
                 clearInterval(pollRender);
                 isRendering = false;
