@@ -61,6 +61,8 @@ def detect_scene_cuts(video_path: Path, cancel: threading.Event | None = None) -
     ]
     try:
         output = run(cmd, cancel=cancel)
+        if isinstance(output, bytes):
+            output = output.decode('utf-8', errors='replace')
         timestamps = []
         for line in output.splitlines():
             if 'pts_time:' in line:

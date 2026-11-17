@@ -218,7 +218,7 @@ async def local_boundary(request: Request, call_next):
         "font-src 'self' https://fonts.gstatic.com data:; "
         "img-src 'self' blob: data: https://*.googleusercontent.com https://www.gstatic.com; "
         "media-src 'self' blob:; "
-        "connect-src 'self' https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://*.firebaseio.com; "
+        "connect-src 'self' https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://*.firebaseio.com https://www.gstatic.com; "
         "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com; "
         "frame-ancestors 'none'"
     )
