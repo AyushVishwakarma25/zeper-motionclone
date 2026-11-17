@@ -1069,9 +1069,9 @@
     try {
       const payload = {
         brief: projectState?.name || "AI Explainer Video",
-        language: activeLang || projectState?.language || "en",
+        language: activeLanguage || projectState?.language || "en",
         aspect: activeAspect || projectState?.aspect || "9:16",
-        music_track: activeMusic || projectState?.music_track || "tech_upbeat",
+        music_track: $('music-track-select')?.value || projectState?.music_track || "tech_upbeat",
         use_existing_scene_plan: Boolean(useExistingScenePlan),
         fps: Number(fps) || 60
       };
