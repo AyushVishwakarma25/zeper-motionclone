@@ -1042,6 +1042,16 @@
       return;
     }
 
+    const scenes = projectState?.scene_plan?.scenes;
+    if (useExistingScenePlan && (!scenes || !Array.isArray(scenes) || scenes.length === 0)) {
+      showToast('⚠️ Please generate a Script & Scene Plan (Step 2) first before rendering.', 'warning');
+      const planBtn = $('btn-generate-plan-direct');
+      if (planBtn) {
+        planBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+
     lastGenerationParams = { useExistingScenePlan, fps };
     hideGenerationSuccessBox();
     hideGenerationFailureBox();
@@ -1145,6 +1155,15 @@
   }
 
   async function handleRenderPreview() {
+    const scenes = projectState?.scene_plan?.scenes;
+    if (!scenes || !Array.isArray(scenes) || scenes.length === 0) {
+      showToast('⚠️ Please generate a Script & Scene Plan (Step 2) first before rendering.', 'warning');
+      const planBtn = $('btn-generate-plan-direct');
+      if (planBtn) {
+        planBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
     return triggerProjectGenerate({ useExistingScenePlan: true, fps: 60 });
   }
 

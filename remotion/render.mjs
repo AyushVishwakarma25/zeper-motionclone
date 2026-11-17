@@ -17,7 +17,10 @@ if (targetCompId) targetCompId = targetCompId.replace(/_/g, '-');
 const project = JSON.parse(fs.readFileSync(projectFile,'utf8'));
 const publicDir = path.dirname(projectFile);
 const bundleDir = path.join(root,'.bundle');
-const signature = ['package-lock.json','src/index.jsx','src/Composition.jsx','src/motion.mjs']
+const srcFiles = fs.existsSync(path.join(root, 'src'))
+  ? fs.readdirSync(path.join(root, 'src')).map(f => path.join('src', f))
+  : [];
+const signature = ['package-lock.json', ...srcFiles]
   .map(f => fs.existsSync(path.join(root,f)) ? fs.readFileSync(path.join(root,f),'utf8') : '').join('\n');
 const {createHash} = await import('node:crypto');
 const stamp = createHash('sha256').update(signature).digest('hex');
