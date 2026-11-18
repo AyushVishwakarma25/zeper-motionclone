@@ -17,6 +17,11 @@ import {
   LowerThird,
   TransparentOverlay
 } from './Composition.jsx';
+import {CharacterStory} from './templates/CharacterStory.jsx';
+import {StickmanCharacter} from './components/StickmanCharacter.jsx';
+import {AnimatedProp} from './components/AnimatedProps.jsx';
+import {CashFlowSplit, TimelineGap, AnimatedBarChart} from './components/DataVisualizations.jsx';
+import {DynamicEnvironment} from './components/DynamicEnvironment.jsx';
 
 /**
  * Derives width, height, fps, and durationInFrames from inputProps.
@@ -330,6 +335,43 @@ function Root() {
         defaultProps={{
           badgeText: 'VERIFIED 30 FPS EXPORT',
           stat: 'Zero Friction',
+          accent: '#00f2fe'
+        }}
+      />
+      {/* H. character-story / CharacterStory */}
+      <Composition
+        id="character-story"
+        component={CharacterStory}
+        width={defaultMeta.width}
+        height={defaultMeta.height}
+        fps={defaultMeta.fps}
+        durationInFrames={90}
+        calculateMetadata={async ({props}) => resolveDimensions(props)}
+        defaultProps={{
+          onScreenText: 'Where Did The Cash Go?',
+          visualMetaphor: 'Working Capital Trap',
+          characterPose: 'confused',
+          propType: 'money_stack',
+          propAmount: '₹10 LAKH',
+          artDirection: 'editorial_flat',
+          accent: '#00f2fe'
+        }}
+      />
+      <Composition
+        id="CharacterStory"
+        component={CharacterStory}
+        width={defaultMeta.width}
+        height={defaultMeta.height}
+        fps={defaultMeta.fps}
+        durationInFrames={90}
+        calculateMetadata={async ({props}) => resolveDimensions(props)}
+        defaultProps={{
+          onScreenText: 'Where Did The Cash Go?',
+          visualMetaphor: 'Working Capital Trap',
+          characterPose: 'confused',
+          propType: 'money_stack',
+          propAmount: '₹10 LAKH',
+          artDirection: 'editorial_flat',
           accent: '#00f2fe'
         }}
       />

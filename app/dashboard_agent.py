@@ -106,10 +106,14 @@ class BlueprintStructure(BaseModel):
 
 
 class SceneItem(BaseModel):
-    model_config = ConfigDict(extra='ignore')
+    model_config = ConfigDict(extra='allow')
     id: int | str = 0
     title: str = "Scene"
     template: Literal[
+        "character_story",
+        "finance_breakdown",
+        "timeline_gap",
+        "money_flow",
         "kinetic_text",
         "dashboard_3d_float",
         "interactive_cursor_click",
@@ -124,21 +128,48 @@ class SceneItem(BaseModel):
         "title_card",
         "lower_third",
         "transparent_callout"
-    ] = "kinetic_text"
+    ] = "character_story"
     start_seconds: float = 0.0
     duration_seconds: float = 3.0
     headline: str = "Headline"
     subtitle: str = ""
+    on_screen_text: str = ""
+    visual_metaphor: str = ""
+    environment: str = "editorial_flat"
+    art_direction: str = "editorial_flat"
+    character_pose: str = "idle"
+    character_action: str = ""
+    character_expression: str = "neutral"
+    camera_motion: str = "slow_zoom_in"
+    props: str = ""
+    prop_type: str = ""
+    prop_amount: str = ""
+    stat: str = ""
+    stat_label: str = ""
+    number: float | int | None = None
+    prefix: str = ""
+    suffix: str = ""
+    optionA: dict[str, Any] | None = None
+    optionB: dict[str, Any] | None = None
+    bullets: list[str] | None = None
+    author: str = ""
+    role: str = ""
+    buttonText: str = ""
+    handle: str = ""
+    chart_data: list[dict[str, Any]] | None = None
+    chart_title: str = ""
+    caption: str = ""
+    show_subtitle: bool = False
     voiceover_script_en: str = ""
     voiceover_script_hi: str = ""
     assigned_asset: str = ""
-    transition: str = "cut"
+    transition: str = "crossfade"
     accent_color: str = "#00f2fe"
     background_color: str = "#0e0e13"
 
 
 class ExplainerScenePlan(BaseModel):
-    model_config = ConfigDict(extra='ignore')
+    model_config = ConfigDict(extra='allow')
     title: str = "AI Explainer Video"
     aspect: Literal["9:16", "16:9", "1:1"] = "9:16"
     language: Literal["en", "hi", "bilingual"] = "en"
@@ -517,7 +548,7 @@ def generate_scene_plan(
     dur_cfg = DURATION_CONFIGS[canonical_key]
 
     prompt = (
-        "You are an expert Motion Video Producer and Creative Director for high-growth tech startups.\n"
+        "You are an expert Motion Video Producer and Creative Director for high-growth tech startups and business explainers.\n"
         f"Create an original {dur_cfg['label']} Remotion Explainer Scene Plan by applying the provided Blueprint to the user's story.\n\n"
         f"TARGET DURATION: {target_seconds:.1f} seconds ({dur_cfg['label']})\n"
         f"TARGET WORD COUNT: Approximately {dur_cfg['word_range']} (narration pacing at 120-140 words per minute)\n"
@@ -529,25 +560,33 @@ def generate_scene_plan(
         f"PRIMARY LANGUAGE: {language} (Provide BOTH English AND natural conversational Hindi scripts in voiceover_script_en and voiceover_script_hi)\n"
         f"AVAILABLE USER ASSETS: {json.dumps(assets_list)}\n\n"
         f"STYLE BLUEPRINT TO FOLLOW:\n{blueprint.model_dump_json(indent=2)}\n\n"
-        "SCENE DESIGN RULES:\n"
-        f"1. Divide the {target_seconds:.1f}-second duration into {dur_cfg['scene_count']} crisp scenes matching the narrative structure.\n"
-        "2. Template mappings (choose the best Remotion template for each scene):\n"
-        "   - 'kinetic_text': high energy typography for hook or bold statements\n"
-        "   - 'dashboard_3d_float': showcase uploaded screenshot with smooth 3D float\n"
-        "   - 'interactive_cursor_click': animated mouse cursor clicking UI with ripple\n"
-        "   - 'fact_card': clear value metric / feature stat card\n"
-        "   - 'stat_counter': animated numerical growth or percentage counter\n"
-        "   - 'comparison_split': before vs after or problem vs solution comparison\n"
-        "   - 'bullet_list': structured feature or benefit bullets\n"
-        "   - 'quote': memorable testimonial or vision statement\n"
-        "   - 'title_card': bold intro or hero headline\n"
-        "   - 'lower_third': subtle overlay on visuals\n"
-        "   - 'transparent_callout': floating badge with key metric\n"
-        "   - 'cta_end_card': final call to action card with handle/link\n"
-        "3. Copywriting: Punchy, modern, no fluff. Keep headlines under 8 words. DO NOT output code or developer instructions.\n"
-        "4. Hindi voiceover: Natural, modern conversational Hindustani/Hinglish (e.g., 'Agar aap bhi video creation me ghanto bita rahe hain...').\n"
-        "5. If user assets exist, assign them to relevant scenes (e.g. dashboard_3d_float).\n"
-        f"6. Ensure the sum of scene duration_seconds is exactly ~{target_seconds:.1f}s."
+        "CRITICAL VISUAL ENGINE V4 DESIGN RULES:\n"
+        "1. STRICT SEPARATION OF VOICEOVER AND ON-SCREEN TEXT:\n"
+        "   - 'voiceover_script_en' and 'voiceover_script_hi' are spoken audio narration ONLY.\n"
+        "   - 'on_screen_text' is short, high-impact on-screen graphics (1 to 6 words maximum, e.g. 'Where Did The Cash Go?').\n"
+        "   - NEVER put full spoken narration sentences into on_screen_text, headline, or subtitle.\n"
+        "2. NARRATIVE CHARACTER STORIES & METAPHORS (Prefer over text slides):\n"
+        "   - 'character_story': Human narrative scene with animated vector character, props, and visual metaphor badge.\n"
+        "   - 'finance_breakdown': Revenue splitting into COGS, salaries, rent, net cash.\n"
+        "   - 'timeline_gap': Payment delay gap analysis (e.g. 60-day invoice lag).\n"
+        "   - 'money_flow': Trapped cash or working capital bar chart.\n"
+        "   - 'kinetic_text': High energy typography for hook or bold statements.\n"
+        "   - 'fact_card': Clear value metric / feature stat card.\n"
+        "   - 'stat_counter': Animated numerical growth or percentage counter.\n"
+        "   - 'comparison_split': Before vs after or problem vs solution comparison.\n"
+        "   - 'cta_end_card': Final call to action card with handle/link.\n"
+        "3. CHARACTER ACTIONS & PROPS:\n"
+        "   - Available character poses: 'idle', 'pointing', 'holding_money', 'holding_invoice', 'confused', 'celebrating', 'stress_panic', 'sitting_desk', 'walking'.\n"
+        "   - Available animated props: 'money_stack' (currency notes), 'invoice' (stamped bill), 'glass_barrier' (trapped money), 'calendar' (delay clock), 'scale' (inflow vs outflow), 'boxes' (delivery orders).\n"
+        "4. ART DIRECTION & ENVIRONMENT:\n"
+        "   - Assign 'art_direction' per scene: 'editorial_flat', 'finance_documentary', 'minimal_whiteboard', 'bold_infographic', 'corporate_cinematic'.\n"
+        "5. DYNAMIC TRANSITIONS & CAMERA MOTION:\n"
+        "   - Transitions: 'wipe-left', 'wipe-right', 'push-left', 'push-right', 'zoom-in', 'zoom-out', 'crossfade', 'mask-reveal'.\n"
+        "   - Camera motion: 'slow_zoom_in', 'slow_zoom_out', 'pan_right', 'pan_left', 'subtle_drift'.\n"
+        "   - ANTI-MONOTONY RULE: Never repeat the exact same template on two consecutive scenes.\n"
+        "6. Copywriting: Punchy, modern, no fluff. Keep on_screen_text under 6 words. DO NOT output code or developer instructions.\n"
+        "7. Hindi voiceover: Natural, modern conversational Hindustani/Hinglish (e.g., 'Agar aapka bhi paisa pending invoices me fansa hai...').\n"
+        f"8. Ensure the sum of scene duration_seconds is exactly ~{target_seconds:.1f}s."
     )
 
     config = types.GenerateContentConfig(
@@ -584,6 +623,7 @@ def generate_scene_plan(
                 # Sanitize content against developer/meta instructions (Phase 5)
                 for idx, sc in enumerate(parsed_plan.scenes):
                     sc.headline = cleanse_scene_text(sc.headline, f"Chapter {idx + 1}")
+                    sc.on_screen_text = cleanse_scene_text(getattr(sc, 'on_screen_text', '') or sc.headline, sc.headline)
                     sc.subtitle = cleanse_scene_text(sc.subtitle, "")
                     sc.voiceover_script_en = cleanse_scene_text(sc.voiceover_script_en, "")
                     sc.voiceover_script_hi = cleanse_scene_text(sc.voiceover_script_hi, "")
@@ -609,12 +649,19 @@ def build_dynamic_scene_plan(
     language: str,
     aspect: str
 ) -> ExplainerScenePlan:
-    """Builds a rich, duration-aware scene plan across all Remotion templates for any duration (30s to 10m)."""
-    # Template rotation palette to prevent repeating adjacent animations
-    template_rotation = [
-        "kinetic_text", "interactive_cursor_click", "fact_card", "stat_counter",
-        "dashboard_3d_float", "comparison_split", "bullet_list", "quote",
-        "title_card", "lower_third", "transparent_callout"
+    """Builds a rich, story-driven scene plan with characters, visual metaphors, props, and data visualizations."""
+    # Rich story-driven template sequence
+    story_templates = [
+        "character_story",
+        "timeline_gap",
+        "finance_breakdown",
+        "money_flow",
+        "stat_counter",
+        "comparison_split",
+        "kinetic_text",
+        "character_story",
+        "fact_card",
+        "bullet_list"
     ]
     
     # Calculate scene count and average duration
@@ -637,17 +684,96 @@ def build_dynamic_scene_plan(
     scenes: list[SceneItem] = []
     curr_time = 0.0
 
-    chapters = [
-        ("The Modern Challenge", "Stop Wasting Time On Outdated Workflows", f"Traditional methods consume hours. {brand_name} modernizes everything.", f"पारंपरिक तरीकों में घंटों बर्बाद होते हैं। {brand_name} सब कुछ आसान बनाता है।"),
-        ("The AI Breakthrough", "Autonomous Media Architecture", "Our neural engine translates ideas into frame-accurate broadcast animations.", "हमारा न्यूरल इंजन आपके विचारों को सटीक ब्रॉडकास्ट एनिमेशन में बदलता है।"),
-        ("Live Interactive Demo", "Instant Visual Synthesis", "Simply provide a reference or prompt, and full compositions render in seconds.", "बस एक संदर्भ या प्रॉम्प्ट दें, और पूरे कंपोजिशन सेकंडों में रेंडर हो जाते हैं।"),
-        ("Proven Efficiency", "10x Faster Turnaround", "High-growth creative teams ship 10x more content without extra headcount.", "क्रिएटिव टीमें बिना अतिरिक्त लोगों के 10 गुना अधिक कंटेंट तैयार करती हैं।"),
-        ("Side-by-Side Comparison", "Manual Timeline vs Neural Flow", "Replace complex manual timelines with intelligent automated motion design.", "जटिल मैनुअल टाइमलाइन को इंटेलिजेंट ऑटोमेटेड मोशन डिज़ाइन से बदलें।"),
-        ("Production Capabilities", "Broadcast 30 FPS Standard", "Every render uses strict 30 FPS H.264 video with sidechain ducked audio.", "हर रेंडर में साइडचेन डक्ड ऑडियो के साथ 30 FPS H.264 वीडियो मिलता है।"),
-        ("Creative Precision", "Pixel-Perfect Layouts", "Enjoy full control over color palettes, typography, and motion curves.", "रंगों, टाइपोग्राफी और मोशन कर्व्स पर पूरा नियंत्रण प्राप्त करें।"),
-        ("Industry Testimonial", "The Future of Video Production", "MotionClone has completely reimagined how we communicate technical ideas.", "मोशनक्लोन ने तकनीकी विचारों को समझाने के तरीके को पूरी तरह से बदल दिया है।"),
-        ("Enterprise Scalability", "Cloud-Native Rendering", "Scales seamlessly from 30-second reels to comprehensive 10-minute masterclasses.", "30 सेकंड की रील से लेकर 10 मिनट के मास्टरक्लास तक आसानी से स्केल करें।"),
-        ("Next-Gen Voice", "Natural Conversational Narration", "Powered by Kokoro Indian Hindi and English voices for engaging storytelling.", "आकर्षक कहानी कहने के लिए कोकोरो इंडियन हिंदी और अंग्रेजी आवाज़ें।")
+    # Rich Story Beats (Metaphor, On-Screen Headline, Pose, Prop, Art Direction, English VO, Hindi VO)
+    story_beats = [
+        (
+            "The Working Capital Trap",
+            "Where Did The Cash Go?",
+            "confused",
+            "boxes",
+            "editorial_flat",
+            "push-left",
+            "slow_zoom_in",
+            f"You booked ten lakh in sales, but your bank account is empty. Sound familiar? {brand_name} fixes this.",
+            f"दस लाख की बिक्री हुई, पर बैंक अकाउंट खाली है। क्या आपके साथ भी ऐसा होता है? {brand_name} इसे ठीक करता है।"
+        ),
+        (
+            "The 60-Day Payment Delay",
+            "The Payment Lag",
+            "stress_panic",
+            "calendar",
+            "finance_documentary",
+            "wipe-left",
+            "pan_right",
+            "Your clients take sixty days to pay, but your suppliers need money today.",
+            "क्लाइंट्स भुगतान करने में साठ दिन लगाते हैं, लेकिन सप्लायर्स को आज ही पैसे चाहिए।"
+        ),
+        (
+            "Inflow vs Outflow",
+            "The Cash Crunch",
+            "pointing",
+            "scale",
+            "finance_documentary",
+            "zoom-in",
+            "subtle_drift",
+            "Six lakhs goes to stock, two lakhs to payroll. One small delay triggers a cash crunch.",
+            "छह लाख स्टॉक में गए, दो लाख सैलरी में। एक छोटी सी देरी कैश क्रंच पैदा कर देती है।"
+        ),
+        (
+            "Trapped Capital",
+            "Cash Stuck Behind Invoices",
+            "holding_money",
+            "glass_barrier",
+            "bold_infographic",
+            "mask-reveal",
+            "slow_zoom_in",
+            "Your profit is real on paper, but physically trapped until invoices clear.",
+            "कागजों पर आपका मुनाफा असली है, लेकिन इनवॉइस क्लियर होने तक फंसा हुआ है।"
+        ),
+        (
+            "Instant Acceleration",
+            "Unlock Cash In 24 Hours",
+            "celebrating",
+            "money_stack",
+            "corporate_cinematic",
+            "wipe-right",
+            "slow_zoom_out",
+            f"With {brand_name}, automate your cash realization and accelerate working capital instantly.",
+            f"{brand_name} के साथ, अपने कैश फ्लो को ऑटोमेट करें और वर्किंग कैपिटल को तुरंत अनलॉक करें।"
+        ),
+        (
+            "Side-by-Side Comparison",
+            "Manual Invoicing vs AI Flow",
+            "pointing",
+            "invoice",
+            "editorial_flat",
+            "push-right",
+            "pan_left",
+            "Replace tedious manual follow-ups with intelligent, autonomous collection pipelines.",
+            "थका देने वाले मैनुअल फॉलो-अप्स को इंटेलिजेंट ऑटोमेटेड कलेक्शन पाइपलाइन से बदलें।"
+        ),
+        (
+            "Proven Metric",
+            "10x Faster Realization",
+            "celebrating",
+            "money_stack",
+            "bold_infographic",
+            "zoom-in",
+            "slow_zoom_in",
+            "Businesses recover receivables ten times faster, cutting working capital stress to zero.",
+            "कंपनियां अपने बकाये को दस गुना तेजी से वसूल करती हैं, जिससे कैश फ्लो का तनाव खत्म हो जाता है।"
+        ),
+        (
+            "Automated Workflows",
+            "Zero Manual Friction",
+            "sitting_desk",
+            "boxes",
+            "minimal_whiteboard",
+            "crossfade",
+            "subtle_drift",
+            "Set your rules once. Let our neural automation orchestrate your finances effortlessly.",
+            "एक बार अपने नियम सेट करें और हमारे न्यूरल ऑटोमेशन को सब कुछ आसानी से संभालने दें।"
+        )
     ]
 
     for i in range(target_scene_count):
@@ -657,38 +783,65 @@ def build_dynamic_scene_plan(
             dur = 3.0
 
         if is_last:
-            tmpl = "cta_end_card"
-            title = "Final Call to Action"
-            hl = f"Experience {brand_name}"
-            sub = "Get started free today"
-            vo_en = f"Start creating professional explainers in minutes. Try {brand_name} now."
-            vo_hi = f"मिनटों में प्रोफेशनल एक्सप्लेनर बनाना शुरू करें। {brand_name} अभी आज़माएं।"
-        else:
-            tmpl = template_rotation[i % len(template_rotation)]
-            ch_idx = i % len(chapters)
-            title, hl, vo_en, vo_hi = chapters[ch_idx]
-            sub = brand_tagline if i % 2 == 0 else f"Chapter {i + 1}"
-
-        # Assign asset if available
-        assigned_asset = ""
-        if assets_list and tmpl in ("dashboard_3d_float", "interactive_cursor_click", "image_full_bleed"):
-            assigned_asset = assets_list[i % len(assets_list)]
-
-        scenes.append(
-            SceneItem(
-                id=i + 1,
-                title=title,
-                template=tmpl,
-                start_seconds=round(curr_time, 2),
-                duration_seconds=dur,
-                headline=hl,
-                subtitle=sub,
-                voiceover_script_en=vo_en,
-                voiceover_script_hi=vo_hi,
-                assigned_asset=assigned_asset,
-                transition="wipe" if i % 3 == 0 else ("zoom" if i % 3 == 1 else "cut")
+            scenes.append(
+                SceneItem(
+                    id=i + 1,
+                    title="Final Call to Action",
+                    template="cta_end_card",
+                    start_seconds=round(curr_time, 2),
+                    duration_seconds=dur,
+                    headline=f"Experience {brand_name}",
+                    on_screen_text=f"Experience {brand_name}",
+                    subtitle="Get started free today",
+                    buttonText="Get Started Now",
+                    handle=f"@{brand_name.lower().replace(' ', '')}",
+                    voiceover_script_en=f"Start accelerating your business cash flow today. Try {brand_name} now.",
+                    voiceover_script_hi=f"आज ही अपने बिजनेस कैश फ्लो को गति दें। {brand_name} अभी आज़माएं।",
+                    transition="crossfade",
+                    camera_motion="slow_zoom_in",
+                    art_direction="corporate_cinematic"
+                )
             )
-        )
+        else:
+            beat_idx = i % len(story_beats)
+            metaphor, on_screen, pose, prop, art_dir, trans, cam_motion, vo_en, vo_hi = story_beats[beat_idx]
+            tmpl = story_templates[i % len(story_templates)]
+
+            # Assign asset if available
+            assigned_asset = ""
+            if assets_list and tmpl in ("dashboard_3d_float", "interactive_cursor_click", "image_full_bleed"):
+                assigned_asset = assets_list[i % len(assets_list)]
+
+            scenes.append(
+                SceneItem(
+                    id=i + 1,
+                    title=f"Scene {i + 1} • {metaphor}",
+                    template=tmpl,
+                    start_seconds=round(curr_time, 2),
+                    duration_seconds=dur,
+                    headline=on_screen,
+                    on_screen_text=on_screen,
+                    visual_metaphor=metaphor,
+                    character_pose=pose,
+                    character_action=f"Character {pose} with {prop}",
+                    props=prop,
+                    prop_type=prop,
+                    prop_amount="₹10 LAKH" if "money" in prop or "scale" in prop else "",
+                    art_direction=art_dir,
+                    environment=art_dir,
+                    number=10 if tmpl == "stat_counter" else None,
+                    suffix="x" if tmpl == "stat_counter" else "",
+                    stat_label="Faster Cash Velocity" if tmpl == "stat_counter" else "",
+                    optionA={"title": "Manual Followups", "desc": "60+ days delayed payments"} if tmpl == "comparison_split" else None,
+                    optionB={"title": f"{brand_name} Flow", "desc": "Instant 24-hr realization"} if tmpl == "comparison_split" else None,
+                    bullets=["Zero invoice delays", "Real-time liquidity tracking", "Automated working capital"] if tmpl == "bullet_list" else None,
+                    voiceover_script_en=vo_en,
+                    voiceover_script_hi=vo_hi,
+                    assigned_asset=assigned_asset,
+                    transition=trans,
+                    camera_motion=cam_motion
+                )
+            )
         curr_time += dur
 
     return ExplainerScenePlan(

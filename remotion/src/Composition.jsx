@@ -2,6 +2,12 @@ import React, {useLayoutEffect, useRef, useState} from 'react';
 import {AbsoluteFill, Audio, Img, interpolate, OffthreadVideo, Sequence, spring, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 import {stateAt} from './motion.mjs';
 import {getTheme, MOTION_SPRINGS, PALETTES} from './theme.js';
+import {SceneTransition} from './transitions/SceneTransition';
+import {CharacterStory} from './templates/CharacterStory';
+import {StickmanCharacter} from './components/StickmanCharacter';
+import {AnimatedProp} from './components/AnimatedProps';
+import {DynamicEnvironment} from './components/DynamicEnvironment';
+import {CashFlowSplit, TimelineGap, AnimatedBarChart} from './components/DataVisualizations';
 
 const families = {
   sans: "'Noto Sans Devanagari', 'Nirmala UI', Inter, -apple-system, BlinkMacSystemFont, sans-serif",
@@ -879,13 +885,82 @@ export function CtaEndCard({
 // Universal Scene Switch Component for Explainer Sequences
 export function SceneSwitch({scene = {}, logo = null}) {
   const template = (scene.template || 'kinetic_text').toLowerCase();
-  const headline = scene.headline || scene.title || '';
-  const subtitle = scene.subtitle || scene.voiceover || scene.voiceover_script || scene.voiceover_script_en || scene.voiceover_script_hi || '';
-  const accent = scene.accent_color || '#00f2fe';
-  const bg = scene.background_color || '#0a0a12';
+  const headline = scene.headline || scene.title || scene.on_screen_text || '';
+  // Subtitle is purely concise supporting on-screen text, NEVER the full voiceover script
+  const subtitle = scene.subtitle || scene.stat_label || '';
+  const accent = scene.accent_color || scene.accent || '#00f2fe';
+  const bg = scene.background_color || scene.bg || '#0a0a12';
   const asset = scene.assigned_asset || scene.asset || logo;
 
   switch (template) {
+    case 'character_story':
+      return (
+        <CharacterStory
+          scene={scene}
+          headline={headline}
+          onScreenText={scene.on_screen_text}
+          visualMetaphor={scene.visual_metaphor}
+          characterPose={scene.character_pose}
+          characterAction={scene.character_action}
+          characterExpression={scene.character_expression}
+          propType={scene.props || scene.prop_type}
+          propAmount={scene.prop_amount || scene.stat}
+          artDirection={scene.art_direction || scene.environment}
+          accent={accent}
+          bg={bg}
+        />
+      );
+    case 'finance_breakdown':
+    case 'cash_flow':
+      return (
+        <CharacterStory
+          scene={scene}
+          headline={headline}
+          onScreenText={scene.on_screen_text}
+          visualMetaphor={scene.visual_metaphor || 'Cash Inflow vs Outflow'}
+          characterPose={scene.character_pose || 'pointing'}
+          characterAction={scene.character_action || 'pointing at expenses'}
+          propType={scene.props || 'scale'}
+          propAmount={scene.prop_amount || scene.stat || '₹10 LAKH'}
+          artDirection={scene.art_direction || 'finance_documentary'}
+          accent={accent}
+          bg={bg}
+          dataVizType="cash_flow"
+        />
+      );
+    case 'timeline_gap':
+    case 'delay_timeline':
+      return (
+        <CharacterStory
+          scene={scene}
+          headline={headline}
+          onScreenText={scene.on_screen_text}
+          visualMetaphor={scene.visual_metaphor || 'The 60-Day Payment Delay'}
+          characterPose={scene.character_pose || 'stress_panic'}
+          characterAction={scene.character_action || 'panicking over overdue invoice'}
+          propType={scene.props || 'calendar'}
+          artDirection={scene.art_direction || 'editorial_flat'}
+          accent={accent}
+          bg={bg}
+          dataVizType="timeline"
+        />
+      );
+    case 'money_flow':
+    case 'working_capital':
+      return (
+        <CharacterStory
+          scene={scene}
+          headline={headline}
+          onScreenText={scene.on_screen_text}
+          visualMetaphor={scene.visual_metaphor || 'Working Capital Trapped'}
+          characterPose={scene.character_pose || 'holding_money'}
+          propType={scene.props || 'glass_barrier'}
+          artDirection={scene.art_direction || 'bold_infographic'}
+          accent={accent}
+          bg={bg}
+          dataVizType="bar_chart"
+        />
+      );
     case 'kinetic_text':
       return (
         <KineticText
@@ -931,7 +1006,7 @@ export function SceneSwitch({scene = {}, logo = null}) {
         />
       );
     case 'bullet_list':
-      const bulletItems = scene.bullets || (subtitle ? subtitle.split('. ').filter(Boolean) : ['High-conversion hooks', 'Automated audio mixing', 'Production quality Remotion output']);
+      const bulletItems = scene.bullets || ['High-conversion hooks', 'Automated audio mixing', 'Production quality Remotion output'];
       return (
         <BulletList
           headline={headline}
@@ -999,32 +1074,32 @@ export function SubtitleOverlay({text, accent = '#00f2fe'}) {
   return (
     <div style={{
       position: 'absolute',
-      bottom: Math.max(28, Math.round(theme.safeMargins.bottom * 0.7)),
+      bottom: Math.max(32, Math.round(theme.safeMargins.bottom * 0.75)),
       left: 0,
       right: 0,
       display: 'flex',
       justifyContent: 'center',
-      padding: '0 24px',
+      padding: '0 32px',
       pointerEvents: 'none',
       zIndex: 100
     }}>
       <div style={{
-        background: 'rgba(8, 10, 16, 0.88)',
-        backdropFilter: 'blur(12px)',
-        border: '1px solid rgba(255, 255, 255, 0.12)',
-        borderRadius: '999px',
-        padding: '8px 24px',
-        maxWidth: '90%',
+        background: 'rgba(5, 7, 12, 0.82)',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(255, 255, 255, 0.14)',
+        borderRadius: '12px',
+        padding: '6px 20px',
+        maxWidth: '85%',
         textAlign: 'center',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)'
+        boxShadow: '0 6px 24px rgba(0, 0, 0, 0.55)'
       }}>
         <span style={{
-          color: '#ffffff',
+          color: '#f8fafc',
           fontFamily: theme.fontFamilies.sans,
-          fontSize: `${Math.round(theme.typeScale.body * 0.95)}px`,
+          fontSize: `${Math.round(theme.typeScale.body * 0.9)}px`,
           fontWeight: 600,
-          letterSpacing: '-0.2px',
-          lineHeight: 1.35
+          letterSpacing: '-0.1px',
+          lineHeight: 1.3
         }}>
           {text}
         </span>
@@ -1067,10 +1142,18 @@ export function MotionComposition(props) {
               from={startFrame}
               durationInFrames={durationFrames}
             >
-              <SceneSwitch scene={scene} logo={logo} />
-              {(scene.voiceover_script_hi || scene.voiceover_script_en || scene.subtitle) && (
+              <SceneTransition
+                transition={scene.transition || 'crossfade'}
+                cameraMotion={scene.camera_motion || 'slow_zoom_in'}
+                durationInFrames={durationFrames}
+              >
+                <SceneSwitch scene={scene} logo={logo} />
+              </SceneTransition>
+
+              {/* Subtitles: Only displayed when explicit caption or subtitle track is active, NEVER raw voiceover */}
+              {Boolean(scene.caption || (scene.subtitle && scene.show_subtitle)) && (
                 <SubtitleOverlay
-                  text={scene.voiceover_script_hi || scene.voiceover_script_en || scene.subtitle}
+                  text={scene.caption || scene.subtitle}
                   accent={scene.accent || '#00f2fe'}
                 />
               )}
