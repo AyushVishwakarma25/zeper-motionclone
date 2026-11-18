@@ -27,5 +27,6 @@ scripts/measure_grid.py
 scripts/measure_reference.py
 scripts/out_smoke*
 tmp/
+out/
 deploy-env.yaml
 
