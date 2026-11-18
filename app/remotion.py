@@ -178,6 +178,7 @@ def write_project(folder, plan, brief, fps=None, *args, **kwargs):
             for p in src_assets.glob('*'):
                 if p.is_file() and not p.name.startswith('.'):
                     shutil.copy2(p, dest_assets / p.name)
+                    shutil.copy2(p, dest / p.name)
                     data['assets'].append(f'assets/{p.name}')
 
     # Stage sound effects into dest/sfx

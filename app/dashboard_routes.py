@@ -776,6 +776,7 @@ def install(app, server):
         url: str = Form("")
     ):
         job = server.get_job(id)
+        job['cancel'] = threading.Event()
         folder = server.DATA / id
         clean_url = url.strip()
 
@@ -966,6 +967,7 @@ def install(app, server):
         if req is None:
             req = GenerateProjectRequest()
         job = server.get_job(id)
+        job['cancel'] = threading.Event()
         folder = server.DATA / id
         dashboard_file = folder / 'dashboard_project.json'
         project_state = {}

@@ -8,6 +8,7 @@ import {StickmanCharacter} from './components/StickmanCharacter';
 import {AnimatedProp} from './components/AnimatedProps';
 import {DynamicEnvironment} from './components/DynamicEnvironment';
 import {CashFlowSplit, TimelineGap, AnimatedBarChart} from './components/DataVisualizations';
+import {SafeAsset, resolveAssetSrc} from './components/SafeAsset';
 
 const families = {
   sans: "'Noto Sans Devanagari', 'Nirmala UI', Inter, -apple-system, BlinkMacSystemFont, sans-serif",
@@ -620,24 +621,20 @@ export function ImageFullBleed({
   const scale = interpolate(frame, [0, durationInFrames], [1.0, 1.12], {extrapolateRight: 'clamp'});
   const panY = interpolate(frame, [0, durationInFrames], [0, -25], {extrapolateRight: 'clamp'});
 
-  const imageSrc = image ? (image.startsWith('http') ? image : staticFile(image)) : null;
-
   return (
     <AbsoluteFill style={{backgroundColor: '#0a0a12', overflow: 'hidden', fontFamily: theme.fontFamilies.sans}}>
       <GlobalFontStyles />
-      {imageSrc ? (
-        <Img
-          src={imageSrc}
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            transform: `scale(${scale}) translateY(${panY}px)`
-          }}
-        />
-      ) : (
-        <MotionBackground theme={theme} accent={accent} bg="#0a0a12" />
-      )}
+      <SafeAsset
+        src={image}
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          transform: `scale(${scale}) translateY(${panY}px)`
+        }}
+        fallback={<MotionBackground theme={theme} accent={accent} bg="#0a0a12" />}
+        accent={accent}
+      />
 
       {/* Dark gradient shadow for lower third readability */}
       <div style={{
@@ -695,7 +692,6 @@ export function ScreenCaptureFrame({
   const {durationInFrames, width, height} = useVideoConfig();
   const theme = getTheme(width, height);
 
-  const imageSrc = image ? (image.startsWith('http') ? image : staticFile(image)) : null;
   const innerScrollY = interpolate(frame, [0, durationInFrames], [0, -40], {extrapolateRight: 'clamp'});
 
   return (
@@ -771,21 +767,22 @@ export function ScreenCaptureFrame({
 
           {/* Viewport content */}
           <div style={{flex: 1, position: 'relative', overflow: 'hidden', background: '#0a0a10'}}>
-            {imageSrc ? (
-              <Img
-                src={imageSrc}
-                style={{
-                  width: '100%',
-                  height: '120%',
-                  objectFit: 'cover',
-                  transform: `translateY(${innerScrollY}px)`
-                }}
-              />
-            ) : (
-              <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: accent}}>
-                Mock Screen Viewport
-              </div>
-            )}
+            <SafeAsset
+              src={image}
+              style={{
+                width: '100%',
+                height: '120%',
+                objectFit: 'cover',
+                transform: `translateY(${innerScrollY}px)`
+              }}
+              fallback={
+                <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: accent, gap: '10px'}}>
+                  <span style={{fontSize: '32px'}}>🖥️</span>
+                  <span style={{fontWeight: 700, fontSize: '15px', color: '#f8fafc'}}>Interactive Preview Frame</span>
+                </div>
+              }
+              accent={accent}
+            />
           </div>
         </div>
       </div>
@@ -1123,7 +1120,14 @@ export function MotionComposition(props) {
   return (
     <AbsoluteFill style={{backgroundColor: bg, overflow: 'hidden'}}>
       <GlobalFontStyles />
-      {audio ? <Audio src={audio.startsWith('http') ? audio : staticFile(audio)} /> : null}
+      {audio ? (
+        <Audio
+          src={resolveAssetSrc(audio) || (audio.startsWith('http') ? audio : staticFile(audio))}
+          onError={(e) => {
+            console.warn('Audio tag playback error (handled safely):', e);
+          }}
+        />
+      ) : null}
 
       {/* Render scene sequence when scenes exist */}
       {(() => {
