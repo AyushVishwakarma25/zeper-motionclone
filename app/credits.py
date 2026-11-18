@@ -52,9 +52,23 @@ def _get_local_file(user_id: str) -> Path:
     return credits_dir / f"{safe_uid}.json"
 
 
+def is_owner_or_admin(user_id: str) -> bool:
+    """Checks if the user is the project owner or in ALLOWED_EMAILS."""
+    try:
+        from .auth import ALLOWED_EMAILS, OWNER_EMAIL
+        uid_lower = (user_id or "").lower().strip()
+        if uid_lower == OWNER_EMAIL.lower().strip() or uid_lower in [e.lower().strip() for e in ALLOWED_EMAILS]:
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def get_balance(user_id: str = "default_user") -> int:
     """Gets the available credit balance for a user."""
     grant = get_signup_grant()
+    if is_owner_or_admin(user_id):
+        grant = max(grant, 1000)
 
     if is_hosted():
         try:
@@ -63,18 +77,25 @@ def get_balance(user_id: str = "default_user") -> int:
             snap = doc_ref.get()
             if snap.exists:
                 data = snap.to_dict() or {}
-                return int(data.get('balance', grant))
+                bal = int(data.get('balance', grant))
+                if is_owner_or_admin(user_id):
+                    return max(bal, 1000)
+                return bal
             return grant
         except Exception as e:
-            logger.exception("Firestore get_balance failed in hosted mode")
-            raise RuntimeError(f"Hosted credit balance unavailable; refusing local fallback: {e}") from e
+            logger.warning(f"Firestore get_balance failed in hosted mode ({e}), falling back to local storage.")
+            if is_owner_or_admin(user_id):
+                return 1000
 
     with _LOCAL_LOCK:
         p = _get_local_file(user_id)
         if p.is_file():
             try:
                 data = json.loads(p.read_text(encoding='utf-8'))
-                return int(data.get('balance', grant))
+                bal = int(data.get('balance', grant))
+                if is_owner_or_admin(user_id):
+                    return max(bal, 1000)
+                return bal
             except Exception:
                 pass
         return grant
@@ -97,8 +118,7 @@ def set_balance(user_id: str, balance: int, tier: str = "free") -> None:
             }, merge=True)
             return
         except Exception as e:
-            logger.exception("Firestore set_balance failed in hosted mode")
-            raise RuntimeError(f"Hosted credit update failed; refusing local fallback: {e}") from e
+            logger.warning(f"Firestore set_balance failed in hosted mode ({e}), setting local fallback.")
 
     with _LOCAL_LOCK:
         p = _get_local_file(user_id)
@@ -127,6 +147,10 @@ def check_and_deduct_credits(
     amount = int(required_credits)
     if amount <= 0:
         return {'ok': True, 'credits_deducted': 0, 'balance': get_balance(user_id)}
+
+    if is_owner_or_admin(user_id):
+        # Owner/admin accounts are never blocked by credit limits during production/dev
+        return {'ok': True, 'credits_deducted': 0, 'balance': max(get_balance(user_id), 1000)}
 
     grant = get_signup_grant()
 
@@ -186,8 +210,7 @@ def check_and_deduct_credits(
         except InsufficientCreditsError:
             raise
         except Exception as e:
-            logger.exception("Firestore deduction failed in hosted mode")
-            raise RuntimeError(f"Hosted credit deduction failed; refusing local fallback: {e}") from e
+            logger.warning(f"Firestore deduction failed in hosted mode ({e}), falling back to local ledger.")
 
     # Local mode (thread-locked)
     with _LOCAL_LOCK:

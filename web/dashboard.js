@@ -188,8 +188,10 @@
     try {
       const data = await callApi('/api/credits/balance');
       const el = $('user-credits-val');
-      if (el && typeof data.balance === 'number') {
-        el.textContent = data.balance;
+      const menuEl = $('user-credits-menu-val');
+      if (typeof data.balance === 'number') {
+        if (el) el.textContent = data.balance;
+        if (menuEl) menuEl.textContent = data.balance;
       }
     } catch (e) {
       console.warn('Credits balance lookup failed:', e);
@@ -248,9 +250,16 @@
       const me = await callApi('/api/me');
       if (me && (me.email || me.hosted)) {
         const userBadge = $('user-email-display');
-        if (userBadge && me.email) {
-          userBadge.textContent = me.email;
-          userBadge.style.display = 'inline-flex';
+        const avatarEl = $('user-avatar-circle');
+        if (me.email) {
+          if (userBadge) {
+            userBadge.textContent = me.email;
+            userBadge.style.display = 'block';
+          }
+          if (avatarEl) {
+            avatarEl.textContent = me.email.charAt(0).toUpperCase();
+            avatarEl.title = me.email;
+          }
         }
         const signoutBtn = $('btn-signout');
         if (signoutBtn) {
@@ -537,6 +546,123 @@
     }
   }
 
+  // =========================================================================
+  // Consolidated AI Execution Monitor Telemetry & Log Handlers
+  // =========================================================================
+  let execTimerInterval = null;
+  let execStartTime = null;
+
+  function setExecutionStatus({
+    agent = 'AI Director',
+    stage = 'Idle',
+    model = 'gemini-2.5-flash',
+    tokens = null,
+    status = 'idle', // 'idle' | 'working' | 'active' | 'error'
+    credits = null,
+    log = null,
+    duration = null,
+    isError = false
+  } = {}) {
+    const dot = $('exec-status-dot');
+    const title = $('exec-stage-title');
+    const badge = $('exec-model-badge');
+    const timer = $('exec-duration-timer');
+    const credTag = $('exec-credits-tag');
+    const agentName = $('exec-agent-name');
+    const stageName = $('exec-stage-name');
+    const modelName = $('exec-model-name');
+    const tokensCount = $('exec-tokens-count');
+    const retryBtn = $('btn-retry-exec-action');
+
+    if (dot) dot.className = `status-indicator-dot ${status}`;
+    if (title) title.textContent = stage === 'Idle' ? 'Execution Monitor: Idle' : `${stage}…`;
+    if (badge) badge.textContent = model;
+    if (agentName) agentName.textContent = agent;
+    if (stageName) stageName.textContent = stage;
+    if (modelName) modelName.textContent = model;
+    if (tokensCount && tokens !== null) tokensCount.textContent = tokens;
+    if (credTag && credits !== null) credTag.textContent = `🪙 ${credits}`;
+
+    if (status === 'working') {
+      if (!execStartTime) execStartTime = Date.now();
+      if (!execTimerInterval) {
+        execTimerInterval = setInterval(() => {
+          if (timer && execStartTime) {
+            const elSec = ((Date.now() - execStartTime) / 1000).toFixed(1);
+            timer.textContent = `${elSec}s`;
+          }
+        }, 100);
+      }
+      if (retryBtn) retryBtn.style.display = 'none';
+    } else {
+      if (execTimerInterval) {
+        clearInterval(execTimerInterval);
+        execTimerInterval = null;
+      }
+      if (duration !== null && timer) {
+        timer.textContent = `${duration.toFixed(1)}s`;
+      }
+      execStartTime = null;
+      if (retryBtn) retryBtn.style.display = isError ? 'inline-block' : 'none';
+    }
+
+    if (log) {
+      appendExecutionLog(log, isError ? 'error' : (status === 'active' ? 'success' : 'normal'));
+    }
+  }
+
+  function appendExecutionLog(msg, type = 'normal') {
+    const term = $('exec-terminal-logs');
+    if (!term) return;
+    const line = document.createElement('div');
+    line.className = `terminal-log-line ${type}`;
+    const timeStr = new Date().toLocaleTimeString();
+    line.textContent = `[${timeStr}] ${msg}`;
+    term.appendChild(line);
+    term.scrollTop = term.scrollHeight;
+  }
+
+  // Timeline Scene Reordering, Duplication and Deletion
+  function moveTimelineScene(fromIdx, direction) {
+    const scenes = projectState?.scene_plan?.scenes;
+    if (!scenes) return;
+    const toIdx = fromIdx + direction;
+    if (toIdx < 0 || toIdx >= scenes.length) return;
+    const temp = scenes[fromIdx];
+    scenes[fromIdx] = scenes[toIdx];
+    scenes[toIdx] = temp;
+    activeSceneIndex = toIdx;
+    renderTimelineScenes();
+    renderSceneInspector();
+  }
+
+  function duplicateTimelineScene(idx) {
+    const scenes = projectState?.scene_plan?.scenes;
+    if (!scenes || !scenes[idx]) return;
+    const clone = JSON.parse(JSON.stringify(scenes[idx]));
+    clone.headline = (clone.headline || 'Scene') + ' (Copy)';
+    scenes.splice(idx + 1, 0, clone);
+    activeSceneIndex = idx + 1;
+    renderTimelineScenes();
+    renderSceneInspector();
+    showToast(`Duplicated Scene ${idx + 1}`, 'success');
+  }
+
+  function deleteTimelineScene(idx) {
+    const scenes = projectState?.scene_plan?.scenes;
+    if (!scenes || !scenes[idx]) return;
+    if (scenes.length <= 1) {
+      alert('A video must have at least one scene.');
+      return;
+    }
+    if (!confirm(`Delete Scene ${idx + 1}?`)) return;
+    scenes.splice(idx, 1);
+    activeSceneIndex = Math.max(0, Math.min(idx, scenes.length - 1));
+    renderTimelineScenes();
+    renderSceneInspector();
+    showToast(`Deleted Scene ${idx + 1}`, 'info');
+  }
+
   // Render Timeline Scene Blocks
   function renderTimelineScenes() {
     const container = $('scenes-track-container');
@@ -550,10 +676,13 @@
           const isActive = idx === activeSceneIndex ? 'active' : '';
           return `
             <div class="scene-block ${isActive}" data-index="${idx}">
+              <div class="scene-block-header">
+                <span class="scene-block-num">#${idx + 1}</span>
+                <span class="scene-block-meta">${((shot.t_end - shot.t_start) || 3).toFixed(1)}s</span>
+              </div>
               <div class="scene-block-title">📐 ${escapeHtml(shot.shot_type || `Shot ${idx + 1}`)}</div>
               <div class="scene-block-meta">
-                <span>Shot ${idx + 1}</span>
-                <span>${((shot.t_end - shot.t_start) || 3).toFixed(1)}s</span>
+                <span>${escapeHtml(shot.camera_motion || 'push-in')}</span>
               </div>
             </div>
           `;
@@ -577,23 +706,44 @@
       return;
     }
 
+    const templateIconMap = {
+      'kinetic_text': '⚡',
+      'character_story': '👤',
+      'finance_breakdown': '💰',
+      'timeline_gap': '⏳',
+      'money_flow': '💸',
+      'dashboard_3d_float': '🌟',
+      'interactive_cursor_click': '🖱️',
+      'fact_card': '📊',
+      'stat_counter': '🔢',
+      'comparison_split': '⚖️',
+      'bullet_list': '📋',
+      'quote': '💬',
+      'full_bleed_image': '🖼️',
+      'cta_card': '🎯',
+      'title_card': '🏷️',
+      'lower_third': '💬',
+      'transparent_callout': '✨'
+    };
+
     container.innerHTML = scenes.map((s, idx) => {
       const isActive = idx === activeSceneIndex ? 'active' : '';
-      const templateIcon = {
-        'kinetic_text': '⚡',
-        'dashboard_3d_float': '🌟',
-        'interactive_cursor_click': '🖱️',
-        'fact_card': '📊',
-        'title_card': '🏷️',
-        'lower_third': '💬',
-        'transparent_callout': '✨'
-      }[s.template] || '🎬';
+      const icon = templateIconMap[s.template] || '🎬';
 
       return `
         <div class="scene-block ${isActive}" data-index="${idx}">
-          <div class="scene-block-title">${templateIcon} ${escapeHtml(s.headline || s.title || `Scene ${idx + 1}`)}</div>
+          <div class="scene-block-header">
+            <span class="scene-block-num">#${idx + 1}</span>
+            <div class="scene-block-actions" onclick="event.stopPropagation()">
+              <button type="button" class="btn-scene-action" data-action="move-left" data-index="${idx}" title="Move Earlier">◀</button>
+              <button type="button" class="btn-scene-action" data-action="move-right" data-index="${idx}" title="Move Later">▶</button>
+              <button type="button" class="btn-scene-action" data-action="dup" data-index="${idx}" title="Duplicate">📋</button>
+              <button type="button" class="btn-scene-action btn-del" data-action="del" data-index="${idx}" title="Delete">🗑️</button>
+            </div>
+          </div>
+          <div class="scene-block-title" title="${escapeHtml(s.headline || s.title || `Scene ${idx + 1}`)}">${icon} ${escapeHtml(s.headline || s.title || `Scene ${idx + 1}`)}</div>
           <div class="scene-block-meta">
-            <span>Scene ${idx + 1}</span>
+            <span>${escapeHtml(s.template ? s.template.replace(/_/g, ' ') : 'kinetic')}</span>
             <span>${(s.duration_seconds || 3).toFixed(1)}s</span>
           </div>
         </div>
@@ -605,6 +755,18 @@
         activeSceneIndex = parseInt(el.dataset.index, 10);
         renderTimelineScenes();
         renderSceneInspector();
+      };
+    });
+
+    container.querySelectorAll('.btn-scene-action').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const action = btn.dataset.action;
+        const idx = parseInt(btn.dataset.index, 10);
+        if (action === 'move-left') moveTimelineScene(idx, -1);
+        else if (action === 'move-right') moveTimelineScene(idx, 1);
+        else if (action === 'dup') duplicateTimelineScene(idx);
+        else if (action === 'del') deleteTimelineScene(idx);
       };
     });
   }
@@ -634,6 +796,7 @@
         if ($('scene-subtitle-input')) $('scene-subtitle-input').value = `Camera: ${shot.camera_motion || 'push-in'}`;
         if ($('scene-duration-input')) $('scene-duration-input').value = ((shot.t_end - shot.t_start) || 3.0).toFixed(1);
         if ($('scene-transition-select')) $('scene-transition-select').value = shot.transition || 'cut';
+        if ($('scene-camera-select')) $('scene-camera-select').value = shot.camera_motion || 'slow_push_in';
       }
 
       // Populate bound asset dropdown
@@ -647,7 +810,7 @@
     }
 
     if (emptyHint) emptyHint.style.display = 'none';
-    if (heading) heading.textContent = `Scene ${activeSceneIndex + 1}: ${s.template.replace(/_/g, ' ')}`;
+    if (heading) heading.textContent = `Scene ${activeSceneIndex + 1}: ${(s.template || 'kinetic_text').replace(/_/g, ' ')}`;
     if (badge) badge.textContent = `Scene ${activeSceneIndex + 1} of ${scenes.length}`;
 
     if ($('scene-template-select')) $('scene-template-select').value = s.template || 'kinetic_text';
@@ -657,6 +820,10 @@
     if ($('scene-vo-hi-input')) $('scene-vo-hi-input').value = s.voiceover_script_hi || '';
     if ($('scene-duration-input')) $('scene-duration-input').value = s.duration_seconds || 3.0;
     if ($('scene-transition-select')) $('scene-transition-select').value = s.transition || 'cut';
+    if ($('scene-camera-select')) $('scene-camera-select').value = s.camera_motion || 'slow_push_in';
+    if ($('scene-art-direction-select')) $('scene-art-direction-select').value = s.art_direction || 'cinematic_clean';
+    if ($('scene-character-pose-select')) $('scene-character-pose-select').value = s.character_pose || 'none';
+    if ($('scene-prop-select')) $('scene-prop-select').value = s.scene_prop || s.prop || 'none';
 
     // Populate bound asset dropdown
     const assetSelect = $('scene-asset-select');
@@ -838,6 +1005,14 @@
       return;
     }
 
+    setExecutionStatus({
+      agent: 'Video Architect',
+      stage: 'Deconstructing Reference',
+      model: 'gemini-2.5-flash',
+      status: 'working',
+      log: 'Deconstructing reference video motion, cuts, and kinetic typography…'
+    });
+
     showOverlay('Deconstructing Reference…', 'Google Gemini is analyzing pacing, cuts, and motion rules');
     updatePipelineStep(2);
 
@@ -881,6 +1056,15 @@
       updateCreditEstimate();
       updateCreditBalance();
 
+      setExecutionStatus({
+        agent: 'Video Architect',
+        stage: 'Blueprint Extracted',
+        model: 'gemini-2.5-flash',
+        status: 'active',
+        credits: 10,
+        log: `Reference blueprint extracted with ${res.blueprint?.shots?.length || 0} shots.`
+      });
+
       appendChatBubble('agent', `✅ ${res.message}`, `
         <div class="chat-card">
           <div class="chat-card-title">📝 Step 2: Target Topic & Creative Brief</div>
@@ -897,6 +1081,13 @@
 
     } catch (e) {
       hideOverlay();
+      setExecutionStatus({
+        agent: 'Video Architect',
+        stage: 'Deconstruct Failed',
+        status: 'error',
+        isError: true,
+        log: e.message
+      });
       showToast('Notice: ' + e.message, 'error');
       appendChatBubble('agent', `⚠️ Notice: ${e.message}`);
     }
@@ -909,6 +1100,14 @@
     const brandInput = $('brand-name-input')?.value.trim();
     const userStory = topicInput || 'Next-Gen Autonomous AI Platform that saves teams 15 hours a week.';
     const brandName = brandInput || projectState?.name || 'MotionClone AI';
+
+    setExecutionStatus({
+      agent: 'Script & Scene Planner',
+      stage: 'Generating Script & Scenes',
+      model: 'gemini-2.5-flash',
+      status: 'working',
+      log: `Generating bilingual voiceover script and Remotion scene plan for "${brandName}"…`
+    });
 
     showOverlay('Generating Original Scene Plan…', `Writing ${activeLanguage.toUpperCase()} script and mapping Remotion templates`);
     updatePipelineStep(3);
@@ -937,20 +1136,29 @@
       updateCreditEstimate();
       updateCreditBalance();
 
-      appendChatBubble('agent', `🎉 ${res.message}`, `
-        <div class="chat-card">
-          <div class="chat-card-title">🎬 Step 3: Render 30 FPS Video</div>
-          <p style="font-size:11px; margin:0 0 6px; color:var(--muted);">${res.scene_plan.scenes.length} Remotion scenes with synchronized sound effects and voiceover.</p>
-          <button type="button" class="chat-card-btn" id="btn-auto-render">🚀 Render 30 FPS Video Now</button>
-        </div>
-      `);
-
-      $('btn-auto-render')?.addEventListener('click', async () => {
-        await handleRenderPreview();
+      setExecutionStatus({
+        agent: 'Script & Scene Planner',
+        stage: 'Scene Plan Ready',
+        model: 'gemini-2.5-flash',
+        status: 'active',
+        credits: 15,
+        log: `Scene plan generated: ${res.scene_plan.scenes.length} scenes mapped with bilingual voiceover.`
       });
+
+      appendChatBubble(
+        'agent',
+        `🎉 ${res.message}\n${res.scene_plan.scenes.length} Remotion scenes with synchronized audio and motion graphics are mapped in the timeline. Use the 30 FPS Preview or Render button to compile.`
+      );
 
     } catch (e) {
       hideOverlay();
+      setExecutionStatus({
+        agent: 'Script & Scene Planner',
+        stage: 'Planning Failed',
+        status: 'error',
+        isError: true,
+        log: e.message
+      });
       showToast('Scene plan error: ' + e.message, 'error');
       alert('Scene plan error: ' + e.message);
     }
@@ -975,7 +1183,7 @@
 
   function retryProjectGenerate() {
     hideGenerationFailureBox();
-    triggerProjectGenerate(lastGenerationParams || { useExistingScenePlan: true, fps: 60 });
+    triggerProjectGenerate(lastGenerationParams || { useExistingScenePlan: true, fps: 30 });
   }
   window.retryProjectGenerate = retryProjectGenerate;
 
@@ -1095,7 +1303,7 @@
     if (box) box.style.display = 'none';
   }
 
-  async function triggerProjectGenerate({ useExistingScenePlan = true, fps = 60 } = {}) {
+  async function triggerProjectGenerate({ useExistingScenePlan = true, fps = 30 } = {}) {
     if (!activeJobId) {
       alert('Please select or create an explainer project first.');
       return;
@@ -1111,13 +1319,22 @@
       return;
     }
 
-    lastGenerationParams = { useExistingScenePlan, fps };
+    lastGenerationParams = { useExistingScenePlan, fps: 30 };
     hideGenerationSuccessBox();
     hideGenerationFailureBox();
 
     if ('Notification' in window && Notification.permission === 'default') {
       try { Notification.requestPermission().catch(() => {}); } catch {}
     }
+
+    setExecutionStatus({
+      agent: 'Remotion Render Engine',
+      stage: 'Rendering 30 FPS MP4',
+      model: 'Remotion 4.0 + FFmpeg',
+      status: 'working',
+      credits: 20,
+      log: 'Synthesizing voiceover, mixing audio, and rendering 30 FPS composition…'
+    });
 
     showOverlay('Rendering 30 FPS Remotion Video…', 'Synthesizing motion graphics, captions, sound effects, and music', true);
     updatePipelineStep(4);
@@ -1149,6 +1366,13 @@
           if (s.stage) {
             const descEl = $('stage-overlay-desc');
             if (descEl) descEl.textContent = s.stage + (s.progress ? ` (${s.progress}%)` : '');
+            setExecutionStatus({
+              agent: 'Remotion Render Engine',
+              stage: s.stage,
+              model: 'Remotion 4.0 + FFmpeg',
+              status: 'working',
+              log: `[Progress ${s.progress || 0}%] ${s.stage}`
+            });
           }
           if (s.state === 'needs_attention') {
             clearInterval(poll);
@@ -1160,6 +1384,14 @@
             projectState.preview_url = s.output_url || `/media/${activeJobId}/output.mp4`;
             viewGeneratedVideo();
             showNeedsAttentionBox(s.issues || []);
+            setExecutionStatus({
+              agent: 'Remotion Render Engine',
+              stage: 'Needs Attention',
+              model: 'Remotion 4.0 + FFmpeg',
+              status: 'active',
+              duration: totalSec,
+              log: `Render completed with issues: ${(s.issues || []).map(i => i.message).join('; ')}`
+            });
             showToast(`⚠️ Video rendered in ${timeFormatted}, but requires attention.`, 'warning', {
               label: 'View here ↗',
               onClick: viewGeneratedVideo
@@ -1181,10 +1413,26 @@
 
             viewGeneratedVideo();
             showGenerationSuccess({ timeFormatted, totalSeconds: totalSec });
+            setExecutionStatus({
+              agent: 'Remotion Render Engine',
+              stage: 'Render Complete',
+              model: 'Remotion 4.0 + FFmpeg',
+              status: 'active',
+              duration: totalSec,
+              log: `✓ 30 FPS Explainer MP4 generated in ${timeFormatted}.`
+            });
           } else if (s.state === 'failed' || s.state === 'error') {
             clearInterval(poll);
             hideOverlay();
             const err = s.error || 'Video generation failed. Check server logs.';
+            setExecutionStatus({
+              agent: 'Remotion Render Engine',
+              stage: s.stage || 'Render Failed',
+              model: 'Remotion 4.0 + FFmpeg',
+              status: 'error',
+              isError: true,
+              log: `❌ Error: ${err}`
+            });
             showGenerationFailure({
               stage: s.stage || 'Rendering',
               error: err,
@@ -1199,6 +1447,14 @@
 
     } catch (e) {
       hideOverlay();
+      setExecutionStatus({
+        agent: 'Remotion Render Engine',
+        stage: 'Initiation Failed',
+        model: 'Remotion 4.0 + FFmpeg',
+        status: 'error',
+        isError: true,
+        log: `❌ Initiation Error: ${e.message}`
+      });
       if (e.status === 402 || e.message?.includes('402') || e.message?.includes('credits')) {
         showToast('Insufficient credits to complete this generation.', 'error');
         alert('Insufficient credits: ' + e.message);
@@ -1225,7 +1481,7 @@
       }
       return;
     }
-    return triggerProjectGenerate({ useExistingScenePlan: true, fps: 60 });
+    return triggerProjectGenerate({ useExistingScenePlan: true, fps: 30 });
   }
 
   async function handlePasteAndRender() {
@@ -1707,7 +1963,97 @@ export const ExplainerScene = () => {
     $('btn-retry-failed-scenes')?.addEventListener('click', () => {
       hideNeedsAttentionBox();
       showToast('🔄 Retrying scenes...', 'info');
-      triggerProjectGenerate({ useExistingScenePlan: true, fps: 60 });
+      triggerProjectGenerate({ useExistingScenePlan: true, fps: 30 });
+    });
+
+    // Account Dropdown Menu Toggle & Outside Click Dismiss
+    $('btn-account-toggle')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const menu = $('account-dropdown-menu');
+      if (menu) {
+        menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      const menu = $('account-dropdown-menu');
+      const container = $('account-menu-container');
+      if (menu && container && !container.contains(e.target)) {
+        menu.style.display = 'none';
+      }
+    });
+
+    // Preview Monitor Column Toggle
+    $('btn-toggle-monitor')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const col = $('stage-preview-column');
+      if (col) {
+        col.classList.toggle('collapsed');
+      }
+    });
+
+    // Topic & Project Setup Collapsible Card
+    const toggleTopicBrief = () => {
+      const card = $('topic-brief-card');
+      if (card) {
+        card.classList.toggle('collapsed');
+      }
+    };
+    $('topic-brief-toggle')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleTopicBrief();
+    });
+    $('topic-brief-header')?.addEventListener('click', () => {
+      toggleTopicBrief();
+    });
+
+    // AI Execution Monitor Expand & Actions
+    const toggleExecDetails = () => {
+      const details = $('execution-monitor-details');
+      const btn = $('btn-toggle-exec-details');
+      if (details) {
+        const isHidden = details.style.display === 'none';
+        details.style.display = isHidden ? 'flex' : 'none';
+        if (btn) btn.textContent = isHidden ? '▴' : '▾';
+      }
+    };
+    $('execution-monitor-toggle')?.addEventListener('click', (e) => {
+      if (e.target.closest('#btn-clear-exec-logs') || e.target.closest('#btn-retry-exec-action')) return;
+      toggleExecDetails();
+    });
+    $('btn-clear-exec-logs')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const term = $('exec-terminal-logs');
+      if (term) term.innerHTML = '<div class="terminal-log-line text-muted">[Logs cleared.]</div>';
+    });
+    $('btn-retry-exec-action')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      retryProjectGenerate();
+    });
+
+    // Add Scene Button in Timeline
+    $('btn-add-scene')?.addEventListener('click', () => {
+      if (!projectState) return;
+      if (!projectState.scene_plan) projectState.scene_plan = { scenes: [] };
+      if (!projectState.scene_plan.scenes) projectState.scene_plan.scenes = [];
+      const newIdx = projectState.scene_plan.scenes.length;
+      projectState.scene_plan.scenes.push({
+        template: 'kinetic_text',
+        headline: `New Key Scene ${newIdx + 1}`,
+        subtitle: 'Add supporting detail',
+        voiceover_script_en: 'Enter narration script for this scene.',
+        voiceover_script_hi: '',
+        duration_seconds: 3.0,
+        transition: 'cut',
+        camera_motion: 'slow_push_in',
+        art_direction: 'cinematic_clean',
+        character_pose: 'none',
+        scene_prop: 'none'
+      });
+      activeSceneIndex = newIdx;
+      renderTimelineScenes();
+      renderSceneInspector();
+      showToast(`Added Scene ${newIdx + 1}`, 'success');
     });
 
     // Success & Failure Banner Actions
@@ -1754,6 +2100,10 @@ export const ExplainerScene = () => {
       s.duration_seconds = parseFloat($('scene-duration-input')?.value) || s.duration_seconds;
       s.transition = $('scene-transition-select')?.value || s.transition;
       s.assigned_asset = $('scene-asset-select')?.value || '';
+      s.camera_motion = $('scene-camera-select')?.value || s.camera_motion || 'slow_push_in';
+      s.art_direction = $('scene-art-direction-select')?.value || s.art_direction || 'cinematic_clean';
+      s.character_pose = $('scene-character-pose-select')?.value || s.character_pose || 'none';
+      s.scene_prop = $('scene-prop-select')?.value || s.scene_prop || 'none';
 
       try {
         await callApi(`/api/dashboard/scenes/update`, {
@@ -1766,7 +2116,7 @@ export const ExplainerScene = () => {
           })
         });
         renderTimelineScenes();
-        alert('✓ Scene edits saved to project!');
+        showToast('✓ Scene edits saved to project!', 'success');
       } catch (e) {
         try {
           await callApi(`/api/dashboard/project/${activeJobId}/save`, {
@@ -1775,7 +2125,7 @@ export const ExplainerScene = () => {
             body: JSON.stringify(projectState)
           });
           renderTimelineScenes();
-          alert('✓ Scene edits saved to project!');
+          showToast('✓ Scene edits saved to project!', 'success');
         } catch (err) {
           alert('Save error: ' + err.message);
         }

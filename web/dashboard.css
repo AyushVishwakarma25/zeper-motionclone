@@ -2410,3 +2410,485 @@ body.dashboard-body {
   padding: 3px 8px;
   border-radius: var(--radius-pill);
 }
+
+/* ==========================================================================
+   DASHBOARD PRO UI CLEANUP & WORKSPACE OPTIMIZATION ENHANCEMENTS
+   ========================================================================== */
+
+/* 1. Header Toolbar Groups & Compact Account Menu */
+.header-control-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 2px 4px;
+}
+
+.account-menu-container {
+  position: relative;
+}
+
+.btn-account-menu {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 3px 8px 3px 4px;
+  cursor: pointer;
+  color: var(--ink);
+  transition: all 0.15s ease;
+}
+
+.btn-account-menu:hover {
+  background: var(--surface);
+  border-color: var(--border-strong);
+}
+
+.avatar-circle {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #3b82f6);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+}
+
+.account-credits-pill {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fbbf24;
+}
+
+.menu-chevron {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.account-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 230px;
+  background: #14161c;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  padding: 6px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.account-menu-header {
+  padding: 6px 8px 4px;
+}
+
+.account-menu-header .user-email-badge {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.account-menu-credits-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.account-menu-credits-row strong {
+  color: #fbbf24;
+}
+
+.account-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+.account-menu-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--ink-secondary);
+  font-size: 12px;
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.account-menu-link:hover {
+  background: var(--surface-alt);
+  color: var(--ink);
+}
+
+.account-menu-link.btn-signout-action:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+/* 2. Consolidated AI Execution Monitor Box */
+.execution-monitor-box {
+  margin: 8px 10px 4px;
+  background: #0d0f14;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  flex-shrink: 0;
+  transition: border-color 0.15s ease;
+}
+
+.execution-monitor-box:hover {
+  border-color: var(--border-strong);
+}
+
+.monitor-summary-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  user-select: none;
+  font-size: 11px;
+}
+
+.monitor-meta-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.status-indicator-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #64748b;
+  flex-shrink: 0;
+}
+
+.status-indicator-dot.active {
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.8);
+  animation: pulse-dot 1.5s infinite;
+}
+
+.status-indicator-dot.working {
+  background: #3b82f6;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.8);
+  animation: pulse-dot 1.2s infinite;
+}
+
+.status-indicator-dot.error {
+  background: #ef4444;
+}
+
+.exec-title {
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 130px;
+}
+
+.exec-subbadge {
+  font-size: 9.5px;
+  color: var(--muted);
+  background: var(--surface-alt);
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.monitor-meta-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.exec-timer {
+  font-family: monospace;
+  font-size: 10px;
+  color: var(--ink-secondary);
+}
+
+.exec-credits {
+  font-size: 10px;
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.btn-icon-tiny {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.monitor-details-panel {
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  background: #090b0e;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.monitor-telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.telemetry-cell {
+  background: var(--surface-alt);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-sm);
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+}
+
+.telemetry-cell .cell-label {
+  font-size: 8.5px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.telemetry-cell .cell-val {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.monitor-terminal-logs {
+  background: #050608;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  max-height: 90px;
+  overflow-y: auto;
+  font-family: "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: 9.5px;
+  line-height: 1.4;
+  color: #cbd5e1;
+}
+
+.terminal-log-line {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.terminal-log-line.error {
+  color: #f87171;
+}
+
+.terminal-log-line.success {
+  color: #34d399;
+}
+
+.terminal-log-line.highlight {
+  color: #60a5fa;
+}
+
+.monitor-actions-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.btn-micro-action {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  color: var(--ink-secondary);
+  font-size: 9.5px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.btn-micro-action:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+/* 3. Collapsible Video Monitor Column */
+.monitor-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-icon-toggle {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.btn-icon-toggle:hover {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--border-strong);
+}
+
+.stage-preview-column.collapsed {
+  width: 44px !important;
+  min-width: 44px !important;
+  max-width: 44px !important;
+  padding: 8px 4px !important;
+  cursor: pointer;
+  align-items: center;
+  transition: width 0.2s ease, max-width 0.2s ease;
+}
+
+.stage-preview-column.collapsed .stage-player-wrap,
+.stage-preview-column.collapsed .monitor-label,
+.stage-preview-column.collapsed .monitor-badge {
+  display: none !important;
+}
+
+.stage-preview-column.collapsed .monitor-header {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.stage-preview-column.collapsed .btn-icon-toggle svg {
+  transform: rotate(180deg);
+}
+
+/* 4. Collapsible Topic & Brand Card */
+.brief-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: 4px 0 8px;
+  user-select: none;
+}
+
+.brief-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brief-badge {
+  font-size: 9px;
+  font-weight: 700;
+  background: rgba(99, 102, 241, 0.15);
+  color: #818cf8;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+}
+
+.brief-summary-text {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-secondary);
+}
+
+.btn-brief-toggle {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  transition: transform 0.15s ease;
+}
+
+.topic-brief-card.collapsed .brief-collapsible-content {
+  display: none !important;
+}
+
+.topic-brief-card.collapsed .btn-brief-toggle {
+  transform: rotate(-90deg);
+}
+
+/* 5. Enhanced Scene Cards with Actions */
+.scene-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.scene-block-num {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.scene-block-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.scene-block:hover .scene-block-actions,
+.scene-block.active .scene-block-actions {
+  display: flex;
+}
+
+.btn-scene-action {
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  color: var(--muted);
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.btn-scene-action:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--ink);
+}
+
+.btn-scene-action.btn-del:hover {
+  background: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+

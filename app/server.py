@@ -858,6 +858,13 @@ install_recording_exports(app, DATA, get_job, PORT)
 app.mount('/static',StaticFiles(directory=ROOT/'web'),name='static')
 app.mount('/web',StaticFiles(directory=ROOT/'web'),name='web')
 
+@app.get('/favicon.ico', include_in_schema=False)
+def get_favicon():
+    fav = ROOT / 'web' / 'favicon.ico'
+    if fav.is_file():
+        return FileResponse(fav, media_type='image/x-icon')
+    return Response(status_code=204)
+
 from .editor import install as install_editor
 import sys
 install_editor(app, sys.modules[__name__])

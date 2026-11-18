@@ -41,66 +41,83 @@
       <a href="/dashboard" class="nav-item active" aria-current="page">Dashboard Pro</a>
     </nav>
 
-    <!-- Header Right: Aspect Ratio, Language, Gemini Status, Settings -->
+    <!-- Header Right: Grouped Controls & Compact Account Menu -->
     <div class="header-right">
-      <!-- Aspect Ratio Switcher -->
-      <div class="segmented-control" role="group" aria-label="Video Aspect Ratio">
-        <button type="button" class="aspect-pill active" data-aspect="9:16" title="9:16 Vertical Reel (1080x1920)">9:16 Reel</button>
-        <button type="button" class="aspect-pill" data-aspect="16:9" title="16:9 Landscape (1920x1080)">16:9 Landscape</button>
-        <button type="button" class="aspect-pill" data-aspect="1:1" title="1:1 Square (1080x1080)">1:1 Square</button>
+      <!-- Group 1: Format Controls (Aspect Ratio & Target Duration) -->
+      <div class="header-control-group" title="Video Output Dimensions & Duration">
+        <div class="segmented-control" role="group" aria-label="Video Aspect Ratio">
+          <button type="button" class="aspect-pill active" data-aspect="9:16" title="9:16 Vertical Reel (1080x1920)">9:16</button>
+          <button type="button" class="aspect-pill" data-aspect="16:9" title="16:9 Landscape (1920x1080)">16:9</button>
+          <button type="button" class="aspect-pill" data-aspect="1:1" title="1:1 Square (1080x1080)">1:1</button>
+        </div>
+
+        <div class="segmented-control duration-control-group" role="group" aria-label="Target Video Duration" id="duration-control-group">
+          <button type="button" class="duration-pill active" data-duration="30s" title="30 Seconds (~60-70 words)">30s</button>
+          <button type="button" class="duration-pill" data-duration="1m" title="1 Minute (~120-140 words)">1m</button>
+          <button type="button" class="duration-pill" data-duration="2m" title="2 Minutes (~240-280 words)">2m</button>
+          <button type="button" class="duration-pill" data-duration="4m" title="4 Minutes (~480-560 words)">4m</button>
+          <button type="button" class="duration-pill" data-duration="6m" title="6 Minutes (~720-840 words)">6m</button>
+          <button type="button" class="duration-pill" data-duration="8m" title="8 Minutes (~960-1,120 words)">8m</button>
+          <button type="button" class="duration-pill" data-duration="10m" title="10 Minutes (~1,200-1,400 words)">10m</button>
+        </div>
       </div>
 
-      <!-- Language Selector -->
-      <div class="segmented-control" role="group" aria-label="Script & Voiceover Language">
-        <button type="button" class="lang-pill active" data-lang="en" title="English Voiceover & Headlines">English</button>
-        <button type="button" class="lang-pill" data-lang="hi" title="हिन्दी (Hindi) Voiceover & Headlines">हिन्दी</button>
-        <button type="button" class="lang-pill" data-lang="en_hi" title="Bilingual English + Hindi">EN + HI</button>
-      </div>
+      <!-- Group 2: Language & Voice Narration -->
+      <div class="header-control-group" title="Voiceover Language & Speaker">
+        <div class="segmented-control" role="group" aria-label="Script & Voiceover Language">
+          <button type="button" class="lang-pill active" data-lang="en" title="English Voiceover & Headlines">EN</button>
+          <button type="button" class="lang-pill" data-lang="hi" title="हिन्दी (Hindi) Voiceover & Headlines">HI</button>
+          <button type="button" class="lang-pill" data-lang="en_hi" title="Bilingual English + Hindi">Dual</button>
+        </div>
 
-      <!-- Target Duration Switcher (Phase 2) -->
-      <div class="segmented-control" role="group" aria-label="Target Video Duration" id="duration-control-group">
-        <button type="button" class="duration-pill active" data-duration="30s" title="30 Seconds (~60-70 words)">30s</button>
-        <button type="button" class="duration-pill" data-duration="1m" title="1 Minute (~120-140 words)">1m</button>
-        <button type="button" class="duration-pill" data-duration="2m" title="2 Minutes (~240-280 words)">2m</button>
-        <button type="button" class="duration-pill" data-duration="4m" title="4 Minutes (~480-560 words)">4m</button>
-        <button type="button" class="duration-pill" data-duration="6m" title="6 Minutes (~720-840 words)">6m</button>
-        <button type="button" class="duration-pill" data-duration="8m" title="8 Minutes (~960-1,120 words)">8m</button>
-        <button type="button" class="duration-pill" data-duration="10m" title="10 Minutes (~1,200-1,400 words)">10m</button>
-      </div>
-
-      <!-- Natural Kokoro Voice Selector (Phase 4) -->
-      <div class="segmented-control" role="group" aria-label="Narration Voice" id="voice-control-group">
-        <button type="button" class="voice-pill active" data-voice="hm_omega" title="Omega (Male — Indian Hindi/English)">🎙️ Omega (M)</button>
-        <button type="button" class="voice-pill" data-voice="hf_beta" title="Beta (Female — Indian Hindi/English)">🎙️ Beta (F)</button>
-        <button type="button" class="voice-preview-btn" id="btn-preview-voice" title="Listen to Voice Audition Sample" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:6px;cursor:pointer;padding:4px 8px;color:#e4e4e7;font-size:12px;font-weight:600;">▶ Audition</button>
-      </div>
-
-      <!-- Signed-in user email badge -->
-      <span class="user-email-badge" id="user-email-display" style="display:none;"></span>
-
-      <!-- User Credit Balance Badge -->
-      <div class="credits-badge" id="credits-badge" title="Available Generation Credits">
-        🪙 <span id="user-credits-val">100</span> credits
+        <div class="segmented-control voice-control-group" role="group" aria-label="Narration Voice" id="voice-control-group">
+          <button type="button" class="voice-pill active" data-voice="hm_omega" title="Omega (Male — Indian Hindi/English)">Omega</button>
+          <button type="button" class="voice-pill" data-voice="hf_beta" title="Beta (Female — Indian Hindi/English)">Beta</button>
+          <button type="button" class="voice-preview-btn" id="btn-preview-voice" title="Listen to Voice Audition Sample">▶</button>
+        </div>
       </div>
 
       <!-- Live Gemini AI Connection Badge -->
       <div class="gemini-status-badge" id="ai-status-badge" title="AI Engine Status">
         <span class="status-dot connected" id="ai-status-dot"></span>
-        <span id="ai-status-text">Google Gemini Ready</span>
+        <span id="ai-status-text">Gemini Ready</span>
       </div>
 
-      <!-- Settings Icon Link (Hidden in hosted mode) -->
-      <a class="btn-icon-settings" id="btn-configure-key" href="/?workspace=1&settings=1" target="_blank" title="Settings & API Keys">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-        </svg>
-      </a>
-
-      <!-- Sign Out Button -->
-      <button type="button" class="btn-signout" id="btn-signout" title="Sign Out of Session" style="display:none;">
-        Sign Out
-      </button>
+      <!-- Compact Account Dropdown Menu (No horizontal overflow!) -->
+      <div class="account-menu-container" id="account-menu-container">
+        <button type="button" class="btn-account-menu" id="btn-account-toggle" title="User Account & Credits">
+          <span class="avatar-circle" id="user-avatar-circle">Dev</span>
+          <span class="account-credits-pill">🪙 <span id="user-credits-val">100</span></span>
+          <span class="menu-chevron">▾</span>
+        </button>
+        <div class="account-dropdown-menu" id="account-dropdown-menu" style="display:none;">
+          <div class="account-menu-header">
+            <span class="user-email-badge" id="user-email-display" style="display:block;">reachtoayush25@gmail.com</span>
+            <span class="user-tier-tag">Developer / Owner</span>
+          </div>
+          <div class="account-menu-divider"></div>
+          <div class="account-menu-item credits-item" id="credits-badge" title="Available Generation Credits">
+            <span>Balance:</span>
+            <strong>🪙 <span id="user-credits-menu-val">100</span> credits</strong>
+          </div>
+          <div class="account-menu-divider"></div>
+          <a class="account-menu-link" id="btn-configure-key" href="/?workspace=1&settings=1" target="_blank" title="Settings & API Keys">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            <span>Settings & Keys</span>
+          </a>
+          <button type="button" class="account-menu-link btn-signout-action" id="btn-signout" title="Sign Out of Session">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            <span>Sign Out</span>
+          </button>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -150,6 +167,49 @@
           <button type="button" class="btn-quick-pill" id="quick-pill-pacing" title="Match reference cuts & pacing">
             ⏱️ Match Pacing
           </button>
+        </div>
+
+        <!-- Consolidated AI Execution Monitor -->
+        <div class="execution-monitor-box" id="execution-monitor-box">
+          <div class="monitor-summary-bar" id="execution-monitor-toggle">
+            <div class="monitor-meta-left">
+              <span class="status-indicator-dot idle" id="exec-status-dot"></span>
+              <span class="exec-title" id="exec-stage-title">Execution Monitor: Idle</span>
+              <span class="exec-subbadge" id="exec-model-badge">gemini-2.5-flash</span>
+            </div>
+            <div class="monitor-meta-right">
+              <span class="exec-timer" id="exec-duration-timer">0.0s</span>
+              <span class="exec-credits" id="exec-credits-tag">🪙 0</span>
+              <button type="button" class="btn-icon-tiny" id="btn-toggle-exec-details" title="Toggle Execution Details">▾</button>
+            </div>
+          </div>
+          <div class="monitor-details-panel" id="execution-monitor-details" style="display:none;">
+            <div class="monitor-telemetry-grid">
+              <div class="telemetry-cell">
+                <span class="cell-label">Agent</span>
+                <span class="cell-val" id="exec-agent-name">AI Director</span>
+              </div>
+              <div class="telemetry-cell">
+                <span class="cell-label">Stage</span>
+                <span class="cell-val" id="exec-stage-name">Idle</span>
+              </div>
+              <div class="telemetry-cell">
+                <span class="cell-label">Model</span>
+                <span class="cell-val" id="exec-model-name">gemini-2.5-flash</span>
+              </div>
+              <div class="telemetry-cell">
+                <span class="cell-label">Tokens</span>
+                <span class="cell-val" id="exec-tokens-count">—</span>
+              </div>
+            </div>
+            <div class="monitor-terminal-logs" id="exec-terminal-logs">
+              <div class="terminal-log-line text-muted">[System ready. Awaiting reference video or command.]</div>
+            </div>
+            <div class="monitor-actions-row">
+              <button type="button" class="btn-micro-action" id="btn-clear-exec-logs">Clear Logs</button>
+              <button type="button" class="btn-micro-action" id="btn-retry-exec-action" style="display:none;">🔄 Retry</button>
+            </div>
+          </div>
         </div>
 
         <!-- Chat Conversation Messages History -->
@@ -288,9 +348,16 @@
         <!-- 30% LEFT: Video Player Monitor -->
         <div class="stage-preview-column" id="stage-preview-column">
           <div class="monitor-header">
-            <span class="monitor-label" id="monitor-video-label">📹 Active Video</span>
-            <span class="monitor-badge" id="monitor-badge-status">30 FPS</span>
-            <span class="monitor-badge" id="monitor-badge-time" style="display:none;background:#10b981;color:#fff;">⏱️ 0s</span>
+            <div class="monitor-header-left">
+              <span class="monitor-label" id="monitor-video-label">📹 Active Video</span>
+              <span class="monitor-badge" id="monitor-badge-status">30 FPS</span>
+              <span class="monitor-badge" id="monitor-badge-time" style="display:none;background:#10b981;color:#fff;">⏱️ 0s</span>
+            </div>
+            <button type="button" class="btn-icon-toggle" id="btn-toggle-monitor" title="Toggle Video Monitor View">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 18 9 12 15 6"/>
+              </svg>
+            </button>
           </div>
           <div class="stage-player-wrap aspect-9-16" id="stage-viewport-container">
             <!-- Video Element (Autoscaled with Aspect Ratio & Max Constraints) -->
@@ -357,20 +424,29 @@
           <div class="blueprint-deck-overlay" id="stage-blueprint-view" style="display:none;">
             <!-- Dedicated Creative Topic & Brief Input Bar (Docked neatly inside Blueprint) -->
             <div class="topic-brief-card" id="topic-brief-card">
-              <div class="brief-row">
-                <div class="brief-col-topic">
-                  <label for="topic-brief-input" class="brief-label">🎯 What should your rebuilt video be about?</label>
-                  <input type="text" id="topic-brief-input" class="brief-input" placeholder="e.g. Symptoms & Prevention of Malaria in an energetic, clinical explainer style...">
+              <div class="brief-card-header" id="topic-brief-header">
+                <div class="brief-header-title">
+                  <span class="brief-badge">PROJECT SETUP</span>
+                  <span class="brief-summary-text" id="topic-brief-summary">🎯 Creative Topic & Brand Settings</span>
                 </div>
-                <div class="brief-col-brand">
-                  <label for="brand-name-input" class="brief-label">🏷️ Brand / Product Name</label>
-                  <input type="text" id="brand-name-input" class="brief-input" placeholder="e.g. HealthPulse">
-                </div>
-                <div class="brief-col-action">
-                  <span class="credit-estimate-pill" id="credit-estimate-blueprint" title="Estimated credits for script generation">⚡ Est: <span id="estimate-credits-val">10</span> credits</span>
-                  <button type="button" class="btn-generate-plan-direct" id="btn-generate-plan-direct">
-                    📝 Generate Script & Plan
-                  </button>
+                <button type="button" class="btn-brief-toggle" id="topic-brief-toggle" title="Collapse / Expand Project Setup">▾</button>
+              </div>
+              <div class="brief-collapsible-content" id="topic-brief-body">
+                <div class="brief-row">
+                  <div class="brief-col-topic">
+                    <label for="topic-brief-input" class="brief-label">🎯 What should your rebuilt video be about?</label>
+                    <input type="text" id="topic-brief-input" class="brief-input" placeholder="e.g. Symptoms & Prevention of Malaria in an energetic, clinical explainer style...">
+                  </div>
+                  <div class="brief-col-brand">
+                    <label for="brand-name-input" class="brief-label">🏷️ Brand / Product Name</label>
+                    <input type="text" id="brand-name-input" class="brief-input" placeholder="e.g. HealthPulse">
+                  </div>
+                  <div class="brief-col-action">
+                    <span class="credit-estimate-pill" id="credit-estimate-blueprint" title="Estimated credits for script generation">⚡ Est: <span id="estimate-credits-val">10</span> credits</span>
+                    <button type="button" class="btn-generate-plan-direct" id="btn-generate-plan-direct">
+                      📝 Generate Script & Plan
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -520,9 +596,19 @@
               <label class="field-label" for="scene-template-select">Scene Template</label>
               <select id="scene-template-select" class="form-select">
                 <option value="kinetic_text">⚡ Kinetic Typography (Hero / Punchy Hook)</option>
+                <option value="character_story">👤 Character Story (Illustrated Dialogue)</option>
+                <option value="finance_breakdown">💰 Finance & Metric Breakdown (Cards & Deltas)</option>
+                <option value="timeline_gap">⏳ Timeline & Milestone Gap (Timeline Tracker)</option>
+                <option value="money_flow">💸 Money Flow & Transfer (Wallet / P2P Motion)</option>
                 <option value="dashboard_3d_float">🌟 Dashboard 3D Float (Product Screenshot)</option>
                 <option value="interactive_cursor_click">🖱️ Cursor Click & Ripple (Interactive Demo)</option>
                 <option value="fact_card">📊 Fact Card (Key Metric / Proof Point)</option>
+                <option value="stat_counter">🔢 Stat Counter (Animated Rolling Number)</option>
+                <option value="comparison_split">⚖️ Comparison Split (Before vs After)</option>
+                <option value="bullet_list">📋 Bullet List (Sequential Feature Takeaways)</option>
+                <option value="quote">💬 Testimonial / Quote (Verified Endorsement)</option>
+                <option value="full_bleed_image">🖼️ Full-Bleed Media (Visual Immersion)</option>
+                <option value="cta_card">🎯 Call-to-Action End Card (Conversion Finish)</option>
                 <option value="title_card">🏷️ Title Card (Section Divider)</option>
                 <option value="lower_third">💬 Lower Third (Subtitle & Callout)</option>
                 <option value="transparent_callout">✨ Transparent Callout (Alpha Overlay)</option>
@@ -594,6 +680,54 @@
               <select id="scene-asset-select" class="form-select">
                 <option value="">(None - Generative Motion Graphics)</option>
               </select>
+            </div>
+
+            <div class="form-row-2col">
+              <div class="form-field">
+                <label class="field-label" for="scene-camera-select">Camera Motion</label>
+                <select id="scene-camera-select" class="form-select">
+                  <option value="none">Fixed Steady</option>
+                  <option value="slow_push_in" selected>Slow Push-In</option>
+                  <option value="gentle_drift">Gentle Drift</option>
+                  <option value="pan_right">Pan Right</option>
+                  <option value="pan_left">Pan Left</option>
+                  <option value="shake_impact">Shake / Impact</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label class="field-label" for="scene-art-direction-select">Art Direction</label>
+                <select id="scene-art-direction-select" class="form-select">
+                  <option value="cinematic_clean" selected>Cinematic Clean</option>
+                  <option value="minimal_vector">Minimal Vector</option>
+                  <option value="bold_fintech">Bold Fintech</option>
+                  <option value="warm_editorial">Warm Editorial</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row-2col">
+              <div class="form-field">
+                <label class="field-label" for="scene-character-pose-select">Character Pose</label>
+                <select id="scene-character-pose-select" class="form-select">
+                  <option value="none" selected>(None)</option>
+                  <option value="explaining">Explaining</option>
+                  <option value="celebrating">Celebrating</option>
+                  <option value="confused">Confused / Problem</option>
+                  <option value="pointing">Pointing</option>
+                  <option value="serious">Serious</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label class="field-label" for="scene-prop-select">Scene Prop</label>
+                <select id="scene-prop-select" class="form-select">
+                  <option value="none" selected>(None)</option>
+                  <option value="coin_stack">Coin Stack</option>
+                  <option value="graph_arrow">Graph Arrow</option>
+                  <option value="phone_mockup">Phone Mockup</option>
+                  <option value="warning_triangle">Warning Triangle</option>
+                  <option value="credit_card">Credit Card</option>
+                </select>
+              </div>
             </div>
           </div>
         </details>
