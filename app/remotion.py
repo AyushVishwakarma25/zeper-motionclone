@@ -280,14 +280,17 @@ def render(folder, plan, brief, cancel=None, progress=None, *, preview=False, fo
         started = time.monotonic()
         stopping = None
         timed_out = False
+        last_logged_val = None
+        last_heartbeat = started
         try:
             while proc.poll() is None:
-                if cancel.is_set() or time.monotonic() - started > 900:
+                now = time.monotonic()
+                if cancel.is_set() or now - started > 900:
                     if stopping is None:
                         timed_out = not cancel.is_set()
                         signal.touch()
-                        stopping = time.monotonic()
-                    if time.monotonic() - stopping > 20:
+                        stopping = now
+                    if now - stopping > 20:
                         proc.terminate()
                         proc.wait(timeout=10)
                         break
@@ -296,17 +299,31 @@ def render(folder, plan, brief, cancel=None, progress=None, *, preview=False, fo
                     try:
                         value = json.loads(line)['progress']
                         progress(label, round((48 if preview else 78) + value * (.16 if preview else .18)))
+                        last_logged_val = value
                         break
                     except (ValueError, KeyError, TypeError):
                         pass
+
+                if now - last_heartbeat > 20:
+                    last_heartbeat = now
+                    logger.info(
+                        f"Remotion render in progress for {folder.name}: {now - started:.1f}s elapsed, "
+                        f"progress={last_logged_val}%"
+                    )
+
                 time.sleep(.3)
             elapsed = time.monotonic() - started
             if cancel.is_set():
                 logger.warning(f"Remotion render for {folder.name} was cancelled by user after {elapsed:.1f}s")
                 raise Cancelled()
             if timed_out:
-                logger.error(f"Remotion render for {folder.name} timed out after {elapsed:.1f}s")
-                raise TimeoutError('Remotion render timed out.')
+                log_lines = log.read_text(encoding='utf-8', errors='replace').splitlines()
+                tail = "\n".join(log_lines[-50:])
+                logger.error(
+                    f"Remotion render for {folder.name} timed out after {elapsed:.1f}s.\n"
+                    f"Log tail ({log.name}):\n{tail}"
+                )
+                raise TimeoutError(f'Remotion render timed out after {elapsed:.1f}s. Tail:\n{tail}')
             if proc.returncode:
                 log_lines = log.read_text(encoding='utf-8', errors='replace').splitlines()
                 tail = "\n".join(log_lines[-25:])

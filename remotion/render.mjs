@@ -7,7 +7,8 @@ import {fileURLToPath} from 'node:url';
 import os from 'node:os';
 
 const cpuCount = os.cpus()?.length || 2;
-const defaultConcurrency = Math.min(4, Math.max(1, Math.floor(cpuCount / 2) || 1));
+// In headless containers (Cloud Run 2 vCPU), concurrency 1 prevents CPU starvation and browser context deadlocks
+const defaultConcurrency = Math.min(2, Math.max(1, Math.floor(cpuCount / 2) || 1));
 const concurrency = parseInt(process.env.REMOTION_CONCURRENCY || '', 10) || defaultConcurrency;
 const root = path.dirname(fileURLToPath(import.meta.url));
 const projectFile = path.resolve(process.argv[2] || path.join(root,'public/project.json'));
@@ -68,22 +69,74 @@ function syncDir(src, dst) {
 }
 syncDir(publicDir, staticDir);
 
-const browsers = [
-  process.env.REMOTION_BROWSER,
-  '/usr/bin/chromium',
-  '/usr/bin/chromium-browser',
-  '/usr/bin/google-chrome',
-  'C:/Program Files/Google/Chrome/Application/chrome.exe',
-  'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
-];
-const browserExecutable = browsers.find(p => p && fs.existsSync(p));
+const chromiumOptions = {
+  gl: 'swangle', // ANGLE SwiftShader software rendering: essential for headless containers / Cloud Run
+  disableWebSecurity: true,
+  ignoreCertificateErrors: true,
+  enableMultiProcessOnLinux: true,
+};
+
+// Locate Remotion's dedicated chrome-headless-shell binary
+function findHeadlessShell(dir) {
+  if (!fs.existsSync(dir)) return null;
+  for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      const found = findHeadlessShell(full);
+      if (found) return found;
+    } else if (entry.name.startsWith('chrome-headless-shell') && !entry.name.endsWith('.zip')) {
+      return full;
+    }
+  }
+  return null;
+}
+
+const managedShell = findHeadlessShell(path.join(root, 'node_modules/.remotion')) ||
+                     findHeadlessShell(path.join(process.cwd(), 'node_modules/.remotion')) ||
+                     findHeadlessShell(path.join(os.homedir(), '.remotion'));
+
+let browserExecutable = undefined;
+let chromeMode = 'headless-shell';
+
+if (managedShell) {
+  browserExecutable = managedShell;
+  chromeMode = 'headless-shell';
+} else if (process.env.REMOTION_BROWSER && fs.existsSync(process.env.REMOTION_BROWSER)) {
+  browserExecutable = process.env.REMOTION_BROWSER;
+  chromeMode = browserExecutable.includes('headless-shell') ? 'headless-shell' : 'chrome-for-testing';
+} else {
+  const fallbacks = [
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/google-chrome',
+    'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
+  ];
+  browserExecutable = fallbacks.find(p => p && fs.existsSync(p));
+  chromeMode = 'chrome-for-testing';
+}
+
+const onBrowserLog = (log) => {
+  if (log.text.includes('favicon.ico')) return;
+  console.log(`[Browser ${log.type}] ${log.text}`);
+};
+
+console.log(`[Remotion] Browser executable: ${browserExecutable || 'auto'} (mode: ${chromeMode})`);
+console.log(`[Remotion] Selecting composition '${targetCompId}'...`);
+
 const composition = await selectComposition({
   serveUrl: bundleDir,
   id: targetCompId,
   inputProps: project,
   browserExecutable,
-  chromeMode: 'chrome-for-testing'
+  chromiumOptions,
+  chromeMode,
+  timeoutInMilliseconds: 120000,
+  onBrowserLog
 });
+
+console.log(`[Remotion] Composition selected: ${composition.id} (${composition.width}x${composition.height}, ${composition.durationInFrames} frames @ ${composition.fps}fps)`);
+
 const {cancelSignal,cancel} = makeCancelSignal();
 const cancelFile = process.env.FRAMEFORGE_CANCEL_FILE;
 const timer = cancelFile ? setInterval(() => {if(fs.existsSync(cancelFile)) cancel();},200) : null;
@@ -92,6 +145,7 @@ fs.mkdirSync(path.dirname(destination),{recursive:true});
 try {
   if (still) {
     const frameToRender = Math.min(composition.durationInFrames - 1, Math.round(composition.durationInFrames * 0.4));
+    console.log(`[Remotion] Rendering still frame ${frameToRender}...`);
     await renderStill({
       serveUrl: bundleDir,
       composition,
@@ -99,12 +153,16 @@ try {
       output: destination,
       frame: frameToRender,
       browserExecutable,
-      chromeMode: 'chrome-for-testing',
+      chromiumOptions,
+      chromeMode,
+      timeoutInMilliseconds: 120000,
+      onBrowserLog,
       cancelSignal,
       imageFormat: 'png'
     });
     process.stdout.write(JSON.stringify({progress: 100}) + '\n');
   } else if (isProres) {
+    console.log(`[Remotion] Rendering ProRes video (concurrency=${concurrency})...`);
     // Transparent ProRes 4444 video export with real alpha channel (from RANGY.AI starter kit)
     await renderMedia({
       serveUrl: bundleDir,
@@ -117,13 +175,17 @@ try {
       imageFormat: 'png',
       concurrency: concurrency,
       browserExecutable,
-      chromeMode: 'chrome-for-testing',
+      chromiumOptions,
+      chromeMode,
+      timeoutInMilliseconds: 120000,
+      onBrowserLog,
       cancelSignal,
       muted: project.muted === true,
       scale: preview ? 0.5 : 1,
       onProgress: ({progress}) => process.stdout.write(JSON.stringify({progress: Math.round(progress * 100)}) + '\n')
     });
   } else {
+    console.log(`[Remotion] Rendering H.264 video (concurrency=${concurrency})...`);
     // High quality H.264 MP4 export
     await renderMedia({
       serveUrl: bundleDir,
@@ -134,13 +196,17 @@ try {
       crf: preview ? 24 : 18,
       concurrency: concurrency,
       browserExecutable,
-      chromeMode: 'chrome-for-testing',
+      chromiumOptions,
+      chromeMode,
+      timeoutInMilliseconds: 120000,
+      onBrowserLog,
       cancelSignal,
       muted: project.muted === true,
       scale: preview ? 0.5 : 1,
       onProgress: ({progress}) => process.stdout.write(JSON.stringify({progress: Math.round(progress * 100)}) + '\n')
     });
   }
+  console.log(`[Remotion] Render complete -> ${destination}`);
 } finally {
   if (timer) clearInterval(timer);
 }
