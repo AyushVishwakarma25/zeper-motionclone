@@ -46,7 +46,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Install HyperFrames Node dependencies
 COPY hyperframes/package*.json ./hyperframes/
-RUN npm ci --prefix hyperframes --no-fund --no-audit
+RUN npm ci --prefix hyperframes --no-fund --no-audit --ignore-scripts
 
 # Install Remotion Node dependencies
 COPY remotion/package*.json ./remotion/
