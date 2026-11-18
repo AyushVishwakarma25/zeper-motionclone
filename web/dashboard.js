@@ -103,7 +103,7 @@
         console.warn('Firebase token refresh error:', e);
       }
     }
-    return localStorage.getItem('firebase_id_token') || sessionStorage.getItem('firebase_id_token') || '';
+    return localStorage.getItem('firebase_id_token') || sessionStorage.getItem('firebase_id_token') || localStorage.getItem('motionclone_token') || '';
   }
 
   async function callApi(path, options = {}) {
@@ -246,7 +246,7 @@
 
     try {
       const me = await callApi('/api/me');
-      if (me && me.hosted) {
+      if (me && (me.email || me.hosted)) {
         const userBadge = $('user-email-display');
         if (userBadge && me.email) {
           userBadge.textContent = me.email;
@@ -256,17 +256,23 @@
         if (signoutBtn) {
           signoutBtn.style.display = 'inline-flex';
           signoutBtn.onclick = async () => {
+            try {
+              await fetch('/api/auth/logout', { method: 'POST' });
+            } catch {}
             if (window.firebase && firebase.auth) {
               await firebase.auth().signOut().catch(() => {});
             }
             localStorage.removeItem('firebase_id_token');
             sessionStorage.removeItem('firebase_id_token');
+            localStorage.removeItem('motionclone_token');
+            document.cookie = 'motionclone_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
             window.location.href = '/login';
           };
         }
-        // Hide "Configure Gemini Key" button in hosted mode
-        const keyBtn = $('btn-configure-key');
-        if (keyBtn) keyBtn.style.display = 'none';
+        if (me.hosted) {
+          const keyBtn = $('btn-configure-key');
+          if (keyBtn) keyBtn.style.display = 'none';
+        }
       } else {
         const userBadge = $('user-email-display');
         if (userBadge) userBadge.style.display = 'none';

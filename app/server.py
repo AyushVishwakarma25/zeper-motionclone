@@ -19,11 +19,12 @@ if __package__ is None or __package__ == "":
         sys.path.insert(0, str(root))
     __package__ = "app"
 
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from .auth import HostedAuthMiddleware, is_hosted, get_current_user
+from . import users
 from .security import (
     MAX_UPLOAD_MB,
     MAX_UPLOAD_BYTES,
@@ -193,8 +194,9 @@ async def local_boundary(request: Request, call_next):
     if not HOSTED and host_name not in allowed_hostnames and host != 'testserver':
         return JSONResponse({'detail': 'Local access only.'}, status_code=403)
     if request.method not in ('GET', 'HEAD', 'OPTIONS'):
+        is_public_auth = request.url.path.startswith('/api/auth/')
         req_token = request.headers.get('x-frameforge-token')
-        if not HOSTED and req_token != TOKEN:
+        if not HOSTED and not is_public_auth and req_token != TOKEN:
             return JSONResponse({'detail': 'Refresh this page to reconnect.'}, status_code=403)
         origin = request.headers.get('origin')
         if not HOSTED and origin:
@@ -299,6 +301,148 @@ def account_state():
     except ValueError as exc:raise HTTPException(503,str(exc)) from None
 
 
+@app.post('/api/auth/login')
+async def api_auth_login(request: Request, response: Response):
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload.")
+    email = (data.get('email') or '').strip().lower()
+    password = data.get('password') or ''
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password are required.")
+
+    result = users.authenticate_user(email, password)
+    if not result:
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+
+    response.set_cookie(
+        key='motionclone_session',
+        value=result['token'],
+        max_age=7 * 86400,
+        httponly=True,
+        samesite='lax',
+        secure=HOSTED
+    )
+    return {
+        'ok': True,
+        'token': result['token'],
+        'user': result['user'],
+        'hosted': HOSTED
+    }
+
+
+@app.post('/api/auth/signup')
+async def api_auth_signup(request: Request, response: Response):
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload.")
+    email = (data.get('email') or '').strip().lower()
+    password = data.get('password') or ''
+    name = (data.get('name') or '').strip()
+
+    try:
+        result = users.create_user(email, password, name=name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    response.set_cookie(
+        key='motionclone_session',
+        value=result['token'],
+        max_age=7 * 86400,
+        httponly=True,
+        samesite='lax',
+        secure=HOSTED
+    )
+    return {
+        'ok': True,
+        'token': result['token'],
+        'user': result['user'],
+        'hosted': HOSTED
+    }
+
+
+@app.post('/api/auth/forgot-password')
+async def api_auth_forgot_password(request: Request):
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload.")
+    email = (data.get('email') or '').strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required.")
+
+    try:
+        res = users.request_password_reset(email)
+        return res
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.post('/api/auth/reset-password')
+async def api_auth_reset_password(request: Request, response: Response):
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload.")
+    email = (data.get('email') or '').strip().lower()
+    reset_code = (data.get('reset_code') or '').strip()
+    new_password = data.get('new_password') or ''
+
+    try:
+        result = users.reset_password(email, reset_code, new_password)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    response.set_cookie(
+        key='motionclone_session',
+        value=result['token'],
+        max_age=7 * 86400,
+        httponly=True,
+        samesite='lax',
+        secure=HOSTED
+    )
+    return result
+
+
+@app.post('/api/auth/google')
+async def api_auth_google(request: Request, response: Response):
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload.")
+    credential = (data.get('credential') or '').strip()
+    if not credential:
+        raise HTTPException(status_code=400, detail="Google credential token is required.")
+
+    try:
+        result = users.verify_google_credential(credential)
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail=f"Google authentication failed: {exc}")
+
+    response.set_cookie(
+        key='motionclone_session',
+        value=result['token'],
+        max_age=7 * 86400,
+        httponly=True,
+        samesite='lax',
+        secure=HOSTED
+    )
+    return {
+        'ok': True,
+        'token': result['token'],
+        'user': result['user'],
+        'hosted': HOSTED
+    }
+
+
+@app.post('/api/auth/logout')
+def api_auth_logout(response: Response):
+    response.delete_cookie('motionclone_session')
+    return {'ok': True}
+
+
 @app.get('/api/auth/config')
 def api_auth_config():
     from .auth import FIREBASE_PROJECT_ID
@@ -307,7 +451,8 @@ def api_auth_config():
         'apiKey': os.environ.get('FIREBASE_WEB_API_KEY', os.environ.get('FIREBASE_API_KEY', '')),
         'authDomain': os.environ.get('FIREBASE_AUTH_DOMAIN', f"{FIREBASE_PROJECT_ID}.firebaseapp.com"),
         'projectId': FIREBASE_PROJECT_ID,
-        'appId': os.environ.get('FIREBASE_APP_ID', '')
+        'appId': os.environ.get('FIREBASE_APP_ID', ''),
+        'googleClientId': os.environ.get('GOOGLE_CLIENT_ID', '')
     }
 
 
@@ -318,6 +463,7 @@ async def api_current_user(request: Request):
         'uid': user.get('uid', ''),
         'email': user.get('email', ''),
         'name': user.get('name', ''),
+        'role': user.get('role', 'user'),
         'hosted': HOSTED
     }
 
