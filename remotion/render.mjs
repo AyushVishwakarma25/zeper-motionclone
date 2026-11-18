@@ -22,11 +22,27 @@ if (targetCompId) targetCompId = targetCompId.replace(/_/g, '-');
 const project = JSON.parse(fs.readFileSync(projectFile,'utf8'));
 const publicDir = path.dirname(projectFile);
 const bundleDir = path.join(root,'.bundle');
-const srcFiles = fs.existsSync(path.join(root, 'src'))
-  ? fs.readdirSync(path.join(root, 'src')).map(f => path.join('src', f))
-  : [];
+function getAllFiles(dir, base = '') {
+  let results = [];
+  if (!fs.existsSync(dir)) return results;
+  for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+    const rel = base ? path.join(base, entry.name) : entry.name;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      results.push(...getAllFiles(full, rel));
+    } else {
+      results.push(rel);
+    }
+  }
+  return results;
+}
+
+const srcFiles = getAllFiles(path.join(root, 'src'), 'src');
 const signature = ['package-lock.json', ...srcFiles]
-  .map(f => fs.existsSync(path.join(root,f)) ? fs.readFileSync(path.join(root,f),'utf8') : '').join('\n');
+  .map(f => {
+    const p = path.join(root, f);
+    return (fs.existsSync(p) && fs.statSync(p).isFile()) ? fs.readFileSync(p, 'utf8') : '';
+  }).join('\n');
 const {createHash} = await import('node:crypto');
 const stamp = createHash('sha256').update(signature).digest('hex');
 const stampFile = path.join(bundleDir,'.signature');

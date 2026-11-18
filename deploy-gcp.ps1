@@ -49,6 +49,6 @@ Write-Host "Building container and deploying to Cloud Run..." -ForegroundColor Y
     --min-instances 1 `
     --max-instances 1 `
     --no-cpu-throttling `
-    --set-env-vars "$envVars"
+    --env-vars-file cloudrun-env.yaml
 
 Write-Host "MotionClone successfully deployed to Google Cloud Run!" -ForegroundColor Green

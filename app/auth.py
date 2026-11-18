@@ -25,8 +25,12 @@ def is_hosted() -> bool:
 
 def get_allowed_emails() -> set[str]:
     """Returns set of normalized allowed emails from ALLOWED_EMAILS env var and user store."""
-    raw = os.environ.get('ALLOWED_EMAILS', '')
-    emails = {e.strip().lower() for e in raw.split(',') if e.strip()}
+    raw = os.environ.get('ALLOWED_EMAILS')
+    if raw is not None and not raw.strip():
+        # Explicitly empty string: fail closed, allow nobody
+        return set()
+
+    emails = {e.strip().lower() for e in (raw or '').split(',') if e.strip()}
     # Always allow primary owner email
     emails.add('reachtoayush25@gmail.com')
 
@@ -76,7 +80,13 @@ def verify_token(id_token: str) -> dict[str, Any]:
             email = (native_payload.get('email') or '').strip().lower()
             if is_hosted():
                 allowed = get_allowed_emails()
-                if allowed and email not in allowed:
+                if not allowed:
+                    logger.error("ALLOWED_EMAILS is not configured in hosted mode. Failing closed.")
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Access denied: ALLOWED_EMAILS is not configured (fail-closed)."
+                    )
+                if email not in allowed:
                     logger.warning("User email '%s' is not in ALLOWED_EMAILS", email)
                     raise HTTPException(
                         status_code=403,
@@ -95,7 +105,13 @@ def verify_token(id_token: str) -> dict[str, Any]:
         email = (decoded_token.get('email') or '').strip().lower()
         if is_hosted():
             allowed = get_allowed_emails()
-            if allowed and email not in allowed:
+            if not allowed:
+                logger.error("ALLOWED_EMAILS is not configured in hosted mode. Failing closed.")
+                raise HTTPException(
+                    status_code=403,
+                    detail="Access denied: ALLOWED_EMAILS is not configured (fail-closed)."
+                )
+            if email not in allowed:
                 logger.warning("Firebase user email '%s' is not in ALLOWED_EMAILS", email)
                 raise HTTPException(
                     status_code=403,
@@ -115,7 +131,13 @@ def verify_token(id_token: str) -> dict[str, Any]:
         email = (decoded_google.get('email') or '').strip().lower()
         if is_hosted():
             allowed = get_allowed_emails()
-            if allowed and email not in allowed:
+            if not allowed:
+                logger.error("ALLOWED_EMAILS is not configured in hosted mode. Failing closed.")
+                raise HTTPException(
+                    status_code=403,
+                    detail="Access denied: ALLOWED_EMAILS is not configured (fail-closed)."
+                )
+            if email not in allowed:
                 logger.warning("Google user email '%s' is not in ALLOWED_EMAILS", email)
                 raise HTTPException(
                     status_code=403,

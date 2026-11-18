@@ -145,8 +145,8 @@ export function SceneTransition({
 
   // Camera Motion (continuous subtle scale/pan)
   let cameraTransform = '';
-  const motionMode = (cameraMotion || '').toLowerCase();
-  if (motionMode === 'slow_zoom_in') {
+  const motionMode = (cameraMotion || '').toLowerCase().replace(/[\s-]+/g, '_');
+  if (motionMode === 'slow_zoom_in' || motionMode === 'slow_push_in' || motionMode === 'push_in') {
     const s = interpolate(sceneProgress, [0, 1], [1.0, 1.05]);
     cameraTransform = `scale(${s})`;
   } else if (motionMode === 'slow_zoom_out') {
@@ -158,10 +158,16 @@ export function SceneTransition({
   } else if (motionMode === 'pan_left') {
     const px = interpolate(sceneProgress, [0, 1], [20, -20]);
     cameraTransform = `translateX(${px}px) scale(1.03)`;
-  } else if (motionMode === 'subtle_drift') {
+  } else if (motionMode === 'subtle_drift' || motionMode === 'gentle_drift') {
     const s = interpolate(sceneProgress, [0, 1], [1.0, 1.03]);
     const py = interpolate(sceneProgress, [0, 1], [0, -15]);
     cameraTransform = `scale(${s}) translateY(${py}px)`;
+  } else if (motionMode === 'shake_impact') {
+    // Subtle impact settle on entry (first 10 frames)
+    const shakeProgress = interpolate(frame, [0, 10], [1, 0], {extrapolateRight: 'clamp'});
+    const shakeX = Math.sin(frame * 2.5) * 8 * shakeProgress;
+    const shakeY = Math.cos(frame * 3.0) * 6 * shakeProgress;
+    cameraTransform = `translate(${shakeX}px, ${shakeY}px)`;
   }
 
   // Combine transforms
