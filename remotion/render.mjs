@@ -7,8 +7,8 @@ import {fileURLToPath} from 'node:url';
 import os from 'node:os';
 
 const cpuCount = os.cpus()?.length || 2;
-// In headless containers (Cloud Run 2 vCPU), concurrency 1 prevents CPU starvation and browser context deadlocks
-const defaultConcurrency = Math.min(2, Math.max(1, Math.floor(cpuCount / 2) || 1));
+// In headless containers (Cloud Run 4 vCPU -> 2 workers, 2 vCPU -> 1 worker)
+const defaultConcurrency = Math.min(4, Math.max(1, Math.floor(cpuCount / 2) || 1));
 const concurrency = parseInt(process.env.REMOTION_CONCURRENCY || '', 10) || defaultConcurrency;
 const root = path.dirname(fileURLToPath(import.meta.url));
 const projectFile = path.resolve(process.argv[2] || path.join(root,'public/project.json'));
@@ -207,6 +207,12 @@ try {
     });
   }
   console.log(`[Remotion] Render complete -> ${destination}`);
+} catch (err) {
+  if (err?.name === 'CancelledError' || err?.message?.includes('cancelled') || cancelSignal?.isCanceled) {
+    console.warn('[Remotion] Render cancelled cleanly by signal or watchdog.');
+    process.exit(130);
+  }
+  throw err;
 } finally {
   if (timer) clearInterval(timer);
 }

@@ -282,33 +282,53 @@ def render(folder, plan, brief, cancel=None, progress=None, *, preview=False, fo
         timed_out = False
         last_logged_val = None
         last_heartbeat = started
+        last_progress_advance = started
+        stalled = False
+        exceeded_max = False
         try:
             while proc.poll() is None:
                 now = time.monotonic()
-                if cancel.is_set() or now - started > 900:
-                    if stopping is None:
-                        timed_out = not cancel.is_set()
-                        signal.touch()
-                        stopping = now
-                    if now - stopping > 20:
-                        proc.terminate()
-                        proc.wait(timeout=10)
-                        break
+
+                # Read progress from log file
                 lines = log.read_text(encoding='utf-8', errors='replace').splitlines()
                 for line in reversed(lines[-10:]):
                     try:
                         value = json.loads(line)['progress']
+                        if last_logged_val is None or value > last_logged_val:
+                            last_progress_advance = now
                         progress(label, round((48 if preview else 78) + value * (.16 if preview else .18)))
                         last_logged_val = value
                         break
                     except (ValueError, KeyError, TypeError):
                         pass
 
+                # Stall watchdog and timeout rules:
+                # 1. User/client requested cancellation
+                user_cancelled = cancel.is_set()
+                # 2. Pipeline stalled: no progress advance for 240 seconds (4 minutes)
+                stalled = (now - last_progress_advance > 240.0)
+                # 3. Maximum runtime ceiling: 3600 seconds (matches Cloud Run timeout ceiling)
+                exceeded_max = (now - started > 3600.0)
+
+                if user_cancelled or stalled or exceeded_max:
+                    if stopping is None:
+                        timed_out = not user_cancelled
+                        signal.touch()
+                        stopping = now
+                        if stalled:
+                            logger.warning(f"Remotion render for {folder.name} stalled with no progress advancement for {now - last_progress_advance:.1f}s")
+                        elif exceeded_max:
+                            logger.warning(f"Remotion render for {folder.name} exceeded max 3600s ceiling")
+                    if now - stopping > 20:
+                        proc.terminate()
+                        proc.wait(timeout=10)
+                        break
+
                 if now - last_heartbeat > 20:
                     last_heartbeat = now
                     logger.info(
                         f"Remotion render in progress for {folder.name}: {now - started:.1f}s elapsed, "
-                        f"progress={last_logged_val}%"
+                        f"progress={last_logged_val}%, last_advance={now - last_progress_advance:.1f}s ago"
                     )
 
                 time.sleep(.3)
@@ -319,12 +339,16 @@ def render(folder, plan, brief, cancel=None, progress=None, *, preview=False, fo
             if timed_out:
                 log_lines = log.read_text(encoding='utf-8', errors='replace').splitlines()
                 tail = "\n".join(log_lines[-50:])
+                reason = "stalled (no progress for 240s)" if stalled else "exceeded max duration (3600s)"
                 logger.error(
-                    f"Remotion render for {folder.name} timed out after {elapsed:.1f}s.\n"
+                    f"Remotion render for {folder.name} timed out ({reason}) after {elapsed:.1f}s.\n"
                     f"Log tail ({log.name}):\n{tail}"
                 )
-                raise TimeoutError(f'Remotion render timed out after {elapsed:.1f}s. Tail:\n{tail}')
+                raise TimeoutError(f'Remotion render timed out ({reason}) after {elapsed:.1f}s. Tail:\n{tail}')
             if proc.returncode:
+                if proc.returncode == 130 or cancel.is_set():
+                    logger.warning(f"Remotion render for {folder.name} cancelled cleanly (exit code {proc.returncode})")
+                    raise Cancelled()
                 log_lines = log.read_text(encoding='utf-8', errors='replace').splitlines()
                 tail = "\n".join(log_lines[-25:])
                 logger.error(

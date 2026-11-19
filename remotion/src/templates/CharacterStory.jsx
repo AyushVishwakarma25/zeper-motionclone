@@ -241,9 +241,8 @@ export function CharacterStory({
                   justifyContent: 'center',
                   padding: '24px',
                   borderRadius: '24px',
-                  background: 'rgba(255,255,255,0.03)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  backdropFilter: 'blur(16px)'
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.08)'
                 }}
               >
                 <AnimatedProp

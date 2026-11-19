@@ -26,8 +26,7 @@ export function CashFlowSplit({
     <div style={{
       width: '100%',
       maxWidth: size,
-      background: 'rgba(15, 23, 42, 0.75)',
-      backdropFilter: 'blur(16px)',
+      background: 'rgba(15, 23, 42, 0.94)',
       border: '1px solid rgba(255, 255, 255, 0.12)',
       borderRadius: '16px',
       padding: '24px',
@@ -112,8 +111,7 @@ export function TimelineGap({
     <div style={{
       width: '100%',
       maxWidth: '460px',
-      background: 'rgba(10, 14, 26, 0.85)',
-      backdropFilter: 'blur(16px)',
+      background: 'rgba(10, 14, 26, 0.94)',
       border: '1px solid rgba(255, 255, 255, 0.12)',
       borderRadius: '16px',
       padding: '24px',
@@ -198,8 +196,7 @@ export function AnimatedBarChart({
     <div style={{
       width: '100%',
       maxWidth: size,
-      background: 'rgba(15, 23, 42, 0.8)',
-      backdropFilter: 'blur(16px)',
+      background: 'rgba(15, 23, 42, 0.94)',
       border: '1px solid rgba(255, 255, 255, 0.1)',
       borderRadius: '16px',
       padding: '24px',

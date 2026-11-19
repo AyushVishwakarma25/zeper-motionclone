@@ -64,8 +64,7 @@ export function MotionBackground({theme, accent = '#00f2fe', bg = '#0a0a12'}) {
         width: `${width * 0.75}px`,
         height: `${width * 0.75}px`,
         transform: `translate(-50%, -50%) scale(${pulse})`,
-        background: `radial-gradient(circle, ${accent}20 0%, transparent 70%)`,
-        filter: 'blur(75px)'
+        background: `radial-gradient(circle, ${accent}20 0%, transparent 70%)`
       }} />
 
       {/* Subtle moving grid */}
@@ -199,7 +198,6 @@ export function FactCard({
           transform: `scale(${0.88 + enter * 0.12})`,
           opacity,
           background: theme.palette.cardBg,
-          backdropFilter: 'blur(24px)',
           border: `1.5px solid ${accent}50`,
           borderRadius: `${Math.round(theme.width * 0.03)}px`,
           padding: `${Math.round(theme.safeMargins.top * 0.35)}px ${Math.round(theme.safeMargins.left * 0.6)}px`,
@@ -1081,8 +1079,7 @@ export function SubtitleOverlay({text, accent = '#00f2fe'}) {
       zIndex: 100
     }}>
       <div style={{
-        background: 'rgba(5, 7, 12, 0.82)',
-        backdropFilter: 'blur(10px)',
+        background: 'rgba(5, 7, 12, 0.92)',
         border: '1px solid rgba(255, 255, 255, 0.14)',
         borderRadius: '12px',
         padding: '6px 20px',
@@ -1185,8 +1182,7 @@ export function LowerThird({name = 'Name', role = 'Role', accent = '#00f2fe'}) {
         position: 'absolute',
         bottom: theme.safeMargins.bottom,
         left: theme.safeMargins.left,
-        background: 'rgba(10,12,20,0.85)',
-        backdropFilter: 'blur(16px)',
+        background: 'rgba(10,12,20,0.94)',
         borderLeft: `4px solid ${accent}`,
         padding: '12px 24px',
         borderRadius: '0 12px 12px 0'

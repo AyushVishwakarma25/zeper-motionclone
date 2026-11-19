@@ -149,7 +149,6 @@ export function GlassBarrierProp({size = 220, label = 'CASH TRAPPED', style = {}
             fill="url(#glassGrad)"
             stroke="rgba(255, 255, 255, 0.6)"
             strokeWidth="3"
-            style={{backdropFilter: 'blur(10px)'}}
           />
 
           {/* Diagonal Glass Reflection Highlight */}

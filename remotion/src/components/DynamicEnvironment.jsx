@@ -131,8 +131,7 @@ export function DynamicEnvironment({
             width: '60%',
             height: '60%',
             borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(59, 130, 246, 0.08) 0%, transparent 70%)',
-            filter: 'blur(50px)'
+            background: 'radial-gradient(circle, rgba(59, 130, 246, 0.08) 0%, transparent 70%)'
           }} />
         </AbsoluteFill>
       );
@@ -183,8 +182,7 @@ export function DynamicEnvironment({
             width: `${width * 0.9}px`,
             height: `${width * 0.9}px`,
             transform: 'translate(-50%, -50%)',
-            background: `radial-gradient(circle, ${accent}1c 0%, transparent 65%)`,
-            filter: 'blur(80px)'
+            background: `radial-gradient(circle, ${accent}1c 0%, transparent 65%)`
           }} />
 
           {/* Subtle grid */}
