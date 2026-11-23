@@ -1,0 +1,20 @@
+{
+ "layouts": {"single": 1, "split": 2, "row": 3},
+ "kinds": {
+  "person": {"gamer": {"skin": "brown", "shirt": "#30a0a0", "headphones": true, "controller": true, "hair": {"style": "short", "color": "black"}, "mood": "happy"},
+             "gamer_back": {"skin": "brown", "shirt": "#30a0a0", "view": "back", "hair": {"style": "short", "color": "black"}},
+             "nongamer": {"skin": "light", "shirt": "#7868b0", "hair": {"style": "bald", "color": "black"}, "mood": "neutral"},
+             "scientist": {"skin": "tan", "shirt": "#f4ecd8", "glasses": true, "hair": {"style": "curly", "color": "ginger"}, "mood": "happy"},
+             "student": {"skin": "tan", "shirt": "#5080c8", "hair": {"style": "bob", "color": "brown"}, "mood": "surprised"},
+             "cheering": {"skin": "brown", "shirt": "#c04058", "arms": "cheer", "hair": {"style": "long", "color": "black"}, "mood": "happy"}},
+  "monitor": {"shooter": {"kind": "shooter"}, "tetris": {"kind": "tetris"}, "off": {"kind": "blank", "on": false}},
+  "lens": {"gamer": {"label": "GAMER", "field": 0.8, "dots": 6, "counter": 5, "badge": "check"}, "nongamer": {"label": "NON-GAMER", "tone": "blue", "field": 0.4, "dots": 4, "counter": 3, "badge": "x"}},
+  "brain": {"glow": {"glow": 1}, "plain": {"glow": 0}},
+  "clock": {"ten_hours": {"frac": 0.83, "label": "10 h"}, "half": {"frac": 0.5}},
+  "days": {"ten": {"n": 10}, "five": {"n": 5}},
+  "funnel": {"years": {}},
+  "university": {"y2010": {"year": "2010"}, "y2016": {"year": "2016"}},
+  "flyer": {"bird": {"kind": "bird"}, "plane": {"kind": "plane"}},
+  "emotes": {"sparkle": {"kind": "sparkle"}, "heart": {"kind": "heart"}, "plus": {"kind": "plus"}}
+ }
+}

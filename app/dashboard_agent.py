@@ -127,7 +127,9 @@ class SceneItem(BaseModel):
         "cta_end_card",
         "title_card",
         "lower_third",
-        "transparent_callout"
+        "transparent_callout",
+        "science_scene",       # genre templates are produced by app/genre_pipeline.py; listed so stored plans validate
+        "icon_explainer"
     ] = "character_story"
     start_seconds: float = 0.0
     duration_seconds: float = 3.0

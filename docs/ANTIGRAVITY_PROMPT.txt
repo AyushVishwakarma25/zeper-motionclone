@@ -1,0 +1,6 @@
+You are working in the repo zeper-motionclone. Read docs/ANTIGRAVITY_IMPLEMENTATION.md fully, then do exactly this:
+1. Create branch feat/genre-videos and apply layered-pipeline.patch (git apply). Run the test commands in section 1; all must pass.
+2. Implement section 3 (Style selector, genre-plan, voiceover upload, generate) in web/dashboard.html and web/dashboard.js only. Reuse existing helpers; do not restyle the page.
+3. Run section 4 acceptance with a real Gemini key and a real recorded narration; report numbers for each criterion.
+4. Do not modify app/science_director.py, app/genre_pipeline.py, remotion/src/science/*, billing, auth or the Dockerfile unless a test proves a bug; if so, explain the bug first.
+5. Open a PR with the results. Do not deploy until the acceptance list is green.

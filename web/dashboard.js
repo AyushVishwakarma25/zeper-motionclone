@@ -9,6 +9,7 @@
   let activeLanguage = 'en';
   let activeDuration = '30s';
   let activeVoice = 'hm_omega';
+  let activeStyle = 'auto'; // 'auto' | 'science' | 'icon'
   let activeSceneIndex = 0;
   let chatHistory = [];
   let isSendingChat = false;
@@ -362,6 +363,9 @@
       if (projectState.voice_id) {
         setVoice(projectState.voice_id);
       }
+      if (projectState.style || projectState.genre) {
+        setStyle(projectState.style || projectState.genre);
+      }
       renderAllViews();
       updateCreditEstimate();
       updateCreditBalance();
@@ -472,6 +476,38 @@
     previewAudioObj = new Audio(`/api/dashboard/tts/preview?voice=${v}&t=${Date.now()}`);
     previewAudioObj.play().catch(e => console.warn('Voice preview error:', e));
     showToast(`🎙️ Auditioning voice: ${v === 'hm_omega' ? 'Omega (Male)' : 'Beta (Female)'}...`, 'info');
+  }
+
+  // Style Switcher (Auto, Science explainer, Icon explainer)
+  function setStyle(style) {
+    activeStyle = style || 'auto';
+    if (projectState) {
+      projectState.style = activeStyle;
+    }
+    document.querySelectorAll('.style-pill').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.style === activeStyle);
+    });
+
+    const voiceGroup = $('voice-control-group');
+    if (voiceGroup) {
+      voiceGroup.style.display = (activeStyle === 'auto') ? 'flex' : 'none';
+    }
+
+    const planBtn = $('btn-generate-plan-direct');
+    if (planBtn) {
+      if (activeStyle === 'science') {
+        planBtn.innerHTML = '🔬 Generate Science Explainer';
+      } else if (activeStyle === 'icon') {
+        planBtn.innerHTML = '✨ Generate Icon Explainer';
+      } else {
+        planBtn.innerHTML = '📝 Generate Script & Plan';
+      }
+    }
+
+    const genreCard = $('genre-voiceover-card');
+    if (genreCard && activeStyle === 'auto') {
+      genreCard.style.display = 'none';
+    }
   }
 
   // Pipeline Step Updater
@@ -1094,7 +1130,23 @@
   }
 
   async function handleGenerateScenePlan() {
-    if (!activeJobId) return;
+    if (!activeJobId) {
+      try {
+        const created = await callApi('/api/dashboard/create-project', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'Explainer Project' })
+        });
+        activeJobId = created.job_id;
+      } catch (err) {
+        showToast('Please select or create an explainer project first.', 'error');
+        return;
+      }
+    }
+
+    if (activeStyle && activeStyle !== 'auto') {
+      return handleGenrePipeline();
+    }
 
     const topicInput = $('topic-brief-input')?.value.trim();
     const brandInput = $('brand-name-input')?.value.trim();
@@ -1164,6 +1216,236 @@
     }
   }
 
+  // Genre Pipeline (Science & Icon explainer modes)
+  async function handleGenrePipeline() {
+    if (!activeJobId) {
+      try {
+        const created = await callApi('/api/dashboard/create-project', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'Genre Explainer Video' })
+        });
+        activeJobId = created.job_id;
+      } catch (err) {
+        showToast('Please select or create an explainer project first.', 'error');
+        return;
+      }
+    }
+
+    const topicInput = $('topic-brief-input')?.value.trim();
+    const topic = topicInput || 'Action games and visual attention';
+    let targetSec = 40;
+    if (activeDuration) {
+      if (activeDuration.endsWith('m')) targetSec = parseInt(activeDuration, 10) * 60;
+      else if (activeDuration.endsWith('s')) targetSec = parseInt(activeDuration, 10);
+      else {
+        const n = parseInt(activeDuration, 10);
+        if (!isNaN(n)) targetSec = n;
+      }
+    }
+
+    setExecutionStatus({
+      agent: activeStyle === 'science' ? 'Science Director' : 'Icon Director',
+      stage: 'Planning Genre Scenes',
+      model: 'gemini-2.5-flash',
+      status: 'working',
+      log: `Planning ${activeStyle} explainer for "${topic}" (${targetSec}s)…`
+    });
+
+    showOverlay(`Generating ${activeStyle === 'science' ? 'Science' : 'Icon'} Scene Plan…`, 'Matching visual components to script beats');
+    updatePipelineStep(3);
+
+    try {
+      const res = await callApi(`/api/dashboard/project/${activeJobId}/genre-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          genre: activeStyle,
+          topic: topic,
+          language: activeLanguage === 'hi' ? 'hindi' : 'english',
+          seconds: targetSec
+        })
+      });
+
+      // If step 2 returns need.length, toast the missing props and do not continue.
+      if (res.need && res.need.length > 0) {
+        hideOverlay();
+        const missing = res.need.map(n => typeof n === 'string' ? n : (n.kind || n.name || JSON.stringify(n))).join(', ');
+        showToast(`Missing required props: ${missing}`, 'error');
+        appendChatBubble('agent', `⚠️ Missing required props: ${missing}. Stopped without continuing.`);
+        setExecutionStatus({
+          agent: activeStyle === 'science' ? 'Science Director' : 'Icon Director',
+          stage: 'Missing Props',
+          status: 'error',
+          isError: true,
+          log: `Missing props: ${missing}`
+        });
+        return;
+      }
+
+      if (!res.ok) {
+        hideOverlay();
+        const probs = (res.problems || []).join('; ') || 'Genre planning failed';
+        showToast(`Genre plan error: ${probs}`, 'error');
+        appendChatBubble('agent', `⚠️ ${probs}`);
+        setExecutionStatus({
+          agent: activeStyle === 'science' ? 'Science Director' : 'Icon Director',
+          stage: 'Planning Failed',
+          status: 'error',
+          isError: true,
+          log: probs
+        });
+        return;
+      }
+
+      // Step 2 succeeded: reload project to get written scene_plan.json
+      await loadProject(activeJobId);
+      hideOverlay();
+      showToast('✨ Beat script ready! Record voiceover and drop audio below.', 'success');
+
+      setExecutionStatus({
+        agent: activeStyle === 'science' ? 'Science Director' : 'Icon Director',
+        stage: 'Beats Ready',
+        model: 'gemini-2.5-flash',
+        status: 'active',
+        log: `Generated ${res.scenes || (projectState?.scene_plan?.scenes || []).length} beats for "${topic}".`
+      });
+
+      // Populate beats in UI for narrator
+      displayGenreBeats(projectState?.scene_plan?.scenes || []);
+
+    } catch (e) {
+      hideOverlay();
+      showToast('Genre planning error: ' + e.message, 'error');
+      setExecutionStatus({
+        agent: activeStyle === 'science' ? 'Science Director' : 'Icon Director',
+        stage: 'Planning Failed',
+        status: 'error',
+        isError: true,
+        log: e.message
+      });
+    }
+  }
+
+  function displayGenreBeats(scenes) {
+    const card = $('genre-voiceover-card');
+    if (!card) return;
+    card.style.display = 'block';
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    const beatsList = $('genre-beats-list');
+    if (beatsList) {
+      beatsList.innerHTML = scenes.map((sc, idx) => {
+        const text = sc.voiceover_script_en || sc.narration_marked || sc.headline || `Beat ${idx + 1}`;
+        const dur = sc.duration_seconds || sc.duration || 3;
+        return `
+          <div class="genre-beat-row">
+            <span class="genre-beat-tag">Beat ${idx + 1} (${dur}s)</span>
+            <span class="genre-beat-text">${escapeHtml(text)}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    const badge = $('genre-status-badge');
+    if (badge) {
+      badge.textContent = `${scenes.length} Beats Ready`;
+    }
+
+    const feedback = $('genre-feedback-banner');
+    if (feedback) feedback.style.display = 'none';
+    const actions = $('genre-actions-bar');
+    if (actions) actions.style.display = 'none';
+  }
+
+  async function handleVoiceoverUpload(file) {
+    if (!activeJobId) {
+      showToast('Please select or create a project first.', 'error');
+      return;
+    }
+    if (!file) return;
+
+    showOverlay('Aligning Voiceover Audio…', 'Detecting sentence pauses and matching scene cuts to beats');
+    setExecutionStatus({
+      agent: 'Voiceover Aligner',
+      stage: 'Aligning Audio',
+      model: 'FFmpeg + Silence Detection',
+      status: 'working',
+      log: `Aligning uploaded voiceover (${file.name}, ${(file.size / 1024).toFixed(0)} KB) to beats…`
+    });
+
+    const fd = new FormData();
+    fd.append('file', file);
+
+    try {
+      const res = await callApi(`/api/dashboard/project/${activeJobId}/voiceover-upload`, {
+        method: 'POST',
+        body: fd
+      });
+
+      hideOverlay();
+
+      const banner = $('genre-feedback-banner');
+      const confPill = $('genre-confidence-pill');
+      const durPill = $('genre-duration-pill');
+      const warnList = $('genre-warnings-list');
+      const actions = $('genre-actions-bar');
+
+      const conf = typeof res.confidence === 'number' ? res.confidence : 0;
+      const confPct = Math.round(conf * 100);
+
+      if (banner) banner.style.display = 'block';
+      if (actions) actions.style.display = 'flex';
+
+      if (confPill) {
+        confPill.textContent = `Confidence: ${confPct}%`;
+        confPill.className = `genre-confidence-pill ${conf >= 0.5 ? 'confidence-good' : 'confidence-low'}`;
+      }
+      if (durPill) {
+        durPill.textContent = `Total: ${(res.total || 0).toFixed(1)}s`;
+      }
+      if (warnList) {
+        if (res.warnings && res.warnings.length > 0) {
+          warnList.innerHTML = res.warnings.map(w => `<div>⚠️ ${escapeHtml(w)}</div>`).join('');
+        } else {
+          warnList.innerHTML = `<div style="color:var(--success, #15803d);">✓ All ${res.total ? res.total.toFixed(1) + 's' : ''} audio successfully aligned to beat pauses.</div>`;
+        }
+      }
+
+      if (!res.ok || conf < 0.5) {
+        showToast(`⚠️ Alignment confidence is ${confPct}%. You can re-upload or proceed.`, 'warning');
+        setExecutionStatus({
+          agent: 'Voiceover Aligner',
+          stage: 'Low Confidence Alignment',
+          status: 'warning',
+          log: `Confidence: ${confPct}%. Warnings: ${(res.warnings || []).join('; ')}`
+        });
+      } else {
+        showToast(`✅ Voiceover aligned (${confPct}% confidence). Rendering video…`, 'success');
+        setExecutionStatus({
+          agent: 'Voiceover Aligner',
+          stage: 'Alignment Complete',
+          status: 'active',
+          log: `Aligned audio in ${(res.total || 0).toFixed(1)}s with ${confPct}% confidence.`
+        });
+
+        // Step 4: generate with use_existing_scene_plan: true
+        await triggerProjectGenerate({ useExistingScenePlan: true, fps: 30 });
+      }
+
+    } catch (e) {
+      hideOverlay();
+      showToast('Voiceover upload failed: ' + e.message, 'error');
+      setExecutionStatus({
+        agent: 'Voiceover Aligner',
+        stage: 'Upload Failed',
+        status: 'error',
+        isError: true,
+        log: e.message
+      });
+    }
+  }
+
   let lastGenerationParams = null;
   let overlayTimerInterval = null;
   let overlayStartTime = null;
@@ -1186,6 +1468,11 @@
     triggerProjectGenerate(lastGenerationParams || { useExistingScenePlan: true, fps: 30 });
   }
   window.retryProjectGenerate = retryProjectGenerate;
+  window.setStyle = setStyle;
+  window.getActiveStyle = () => activeStyle;
+  window.handleGenrePipeline = handleGenrePipeline;
+  window.handleVoiceoverUpload = handleVoiceoverUpload;
+  window.displayGenreBeats = displayGenreBeats;
 
   function showGenerationSuccess({ timeFormatted, totalSeconds }) {
     hideGenerationFailureBox();
@@ -1700,6 +1987,52 @@
     // Voice Buttons (Phase 4)
     document.querySelectorAll('.voice-pill').forEach(btn => {
       btn.onclick = () => setVoice(btn.dataset.voice);
+    });
+
+    // Style Selector Buttons
+    document.querySelectorAll('.style-pill').forEach(btn => {
+      btn.onclick = () => setStyle(btn.dataset.style);
+    });
+
+    // Genre Voiceover Upload & Alignment Listeners
+    const genreDropzone = $('genre-upload-dropzone');
+    const genreFileInput = $('genre-voiceover-file-input');
+
+    genreDropzone?.addEventListener('click', () => {
+      genreFileInput?.click();
+    });
+
+    genreFileInput?.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) {
+        handleVoiceoverUpload(e.target.files[0]);
+      }
+    });
+
+    genreDropzone?.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      genreDropzone.classList.add('dragover');
+    });
+
+    genreDropzone?.addEventListener('dragleave', () => {
+      genreDropzone.classList.remove('dragover');
+    });
+
+    genreDropzone?.addEventListener('drop', (e) => {
+      e.preventDefault();
+      genreDropzone.classList.remove('dragover');
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+        handleVoiceoverUpload(e.dataTransfer.files[0]);
+      }
+    });
+
+    $('btn-genre-reupload')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      genreFileInput?.click();
+    });
+
+    $('btn-genre-render')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      triggerProjectGenerate({ useExistingScenePlan: true, fps: 30 });
     });
 
     // Voice Audition Preview Button

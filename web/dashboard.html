@@ -11,6 +11,188 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="/static/ui.js?v=3" defer></script>
   <script src="/static/dashboard.js?v=3" defer></script>
+  <style>
+    .style-pill {
+      border: none;
+      background: transparent;
+      color: var(--muted, #64748b);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: var(--radius-sm, 6px);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .style-pill.active {
+      background: var(--surface, #ffffff);
+      color: var(--primary, #3b82f6);
+      box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05));
+    }
+    .genre-voiceover-card {
+      background: var(--surface, #ffffff);
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: var(--radius-md, 8px);
+      padding: 16px;
+      margin-top: 14px;
+      margin-bottom: 14px;
+    }
+    .genre-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .genre-header-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .genre-step-badge {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: rgba(59, 130, 246, 0.12);
+      color: #3b82f6;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .genre-status-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: var(--surface-alt, #f8fafc);
+      color: var(--muted, #64748b);
+    }
+    .genre-instructions {
+      font-size: 12px;
+      color: var(--muted, #64748b);
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+    .genre-beats-container {
+      max-height: 220px;
+      overflow-y: auto;
+      margin-bottom: 14px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 6px;
+      padding: 8px;
+      background: var(--surface-alt, #f8fafc);
+    }
+    .genre-beat-row {
+      display: flex;
+      gap: 10px;
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(0,0,0,0.04);
+      font-size: 12px;
+    }
+    .genre-beat-row:last-child {
+      border-bottom: none;
+    }
+    .genre-beat-tag {
+      font-weight: 700;
+      font-size: 11px;
+      color: var(--primary, #3b82f6);
+      white-space: nowrap;
+    }
+    .genre-beat-text {
+      flex: 1;
+      color: var(--text, #1e293b);
+    }
+    .genre-upload-dropzone {
+      border: 2px dashed var(--border, #cbd5e1);
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      background: var(--surface, #ffffff);
+      transition: all 0.2s ease;
+    }
+    .genre-upload-dropzone:hover, .genre-upload-dropzone.dragover {
+      border-color: var(--primary, #3b82f6);
+      background: rgba(59, 130, 246, 0.04);
+    }
+    .genre-dropzone-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .genre-dropzone-icon {
+      font-size: 24px;
+    }
+    .genre-dropzone-copy strong {
+      font-size: 13px;
+      color: var(--text, #1e293b);
+      display: block;
+    }
+    .genre-dropzone-copy p {
+      font-size: 11px;
+      color: var(--muted, #64748b);
+      margin: 2px 0 0;
+    }
+    .genre-feedback-banner {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border, #e2e8f0);
+      background: var(--surface-alt, #f8fafc);
+    }
+    .genre-feedback-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .genre-confidence-pill {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .confidence-good {
+      background: var(--success-bg, #dcfce7);
+      color: var(--success, #15803d);
+    }
+    .confidence-low {
+      background: var(--warning-bg, #fef3c7);
+      color: var(--warning, #b45309);
+    }
+    .genre-warnings-list {
+      font-size: 11px;
+      color: var(--danger, #dc2626);
+      line-height: 1.4;
+    }
+    .genre-actions-bar {
+      margin-top: 12px;
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+    .btn-genre-action {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+    }
+    .btn-genre-action.btn-secondary {
+      background: var(--surface-alt, #f8fafc);
+      border-color: var(--border, #e2e8f0);
+      color: var(--text, #1e293b);
+    }
+    .btn-genre-action.btn-primary {
+      background: var(--primary, #3b82f6);
+      color: #ffffff;
+    }
+    .btn-genre-action.btn-primary:hover {
+      opacity: 0.9;
+    }
+  </style>
 </head>
 <body class="dashboard-body">
 
@@ -62,9 +244,16 @@
         </div>
       </div>
 
-      <!-- Group 2: Language & Voice Narration -->
-      <div class="header-control-group" title="Voiceover Language & Speaker">
-        <div class="segmented-control" role="group" aria-label="Script & Voiceover Language">
+      <!-- Group 2: Style, Language & Voice Narration -->
+      <div class="header-control-group" title="Video Style, Language & Speaker">
+        <!-- Style Selector (Auto, Science explainer, Icon explainer) -->
+        <div class="segmented-control style-control-group" role="group" aria-label="Explainer Style" id="style-control-group">
+          <button type="button" class="style-pill active" data-style="auto" title="Standard Explainer (Auto)">Auto</button>
+          <button type="button" class="style-pill" data-style="science" title="Science Explainer (Visual Metaphors & Props)">Science explainer</button>
+          <button type="button" class="style-pill" data-style="icon" title="Icon Explainer (Clean Icons & Physics)">Icon explainer</button>
+        </div>
+
+        <div class="segmented-control" role="group" aria-label="Script & Voiceover Language" id="language-control-group">
           <button type="button" class="lang-pill active" data-lang="en" title="English Voiceover & Headlines">EN</button>
           <button type="button" class="lang-pill" data-lang="hi" title="हिन्दी (Hindi) Voiceover & Headlines">HI</button>
           <button type="button" class="lang-pill" data-lang="en_hi" title="Bilingual English + Hindi">Dual</button>
@@ -448,6 +637,48 @@
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <!-- Dedicated Genre Voiceover & Beats Deck (Science / Icon mode) -->
+            <div class="genre-voiceover-card" id="genre-voiceover-card" style="display:none;">
+              <div class="genre-card-header">
+                <div class="genre-header-title">
+                  <span class="genre-step-badge">GENRE NARRATION</span>
+                  <strong id="genre-card-title">🎙️ Narrator Script & Voiceover Alignment</strong>
+                </div>
+                <span class="genre-status-badge" id="genre-status-badge">Step 2 Ready</span>
+              </div>
+              <div class="genre-instructions">
+                <p>Record one sentence per beat with a <strong>0.5s pause</strong> between beats. Drop your audio below to auto-align scene cuts.</p>
+              </div>
+              <!-- Beat Script Lines Display -->
+              <div class="genre-beats-container" id="genre-beats-container">
+                <div class="genre-beats-list" id="genre-beats-list"></div>
+              </div>
+              <!-- Voiceover Upload Dropzone -->
+              <div class="genre-upload-dropzone" id="genre-upload-dropzone">
+                <input type="file" id="genre-voiceover-file-input" accept="audio/*,.mp3,.wav,.m4a" style="display:none;">
+                <div class="genre-dropzone-inner">
+                  <span class="genre-dropzone-icon">🎙️</span>
+                  <div class="genre-dropzone-copy">
+                    <strong>Upload Voiceover Audio (.mp3, .wav, .m4a)</strong>
+                    <p>Drag & drop audio here or click to browse</p>
+                  </div>
+                </div>
+              </div>
+              <!-- Feedback Banner (Confidence, Warnings) -->
+              <div class="genre-feedback-banner" id="genre-feedback-banner" style="display:none;">
+                <div class="genre-feedback-header">
+                  <span class="genre-confidence-pill" id="genre-confidence-pill">Confidence: 0%</span>
+                  <span class="genre-duration-pill" id="genre-duration-pill">0.0s</span>
+                </div>
+                <div class="genre-warnings-list" id="genre-warnings-list"></div>
+              </div>
+              <!-- Re-upload & Render Actions -->
+              <div class="genre-actions-bar" id="genre-actions-bar" style="display:none;">
+                <button type="button" class="btn-genre-action btn-secondary" id="btn-genre-reupload">🔄 Re-upload Audio</button>
+                <button type="button" class="btn-genre-action btn-primary" id="btn-genre-render">🎬 Render 30 FPS MP4</button>
               </div>
             </div>
 

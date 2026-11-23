@@ -22,6 +22,11 @@ import {StickmanCharacter} from './components/StickmanCharacter.jsx';
 import {AnimatedProp} from './components/AnimatedProps.jsx';
 import {CashFlowSplit, TimelineGap, AnimatedBarChart} from './components/DataVisualizations.jsx';
 import {DynamicEnvironment} from './components/DynamicEnvironment.jsx';
+import {LayeredScene} from './components/LayeredScene.jsx';
+import {IconSheet} from './explainer/IconSheet.jsx';
+import {PersonSheet} from './science/PersonSheet.jsx';
+import {PropSheet} from './science/PropSheet.jsx';
+import {IconExplainer} from './explainer/IconExplainer.jsx';
 
 /**
  * Derives width, height, fps, and durationInFrames from inputProps.
@@ -356,6 +361,53 @@ function Root() {
           artDirection: 'editorial_flat',
           accent: '#00f2fe'
         }}
+      />
+      {/* I. layered-scene: generated transparent assets over a 3-plate set (see src/layered.mjs) */}
+      <Composition
+        id="layered-scene"
+        component={LayeredScene}
+        width={defaultMeta.width}
+        height={defaultMeta.height}
+        fps={defaultMeta.fps}
+        durationInFrames={90}
+        calculateMetadata={async ({props}) => resolveDimensions(props)}
+        defaultProps={{layered: {}}}
+      />
+      <Composition
+        id="icon-explainer"
+        component={IconExplainer}
+        width={720}
+        height={1280}
+        fps={30}
+        durationInFrames={90}
+        defaultProps={{scene: {duration_seconds: 3, words: [{w: 'ki', start: .3, end: .5}, {w: 'wo', start: .5, end: .7}, {w: 'Gold', start: .7, end: 1.0}, {w: 'ko', start: 1.0, end: 1.2}, {w: 'lab', start: 1.4, end: 1.7}, {w: 'mein', start: 1.7, end: 1.9}, {w: 'bana', start: 1.9, end: 2.2}, {w: 'sakta', start: 2.2, end: 2.5}], icon: {id: 'flask'}, pill: {tag: 'News', text: 'Startup says it can make gold in a lab', at: .5}}}}
+      />
+      <Composition
+        id="prop-sheet"
+        component={PropSheet}
+        width={720}
+        height={1280}
+        fps={30}
+        durationInFrames={90}
+        defaultProps={{atSeconds: null}}
+      />
+      <Composition
+        id="person-sheet"
+        component={PersonSheet}
+        width={720}
+        height={1280}
+        fps={30}
+        durationInFrames={90}
+        defaultProps={{atSeconds: null}}
+      />
+      <Composition
+        id="icon-sheet"
+        component={IconSheet}
+        width={720}
+        height={1280}
+        fps={30}
+        durationInFrames={90}
+        defaultProps={{atSeconds: null, d: 3}}
       />
       <Composition
         id="CharacterStory"

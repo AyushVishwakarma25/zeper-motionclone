@@ -280,15 +280,19 @@ def step_assets(
     if progress_cb:
         progress_cb("Synthesizing voice-over narration...", 40)
 
-    # 1. Voiceover synthesis using Natural Kokoro TTS
-    vo_path = audio.generate_scene_voiceovers(
-        scenes=scenes,
-        language=language,
-        output_dir=project_dir,
-        voice_id=voice_id,
-        cancel=cancel,
-        adjust_durations=True
-    )
+    # 1. Voiceover: an uploaded narration (aligned by genre_pipeline.apply_uploaded_voice) wins over TTS
+    uploaded = project_dir / "voiceover_upload.mp3"
+    if uploaded.is_file() and uploaded.stat().st_size > 100:
+        vo_path = uploaded
+    else:
+        vo_path = audio.generate_scene_voiceovers(
+            scenes=scenes,
+            language=language,
+            output_dir=project_dir,
+            voice_id=voice_id,
+            cancel=cancel,
+            adjust_durations=True
+        )
 
     if not vo_path.is_file() or vo_path.stat().st_size < 100:
         raise RuntimeError("Voiceover generation failed: output file is empty or missing.")
@@ -540,6 +544,11 @@ def run_pipeline(
             cancel=cancel,
             progress_cb=progress_cb
         )
+
+        # 4b. Genre templates (science_scene / icon_explainer): word times follow the real voiceover clips
+        from . import genre_pipeline
+        if genre_pipeline.is_genre_plan(scenes):
+            scenes = genre_pipeline.retime_scenes(scenes, project_dir)
 
         # 5. Assemble
         if fps == 60:

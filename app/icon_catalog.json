@@ -1,0 +1,17 @@
+{
+  "gold_bars": {"use": "gold, wealth, safe haven asset", "params": ["fall"]},
+  "silver_coin": {"use": "silver, a price sliding down a slope", "params": []},
+  "candles": {"use": "stock market, trading chart, a rise then a crash", "params": []},
+  "ai_bars": {"use": "AI stocks, tech growth, a rising bar chart with an AI chip", "params": []},
+  "bond": {"use": "government bonds, US treasury, debt certificates", "params": []},
+  "shield_crack": {"use": "safe haven, protection that fails", "params": ["crack"]},
+  "flask": {"use": "lab, science, something manufactured or synthetic (gold from a lab)", "params": ["makes"]},
+  "gauge": {"use": "trust, confidence, risk level meter", "params": ["from", "to"]},
+  "radar": {"use": "military, targeting, surveillance, an attack plan", "params": ["lock"]},
+  "lock_hack": {"use": "hack, security breach, exchange or bank theft", "params": ["hacked"]},
+  "calendar_fill": {"use": "saving over months, an emergency fund, a timeline of a year", "params": ["months"]},
+  "car_house_x": {"use": "big purchases to avoid or postpone (car, house)", "params": ["cross"]},
+  "investors_cash": {"use": "big investors pulling money out of a falling market into cash", "params": []},
+  "expect_line": {"use": "a chart versus what people expected; hype versus reality", "params": ["label"]},
+  "why_mark": {"use": "a pause on the question; the audience wonders why", "params": ["text"]}
+}

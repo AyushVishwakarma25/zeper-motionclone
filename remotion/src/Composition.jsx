@@ -4,6 +4,10 @@ import {stateAt} from './motion.mjs';
 import {getTheme, MOTION_SPRINGS, PALETTES} from './theme.js';
 import {SceneTransition} from './transitions/SceneTransition';
 import {CharacterStory} from './templates/CharacterStory';
+import {LayeredScene} from './components/LayeredScene';
+import {IconExplainer} from './explainer/IconExplainer';
+import {ScienceScene} from './science/ScienceScene';
+import {Lively} from './components/Lively';
 import {StickmanCharacter} from './components/StickmanCharacter';
 import {AnimatedProp} from './components/AnimatedProps';
 import {DynamicEnvironment} from './components/DynamicEnvironment';
@@ -877,8 +881,19 @@ export function CtaEndCard({
   );
 }
 
-// Universal Scene Switch Component for Explainer Sequences
+// Card templates that were fully static: they get continuous motion from <Lively> (see components/Lively.jsx). scene.lively=false opts out.
+const LIVELY_TEMPLATES = new Set(['kinetic_text', 'fact_card', 'stat_counter', 'comparison_split', 'bullet_list', 'quote', 'cta_end_card', 'finance_breakdown', 'cash_flow', 'timeline_gap', 'delay_timeline', 'money_flow', 'working_capital']);
+
 export function SceneSwitch({scene = {}, logo = null}) {
+  const template = (scene.template || 'kinetic_text').toLowerCase();
+  if (LIVELY_TEMPLATES.has(template) && scene.lively !== false) {
+    return <Lively accent={scene.accent_color || scene.accent || '#00f2fe'}><SceneSwitchInner scene={scene} logo={logo} /></Lively>;
+  }
+  return <SceneSwitchInner scene={scene} logo={logo} />;
+}
+
+// Universal Scene Switch Component for Explainer Sequences
+function SceneSwitchInner({scene = {}, logo = null}) {
   const template = (scene.template || 'kinetic_text').toLowerCase();
   const headline = scene.headline || scene.title || scene.on_screen_text || '';
   // Subtitle is purely concise supporting on-screen text, NEVER the full voiceover script
@@ -888,6 +903,12 @@ export function SceneSwitch({scene = {}, logo = null}) {
   const asset = scene.assigned_asset || scene.asset || logo;
 
   switch (template) {
+    case 'science_scene':
+      return <ScienceScene scene={scene} />;
+    case 'icon_explainer':
+      return <IconExplainer scene={scene} />;
+    case 'layered_asset_scene':
+      return <LayeredScene layered={scene.layered || {}} accent={accent} bg={bg} />;
     case 'character_story':
       return (
         <CharacterStory

@@ -29,4 +29,5 @@ scripts/out_smoke*
 tmp/
 out/
 deploy-env.yaml
+.vscode/
 

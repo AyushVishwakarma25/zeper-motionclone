@@ -142,6 +142,14 @@ class PasteAndRenderRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class GenrePlanRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    genre: str = "science"            # science | icon
+    topic: str
+    language: str = "english"
+    seconds: int = 40
+
+
 class GenerateProjectRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
     brief: str | None = None
@@ -1068,6 +1076,33 @@ def install(app, server):
             "job_id": id,
             "message": f"Full generation pipeline started (30 FPS, {target_duration})."
         }
+
+    @app.post('/api/dashboard/project/{id}/genre-plan')
+    def api_genre_plan(id: str, req: GenrePlanRequest):
+        """Topic -> catalog-only beats -> scene_plan.json (genre science | icon). Then call /generate with use_existing_scene_plan=true."""
+        server.get_job(id)
+        from . import genre_pipeline
+        from .layered_pipeline import gemini_llm
+        try:
+            res = genre_pipeline.plan_genre(req.genre, req.topic, req.language, req.seconds, gemini_llm(), server.DATA / id)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        return {'ok': res['ok'], 'scenes': len(res['scenes']), 'need': res['need'], 'problems': res['problems'][:10]}
+
+    @app.post('/api/dashboard/project/{id}/voiceover-upload')
+    async def api_voiceover_upload(id: str, file: UploadFile = File(...)):
+        """Upload the narration (after genre-plan). Aligns it to the beats, sets scene durations + word times; generate then skips TTS."""
+        server.get_job(id)
+        folder = server.DATA / id
+        if not (folder / 'scene_plan.json').is_file():
+            raise HTTPException(status_code=409, detail='Run genre-plan first so the beats are known.')
+        raw = folder / ('voiceover_raw' + Path(file.filename or 'v.mp3').suffix.lower())
+        await validate_and_save_upload(file, raw, ALLOWED_AUDIO_EXTENSIONS)
+        from . import genre_pipeline
+        try:
+            return genre_pipeline.apply_uploaded_voice(folder, raw)
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f'Could not align the voiceover: {e}')
 
     @app.get('/api/dashboard/project/{id}/status')
     def api_get_project_status(id: str):
