@@ -4,6 +4,7 @@ import {StickmanCharacter} from '../components/StickmanCharacter';
 import {AnimatedProp} from '../components/AnimatedProps';
 import {DynamicEnvironment} from '../components/DynamicEnvironment';
 import {CashFlowSplit, TimelineGap, AnimatedBarChart} from '../components/DataVisualizations';
+import {ThreeDWorld} from '../three/ThreeDWorld';
 
 /**
  * CharacterStory Template
@@ -86,12 +87,12 @@ export function CharacterStory({
 
   return (
     <AbsoluteFill style={{overflow: 'hidden'}}>
-      {/* Dynamic Art Direction Environment */}
-      <DynamicEnvironment
-        artDirection={resolvedArt}
-        accent={accent}
-        bg={bg}
-      />
+      {/* 3D mode is opt-in; the existing 2D environment remains the default. */}
+      {scene.render_mode === '3d' || scene.template === 'three_d_story' ? (
+        <ThreeDWorld scene={scene} background={bg} />
+      ) : (
+        <DynamicEnvironment artDirection={resolvedArt} accent={accent} bg={bg} />
+      )}
 
       {/* Main Safe-Area Composition Container */}
       <AbsoluteFill
