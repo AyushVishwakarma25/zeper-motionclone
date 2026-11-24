@@ -1,4 +1,4 @@
-import React, {useLayoutEffect, useMemo, useRef} from 'react';
+import React, {useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {AbsoluteFill, useCurrentFrame, useVideoConfig} from 'remotion';
 import * as THREE from 'three';
 import {cameraPoseAtFrame, normalizeThreeDScene} from './scene3d.mjs';
@@ -138,6 +138,7 @@ function buildWorld(canvas, config, width, height) {
 export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
   const canvasRef = useRef(null);
   const worldRef = useRef(null);
+  const [webglError, setWebglError] = useState(false);
   const frame = useCurrentFrame();
   const {width, height, fps, durationInFrames} = useVideoConfig();
   const config = useMemo(
@@ -148,12 +149,14 @@ export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
   useLayoutEffect(() => {
     if (!canvasRef.current) return undefined;
     let world;
+    setWebglError(false);
     try {
       world = buildWorld(canvasRef.current, config, width, height);
       worldRef.current = world;
     } catch (error) {
       // The DOM fallback remains visible if the render host cannot create WebGL.
       canvasRef.current.dataset.webglError = String(error?.message || error);
+      setWebglError(true);
       return undefined;
     }
     return () => {
@@ -197,15 +200,17 @@ export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
         aria-label="Procedurally rendered 3D story environment"
         style={{display: 'block', width: '100%', height: '100%'}}
       />
-      <div
-        style={{
-          display: 'none',
-          position: 'absolute',
-          inset: 0,
-          background: `linear-gradient(180deg, ${config.background} 0%, ${config.ground} 100%)`
-        }}
-        data-three-fallback="true"
-      />
+      {webglError && (
+        <div
+          data-three-fallback="true"
+          style={{position: 'absolute', inset: 0, overflow: 'hidden', background: `linear-gradient(180deg, ${config.background} 0%, ${config.ground} 100%)`}}
+        >
+          <div style={{position: 'absolute', left: '8%', right: '8%', bottom: '14%', height: '28%', borderRadius: '18px', background: 'rgba(38, 49, 65, 0.16)', transform: 'perspective(700px) rotateX(12deg)'}} />
+          {config.objects.slice(0, 8).map((item, index) => (
+            <div key={item.id} style={{position: 'absolute', left: `${18 + (index % 4) * 18}%`, top: `${28 + Math.floor(index / 4) * 18}%`, width: `${Math.max(5, Math.min(14, item.size[0] * 5))}%`, height: `${Math.max(5, Math.min(18, item.size[1] * 7))}%`, borderRadius: item.type === 'sphere' ? '50%' : '8px', background: item.color, boxShadow: '0 16px 24px rgba(20,30,45,.18)', transform: `rotate(${item.rotation[2] * 30}deg)`}} />
+          ))}
+        </div>
+      )}
     </AbsoluteFill>
   );
 }
