@@ -44,6 +44,11 @@ jobs:
           npm ci
           npx remotion browser ensure
 
+      - name: Run Remotion unit tests
+        run: |
+          cd remotion
+          npm test
+
       - name: Run Test Suite
         env:
           FRAMEFORGE_HOSTED: '0'
