@@ -227,7 +227,7 @@ export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
     });
     if (world.characterRig) {
       const action = config.character?.action || 'idle';
-      applyStickmanPose(world.characterRig, characterPoseAtFrame(action, frame, fps));
+      applyStickmanPose(world.characterRig, characterPoseAtFrame(action, frame, fps), config.character?.expression || 'neutral');
     }
     world.renderer.render(world.scene, world.camera);
   }, [frame, config, fps, durationInFrames]);
