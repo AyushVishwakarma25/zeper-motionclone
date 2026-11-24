@@ -909,6 +909,7 @@ function SceneSwitchInner({scene = {}, logo = null}) {
       return <IconExplainer scene={scene} />;
     case 'layered_asset_scene':
       return <LayeredScene layered={scene.layered || {}} accent={accent} bg={bg} />;
+    case 'three_d_story':
     case 'character_story':
       return (
         <CharacterStory
