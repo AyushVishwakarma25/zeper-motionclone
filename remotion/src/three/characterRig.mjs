@@ -23,7 +23,7 @@ export function characterPoseAtFrame(action,frame,fps=30,options={}) {
  switch(action){
  case 'walk':case 'run':{const a=action==='run'?.85:.48;p.rootY=Math.abs(wave)*(action==='run'?.16:.07);p.leftLegX=wave*a;p.rightLegX=-wave*a;p.leftArmX=-wave*a*.8;p.rightArmX=wave*a*.8;p.leftKneeX=Math.max(0,-wave)*a;p.rightKneeX=Math.max(0,wave)*a;p.torsoX=action==='run'?-.18:0;break;}
  case 'sit':p.rootY=-.48;p.torsoX=-.08;p.leftLegX=-1.15;p.rightLegX=-1.15;p.leftKneeX=1.05;p.rightKneeX=1.05;p.leftArmX=-.35;p.rightArmX=-.35;break;
- case 'stand':p.rootY=-.45*(1-smooth((frame%Math.max(1,fps))/Math.max(1,fps)));p.leftLegX=-.2;p.rightLegX=-.2;break;
+ case 'stand':p.rootY=-.45*(1-smooth(frame/Math.max(1,fps*.8)));p.leftLegX=-.2;p.rightLegX=-.2;break;
  case 'point':p.rightArmX=-1.25;p.rightArmZ=-.22;p.rightElbowX=-.15;p.headZ=-.08;break;
  case 'hold':p.leftArmX=-.72;p.rightArmX=-.72;p.leftArmZ=.28;p.rightArmZ=-.28;p.leftElbowX=-.75;p.rightElbowX=-.75;break;
  case 'think':p.rightArmX=-1.35;p.rightArmZ=-.32;p.rightElbowX=-1.1;p.headX=.12;p.headZ=Math.sin(t*1.5)*.035;break;
@@ -46,7 +46,12 @@ export function createStickmanRig(T,config={}) {
  const pelvis=new T.Mesh(new T.SphereGeometry(.2,16,12),dark);pelvis.position.y=1.08;root.add(pelvis);
  const neck=new T.Mesh(new T.CylinderGeometry(.07,.08,.16,12),skin);neck.position.y=2;root.add(neck);
  const head=new T.Mesh(new T.SphereGeometry(.27,24,18),skin);head.position.y=2.32;root.add(head);
- for(const side of [-1,1]){const eye=new T.Mesh(new T.SphereGeometry(.025,8,8),eyes);eye.position.set(side*.095,2.36,.235);root.add(eye);}
+ for(const side of [-1,1]){
+  const eye=new T.Mesh(new T.SphereGeometry(.025,8,8),eyes);eye.position.set(side*.095,2.36,.235);root.add(eye);
+ }
+ const mouth=new T.Mesh(new T.BoxGeometry(.13,.018,.025),eyes);mouth.position.set(0,2.22,.247);root.add(mouth);
+ const leftBrow=new T.Mesh(new T.BoxGeometry(.09,.018,.025),eyes);leftBrow.position.set(-.095,2.43,.235);root.add(leftBrow);
+ const rightBrow=new T.Mesh(new T.BoxGeometry(.09,.018,.025),eyes);rightBrow.position.set(.095,2.43,.235);root.add(rightBrow);
  for(const [side,label] of [[-1,'left'],[1,'right']]){
   const shoulder=pivot(T,root,side*.25,1.82,0),upper=capsule(T,.075,.36,dark);upper.position.y=-.2;shoulder.add(upper);
   const elbow=pivot(T,shoulder,0,-.4,0),fore=capsule(T,.065,.34,dark);fore.position.y=-.19;elbow.add(fore);
@@ -57,13 +62,19 @@ export function createStickmanRig(T,config={}) {
   const foot=new T.Mesh(new T.BoxGeometry(.16,.09,.28),dark);foot.position.set(0,-.48,.08);knee.add(foot);
   joints[label+'Leg']=hip;joints[label+'Knee']=knee;
  }
- joints.head=head;joints.torso=torso;joints.root=root;
+ joints.head=head;joints.torso=torso;joints.root=root;joints.mouth=mouth;joints.leftBrow=leftBrow;joints.rightBrow=rightBrow;
  root.userData.disposeMaterials=[dark,accent,skin,eyes];
  return {root,joints,config:c};
 }
-export function applyStickmanPose(rig,p) {
+export function applyStickmanPose(rig,p,expression='neutral') {
  if(!rig?.joints)return;const j=rig.joints;
  j.root.position.y=rig.config.position[1]+p.rootY;j.root.rotation.x=p.rootX;j.root.rotation.z=p.rootZ;
  j.torso.rotation.x=p.torsoX;j.torso.rotation.z=p.torsoZ;j.head.rotation.x=p.headX;j.head.rotation.z=p.headZ;
+ const mood=CHARACTER_EXPRESSIONS.includes(expression)?expression:'neutral';
+ j.mouth.scale.y=mood==='surprised'?2.2:mood==='stressed'?.45:mood==='happy'?1.35:1;
+ j.mouth.scale.x=mood==='sad'?.72:mood==='happy'?1.25:1;
+ j.mouth.rotation.z=mood==='sad'?Math.PI:0;
+ j.leftBrow.rotation.z=mood==='stressed'?.22:mood==='sad'?.18:mood==='surprised'?-.12:0;
+ j.rightBrow.rotation.z=mood==='stressed'?.-22:mood==='sad'?.-18:mood==='surprised'?.12:0;
  for(const side of ['left','right']){j[side+'Arm'].rotation.x=p[side+'ArmX'];j[side+'Arm'].rotation.z=(side==='left'?1:-1)*p[side+'ArmZ'];j[side+'Elbow'].rotation.x=p[side+'ElbowX'];j[side+'Leg'].rotation.x=p[side+'LegX'];j[side+'Knee'].rotation.x=p[side+'KneeX'];}
 }
