@@ -2,6 +2,8 @@ import React, {useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {AbsoluteFill, useCurrentFrame, useVideoConfig} from 'remotion';
 import * as THREE from 'three';
 import {cameraPoseAtFrame, normalizeThreeDScene} from './scene3d.mjs';
+import {createStickmanRig, applyStickmanPose, characterPoseAtFrame, normalizeCharacterConfig} from './characterRig.mjs';
+import {compileThreeDScene} from './sceneCompiler.mjs';
 
 function addEnvironment(scene, config) {
   scene.background = new THREE.Color(config.background);
@@ -132,7 +134,10 @@ function buildWorld(canvas, config, width, height) {
   }
   scene.add(objectGroup);
 
-  return {scene, camera, renderer, objectGroup};
+  const characterRig = config.character?.enabled === false ? null : createStickmanRig(THREE, config.character || {});
+  if (characterRig) scene.add(characterRig.root);
+
+  return {scene, camera, renderer, objectGroup, characterRig};
 }
 
 export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
@@ -142,8 +147,32 @@ export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
   const frame = useCurrentFrame();
   const {width, height, fps, durationInFrames} = useVideoConfig();
   const config = useMemo(
-    () => normalizeThreeDScene({...scene, three_d: scene.three_d || {background}}),
-    [scene, background]
+    () => {
+      const actionText = String(scene.character_action || '').toLowerCase();
+      const action = ['walk','run','sit','stand','point','hold','think','celebrate','fall','explain']
+        .find((name) => actionText.includes(name)) || scene.character?.action || scene.three_d?.character?.action || 'idle';
+      const compiled = compileThreeDScene({
+        ...scene,
+        character: scene.character || scene.three_d?.character || {
+          action,
+          expression: scene.character_expression || 'neutral'
+        }
+      }, {fps});
+      const normalized = normalizeThreeDScene({
+        ...scene,
+        three_d: {
+          ...(scene.three_d || {}),
+          environment: compiled.environment,
+          background: compiled.background,
+          ground: compiled.ground,
+          camera: compiled.camera,
+          objects: compiled.objects
+        }
+      });
+      normalized.character = normalizeCharacterConfig(compiled.character);
+      return normalized;
+    },
+    [scene, background, fps]
   );
 
   useLayoutEffect(() => {
@@ -167,6 +196,12 @@ export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
           else node.material.dispose();
         }
       });
+      if (world.characterRig) {
+        world.characterRig.root.traverse((node) => {
+          if (node.geometry) node.geometry.dispose();
+        });
+        world.characterRig.root.userData.disposeMaterials?.forEach((material) => material.dispose());
+      }
       world.renderer.dispose();
       worldRef.current = null;
     };
@@ -190,6 +225,10 @@ export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
         mesh.scale.setScalar(1);
       }
     });
+    if (world.characterRig) {
+      const action = config.character?.action || 'idle';
+      applyStickmanPose(world.characterRig, characterPoseAtFrame(action, frame, fps), config.character?.expression || 'neutral');
+    }
     world.renderer.render(world.scene, world.camera);
   }, [frame, config, fps, durationInFrames]);
 

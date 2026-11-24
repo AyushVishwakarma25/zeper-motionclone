@@ -39,6 +39,7 @@ export function normalizeThreeDScene(input = {}) {
         ? source.camera.move : 'hold',
       intensity: Math.max(0, Math.min(1, finite(source.camera?.intensity, 0.5)))
     },
+    character: source.character && typeof source.character === 'object' ? source.character : {},
     objects
   };
 }
