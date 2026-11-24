@@ -71,10 +71,10 @@ export function applyStickmanPose(rig,p,expression='neutral') {
  j.root.position.y=rig.config.position[1]+p.rootY;j.root.rotation.x=p.rootX;j.root.rotation.z=p.rootZ;
  j.torso.rotation.x=p.torsoX;j.torso.rotation.z=p.torsoZ;j.head.rotation.x=p.headX;j.head.rotation.z=p.headZ;
  const mood=CHARACTER_EXPRESSIONS.includes(expression)?expression:'neutral';
- j.mouth.scale.y=mood==='surprised'?2.2:mood==='stressed'?.45:mood==='happy'?1.35:1;
- j.mouth.scale.x=mood==='sad'?.72:mood==='happy'?1.25:1;
- j.mouth.rotation.z=mood==='sad'?Math.PI:0;
- j.leftBrow.rotation.z=mood==='stressed'?.22:mood==='sad'?.18:mood==='surprised'?-.12:0;
- j.rightBrow.rotation.z=mood==='stressed'?.-22:mood==='sad'?.-18:mood==='surprised'?.12:0;
+ j.mouth.scale.y = mood === 'surprised' ? 2.2 : mood === 'stressed' ? 0.45 : mood === 'happy' ? 1.35 : 1;
+ j.mouth.scale.x = mood === 'sad' ? 0.72 : mood === 'happy' ? 1.25 : 1;
+ j.mouth.rotation.z = mood === 'sad' ? Math.PI : 0;
+ j.leftBrow.rotation.z = mood === 'stressed' ? 0.22 : mood === 'sad' ? 0.18 : mood === 'surprised' ? -0.12 : 0;
+ j.rightBrow.rotation.z = mood === 'stressed' ? -0.22 : mood === 'sad' ? -0.18 : mood === 'surprised' ? 0.12 : 0;
  for(const side of ['left','right']){j[side+'Arm'].rotation.x=p[side+'ArmX'];j[side+'Arm'].rotation.z=(side==='left'?1:-1)*p[side+'ArmZ'];j[side+'Elbow'].rotation.x=p[side+'ElbowX'];j[side+'Leg'].rotation.x=p[side+'LegX'];j[side+'Knee'].rotation.x=p[side+'KneeX'];}
 }
