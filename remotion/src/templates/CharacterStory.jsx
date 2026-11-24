@@ -32,6 +32,7 @@ export function CharacterStory({
 
   const isVertical = height > width;
   const isSquare = Math.abs(height - width) < 50;
+  const is3DScene = scene.render_mode === '3d' || scene.template === 'three_d_story';
 
   // Resolve on-screen text (Prioritize dedicated on_screen_text, then short headline, fallback to empty)
   const displayText = onScreenText || scene.on_screen_text || headline || scene.headline || scene.title || '';
@@ -174,15 +175,17 @@ export function CharacterStory({
               justifyContent: 'center'
             }}
           >
-            <StickmanCharacter
-              pose={resolvedPose}
-              expression={resolvedExpression}
-              size={charSize}
-              shirtColor={accent}
-            />
+            {!is3DScene && (
+              <StickmanCharacter
+                pose={resolvedPose}
+                expression={resolvedExpression}
+                size={charSize}
+                shirtColor={accent}
+              />
+            )}
 
             {/* If vertical and has prop, place prop floating near hand/shoulder */}
-            {isVertical && resolvedProp && !vizType && (
+            {!is3DScene && isVertical && resolvedProp && !vizType && (
               <div
                 style={{
                   position: 'absolute',
@@ -234,7 +237,7 @@ export function CharacterStory({
               )}
             </div>
           ) : (
-            !isVertical && resolvedProp && (
+            !is3DScene && !isVertical && resolvedProp && (
               <div
                 style={{
                   display: 'flex',
