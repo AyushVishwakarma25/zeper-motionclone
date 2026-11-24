@@ -78,6 +78,11 @@ export function CharacterStory({
     config: {damping: 16, stiffness: 130}
   });
 
+  // 3D Mode & Character Layering Resolution
+  const is3D = scene.render_mode === '3d' || scene.template === 'three_d_story';
+  const characterMode = scene.character_mode || (is3D ? '3d' : '2d');
+  const show2DCharacter = !is3D || characterMode === '2d';
+
   // Calculate layout dimensions
   const charSize = isVertical ? Math.min(width * 0.75, 480) : Math.min(height * 0.65, 440);
   const propSize = isVertical ? Math.min(width * 0.42, 220) : Math.min(height * 0.35, 200);
@@ -88,8 +93,23 @@ export function CharacterStory({
   return (
     <AbsoluteFill style={{overflow: 'hidden'}}>
       {/* 3D mode is opt-in; the existing 2D environment remains the default. */}
-      {scene.render_mode === '3d' || scene.template === 'three_d_story' ? (
-        <ThreeDWorld scene={scene} background={bg} />
+      {is3D ? (
+        <ThreeDWorld
+          scene={{
+            ...scene,
+            character_pose: resolvedPose,
+            character_mode: characterMode,
+            character: {
+              ...(scene.character || {}),
+              enabled: characterMode === '3d',
+              mode: characterMode,
+              pose: resolvedPose,
+              shirtColor: accent
+            },
+            prop_type: resolvedProp
+          }}
+          background={bg}
+        />
       ) : (
         <DynamicEnvironment artDirection={resolvedArt} accent={accent} bg={bg} />
       )}
@@ -165,40 +185,45 @@ export function CharacterStory({
             position: 'relative'
           }}
         >
-          {/* Character Stage */}
-          <div
-            style={{
-              position: 'relative',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            <StickmanCharacter
-              pose={resolvedPose}
-              expression={resolvedExpression}
-              size={charSize}
-              shirtColor={accent}
-            />
+          {/* Character Stage: Rendered in 2D only when in 2D mode or 2D character is explicitly requested */}
+          {show2DCharacter ? (
+            <div
+              style={{
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <StickmanCharacter
+                pose={resolvedPose}
+                expression={resolvedExpression}
+                size={charSize}
+                shirtColor={accent}
+              />
 
-            {/* If vertical and has prop, place prop floating near hand/shoulder */}
-            {isVertical && resolvedProp && !vizType && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: resolvedPose === 'sitting_desk' ? '20%' : '15%',
-                  right: '-10%',
-                  zIndex: 15
-                }}
-              >
-                <AnimatedProp
-                  type={resolvedProp}
-                  size={propSize}
-                  amount={resolvedAmount}
-                />
-              </div>
-            )}
-          </div>
+              {/* If vertical and has prop, place prop floating near hand/shoulder */}
+              {isVertical && resolvedProp && !vizType && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: resolvedPose === 'sitting_desk' ? '20%' : '15%',
+                    right: '-10%',
+                    zIndex: 15
+                  }}
+                >
+                  <AnimatedProp
+                    type={resolvedProp}
+                    size={propSize}
+                    amount={resolvedAmount}
+                  />
+                </div>
+              )}
+            </div>
+          ) : (
+            // In 3D character mode, spacer keeps layout geometry balanced for optional data visualizations
+            <div style={{minHeight: isVertical ? '240px' : 'auto'}} />
+          )}
 
           {/* Interactive Prop or Data Visualization Stage */}
           {vizType ? (

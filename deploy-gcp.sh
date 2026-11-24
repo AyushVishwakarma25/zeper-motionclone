@@ -32,7 +32,7 @@ if [ "$DRY_RUN" = true ]; then
   echo "   gcloud services enable aiplatform.googleapis.com run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com texttospeech.googleapis.com speech.googleapis.com firestore.googleapis.com storage.googleapis.com"
   echo "2. Would deploy Cloud Run service:"
   MASKED_ENV_VARS=$(echo "$ENV_VARS" | sed -E 's/(FIREBASE_WEB_API_KEY=)[^,]*/\1[REDACTED]/g')
-  echo "   gcloud run deploy \"$SERVICE_NAME\" --source . --region \"$REGION\" --platform managed --memory 8Gi --cpu 4 --timeout 3600 --min-instances 0 --max-instances 1 --cpu-throttling --set-env-vars \"$MASKED_ENV_VARS\""
+  echo "   gcloud run deploy \"$SERVICE_NAME\" --source . --region \"$REGION\" --platform managed --memory 4Gi --cpu 2 --timeout 3600 --min-instances 1 --max-instances 1 --no-cpu-throttling --set-env-vars \"$MASKED_ENV_VARS\""
   echo "--- Dry run complete. No commands executed. ---"
   exit 0
 fi
@@ -55,12 +55,12 @@ gcloud run deploy "$SERVICE_NAME" \
   --source . \
   --region "$REGION" \
   --platform managed \
-  --memory 8Gi \
-  --cpu 4 \
+  --memory 4Gi \
+  --cpu 2 \
   --timeout 3600 \
-  --min-instances 0 \
+  --min-instances 1 \
   --max-instances 1 \
-  --cpu-throttling \
+  --no-cpu-throttling \
   --set-env-vars "$ENV_VARS"
 
 echo "MotionClone is deployed and running on Google Cloud Run!"

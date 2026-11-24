@@ -1,52 +1,110 @@
-# MotionClone 3D Story Scene Format (V5)
+# MotionClone V5: 3D Storytelling Engine Specification
 
-The 3D renderer is opt-in. Existing projects continue using the current Remotion/SVG templates unless a scene explicitly sets `render_mode: "3d"` or `template: "three_d_story"`.
+The 3D Storytelling Engine (V5) introduces real-time, deterministic 3D procedural scenes rendered inside Remotion via Three.js. It operates alongside existing 2D templates with complete backward compatibility.
 
-## Scene example
+---
+
+## 1. Scene Structure & JSON Schema
+
+A 3D story scene is enabled by setting `template: "three_d_story"` or `render_mode: "3d"`.
 
 ```json
 {
   "template": "three_d_story",
   "render_mode": "3d",
-  "headline": "The bill arrives before payday",
-  "character_pose": "stress_panic",
-  "character_expression": "stressed",
+  "character_mode": "3d",
+  "headline": "Where Did The Cash Go?",
+  "on_screen_text": "60 Days Payment Lag",
+  "visual_metaphor": "Trapped Working Capital",
+  "environment": "office",
+  "character_pose": "sitting_desk",
+  "prop_type": "invoice",
+  "camera_motion": "push_in",
+  "duration_seconds": 6.0,
+  "accent": "#00f2fe",
+  "bg": "#0f172a",
   "three_d": {
     "environment": "office",
-    "background": "#b9c7d8",
-    "ground": "#d9d4ca",
-    "camera": {"move": "push_in", "intensity": 0.7},
-    "objects": [
-      {
-        "id": "desk",
-        "type": "box",
-        "position": [0, 0.55, -1],
-        "size": [5.2, 1.1, 1.6],
-        "color": "#8b674d"
-      },
-      {
-        "id": "invoice",
-        "type": "box",
-        "position": [0.5, 1.18, -0.8],
-        "size": [0.9, 0.04, 1.1],
-        "color": "#fffaf0",
-        "motion": "float"
-      }
-    ]
+    "camera": {
+      "move": "push_in",
+      "intensity": 0.7
+    },
+    "character": {
+      "enabled": true,
+      "mode": "3d",
+      "pose": "sitting_desk",
+      "shirtColor": "#00f2fe"
+    },
+    "prop": {
+      "type": "invoice",
+      "motion": "float"
+    }
   }
 }
 ```
 
-## Supported fields
+---
 
-- `environment`: `studio`, `office`, `room`, `street`, `forest`.
-- `objects[].type`: `box`, `sphere`, `cylinder`, `cone`, `torus`.
-- `objects[].position`, `size`, and `rotation`: three-number arrays in world units.
-- `objects[].motion`: `none`, `float`, `rotate`, or `pulse`.
-- `camera.move`: `hold`, `push_in`, `pull_back`, `pan_left`, `pan_right`, or `orbit`.
+## 2. Supported Attributes
 
-The existing SVG stickman remains a 2D foreground layer over the 3D environment. The existing voice, music, caption, transition, and MP4 rendering stages are unchanged.
+### Environments (`environment`)
+- **`studio`**: Infinite cyclorama floor with sleek circular pedestal and ambient rim lighting.
+- **`office`**: Parquet/tile ground, wooden slat acoustic back-wall, executive desk, desk legs, and potted indoor plant.
+- **`street`**: Double-lane asphalt road with dashed lane markings, sidewalk curb, and street lamp posts.
+- **`forest`**: Stylized rolling terrain with low-poly pine trees, multi-tiered foliage cones, and trunks.
+- **`tech`**: Dark reflective floor grid with glowing neon accent lines and floating semi-transparent data pillars.
+- **`room`**: Modern interior with parquet floor, side and back walls, modern framed geometric wall art, and ambient lighting.
 
-## Rendering notes
+### 3D Stickman Character (`character_pose`)
+The procedural 3D stickman character features full joint articulation (pelvis, torso, neck, head, visor eyes, shoulders, upper arms, elbows, forearms, hands, hips, thighs, knees, shins, and feet):
+- **`idle`**: Natural breathing, torso micro-expansion, head glance, relaxed arm sway.
+- **`walking`**: Natural 1.8 Hz walking stride, leg swing, counter-phase arm pumps, vertical bounce.
+- **`running`**: 2.8 Hz athletic stride, forward torso lean (20°), bent elbows pumping aggressively.
+- **`pointing`**: Extended arm towards the target/stat, head angled towards gaze direction, opposite arm relaxed.
+- **`holding_object`**: Both arms brought forward, elbows bent at 90°, hands gripping or socketing the active 3D prop.
+- **`turning`**: Smooth deterministic yaw rotation across the scene duration.
+- **`celebrating`**: Both arms raised high in a victory "V", hands waving, head tilted upward, joyful vertical hopping.
+- **`stress_panic`**: Both hands gripping temples/head, jittery posture, head shaking.
+- **`confused`**: One hand scratching head, head tilted to the side (15° roll), puzzled stance.
+- **`sitting_desk`**: Pelvis lowered to seat level, horizontal thighs, knees bent 90°, arms resting or typing on desk.
 
-The renderer uses Three.js WebGL with deterministic frame-to-transform mapping. Remotion's headless Chromium must provide WebGL (the current render command configures SwiftShader). A runtime smoke render is still required on the deployment image before enabling this mode for production jobs.
+### Character Rendering Mode (`character_mode`)
+- **`3d` (Default)**: Full Three.js mesh character with real-time lighting, specular highlights, and contact shadows.
+- **`2d`**: Existing vector SVG stickman layered in the foreground over the 3D world, preserving legacy 2D appearance when desired.
+
+### Reusable 3D Props (`prop_type`)
+- **`money_stack`**: Banded stacks of banknotes with gold coins.
+- **`coin`**: Golden coin cylinder with star relief and rim.
+- **`invoice`**: 3D paper document card with colored header bar, body text lines, and status badge ("DUE" / "PAID").
+- **`laptop`**: Sleek laptop base with keyboard recess and open angled display with emissive screen.
+- **`phone`**: Modern smartphone slab with curved corners, bezel, and emissive display.
+- **`box`**: Cardboard parcel with tape strips and shipping label.
+- **`chart_3d`**: 3D animated bar chart with rising colored columns and pedestal.
+- **`trophy`**: Shiny gold trophy cup with pedestal base and handles.
+- **`shield`**: Glossy security emblem shield.
+
+### Camera Choreography (`camera_motion` / `camera.move`)
+- **`push_in`**: Smooth cinematic push-in towards the subject.
+- **`pull_back`**: Reveal shot pulling backward.
+- **`pan_left` / `pan_right`**: Horizontal tracking pan.
+- **`orbit`**: Smooth arc orbit around the subject.
+- **`crane_down`**: Descending camera crane from high angle to eye level.
+- **`dutch_tilt`**: Dynamic Dutch roll angle for tension or drama.
+- **`hold`**: Subtle continuous floating drift guaranteeing no frozen frames.
+
+---
+
+## 3. WebGL Headless & Fallback Guarantee
+
+1. **Headless Chromium**: Configured with ANGLE SwiftShader (`gl: 'swangle'`), enabling hardware-free software rasterization on headless containers, CI runners, and Cloud Run.
+2. **Synchronous Fallback**: If WebGL cannot be initialized, the system automatically falls back to `ThreeDFallbackView` (isometric SVG + CSS 3D projection) with 0 dropped frames, 0% still share, and full visual continuity.
+
+---
+
+## 4. Verification & Smoke Test
+
+To execute the 3D storytelling engine smoke test:
+```bash
+python scripts/smoke_render_3d.py
+```
+Output artifact: `out/sample_3d_story.mp4` (1080x1920 @ 30 FPS, H.264, AAC audio).

@@ -28,7 +28,7 @@ if ($DryRun) {
     Write-Host "   gcloud services enable aiplatform.googleapis.com run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com texttospeech.googleapis.com speech.googleapis.com firestore.googleapis.com storage.googleapis.com"
     Write-Host "2. Would deploy Cloud Run service:"
     $maskedVars = $envVars -replace 'FIREBASE_WEB_API_KEY=[^,]*', 'FIREBASE_WEB_API_KEY=[REDACTED]'
-    Write-Host "   gcloud run deploy $serviceName --source . --region $region --platform managed --memory 8Gi --cpu 4 --timeout 3600 --min-instances 0 --max-instances 1 --cpu-throttling --set-env-vars `"$maskedVars`""
+    Write-Host "   gcloud run deploy $serviceName --source . --region $region --platform managed --memory 4Gi --cpu 2 --timeout 3600 --min-instances 1 --max-instances 1 --no-cpu-throttling --set-env-vars `"$maskedVars`""
     Write-Host "--- Dry run complete. No commands executed. ---" -ForegroundColor Green
     exit 0
 }
@@ -43,12 +43,12 @@ Write-Host "Building container and deploying to Cloud Run..." -ForegroundColor Y
     --source . `
     --region $region `
     --platform managed `
-    --memory 8Gi `
-    --cpu 4 `
+    --memory 4Gi `
+    --cpu 2 `
     --timeout 3600 `
-    --min-instances 0 `
+    --min-instances 1 `
     --max-instances 1 `
-    --cpu-throttling `
+    --no-cpu-throttling `
     --env-vars-file cloudrun-env.yaml
 
 Write-Host "MotionClone successfully deployed to Google Cloud Run!" -ForegroundColor Green

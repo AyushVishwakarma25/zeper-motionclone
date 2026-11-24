@@ -2,91 +2,55 @@ import React, {useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {AbsoluteFill, useCurrentFrame, useVideoConfig} from 'remotion';
 import * as THREE from 'three';
 import {cameraPoseAtFrame, normalizeThreeDScene} from './scene3d.mjs';
+import {buildStickman3D, applyStickmanPose} from './stickman3d.mjs';
+import {buildProp3D} from './props3d.mjs';
+import {addEnvironment3D} from './environments3d.mjs';
+import {ThreeDFallbackView} from './ThreeDFallbackView.jsx';
 
-function addEnvironment(scene, config) {
-  scene.background = new THREE.Color(config.background);
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(80, 80),
-    new THREE.MeshStandardMaterial({color: config.ground, roughness: 0.95})
-  );
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -0.04;
-  ground.receiveShadow = true;
-  scene.add(ground);
-
-  const wallMaterial = new THREE.MeshStandardMaterial({color: '#e9edf2', roughness: 0.95});
-  if (config.environment === 'room' || config.environment === 'office' || config.environment === 'studio') {
-    const backWall = new THREE.Mesh(new THREE.PlaneGeometry(24, 12), wallMaterial);
-    backWall.position.set(0, 6, -8);
-    backWall.receiveShadow = true;
-    scene.add(backWall);
-    if (config.environment !== 'studio') {
-      const sideWall = new THREE.Mesh(new THREE.PlaneGeometry(16, 12), wallMaterial);
-      sideWall.rotation.y = Math.PI / 2;
-      sideWall.position.set(-10, 6, 0);
-      scene.add(sideWall);
-    }
-  }
-
-  if (config.environment === 'street') {
-    const road = new THREE.Mesh(
-      new THREE.PlaneGeometry(80, 9),
-      new THREE.MeshStandardMaterial({color: '#414b58', roughness: 1})
+/**
+ * Synchronous WebGL check helper.
+ */
+export function isWebGLAvailable() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return false;
+  try {
+    const canvas = document.createElement('canvas');
+    return Boolean(
+      window.WebGLRenderingContext &&
+        (canvas.getContext('webgl2') || canvas.getContext('webgl') || canvas.getContext('experimental-webgl'))
     );
-    road.rotation.x = -Math.PI / 2;
-    road.position.set(0, 0.005, 1.5);
-    scene.add(road);
-    for (let x = -35; x < 35; x += 5) {
-      const marking = new THREE.Mesh(
-        new THREE.BoxGeometry(2.4, 0.025, 0.12),
-        new THREE.MeshBasicMaterial({color: '#f5e8bd'})
-      );
-      marking.position.set(x, 0.03, 1.5);
-      scene.add(marking);
-    }
-  }
-
-  if (config.environment === 'forest') {
-    const trunkMaterial = new THREE.MeshStandardMaterial({color: '#75543c'});
-    const leafMaterial = new THREE.MeshStandardMaterial({color: '#4f805e', roughness: 1});
-    for (let i = 0; i < 14; i++) {
-      const x = (i % 7 - 3) * 4.5;
-      const z = -4 - Math.floor(i / 7) * 7;
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.34, 3.5, 7), trunkMaterial);
-      trunk.position.set(x, 1.75, z);
-      trunk.castShadow = true;
-      scene.add(trunk);
-      const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(1.6, 1), leafMaterial);
-      crown.position.set(x, 4.1, z);
-      crown.castShadow = true;
-      scene.add(crown);
-    }
+  } catch {
+    return false;
   }
 }
 
-function geometryFor(item) {
+function geometryForPrimitive(item) {
   const [w, h, d] = item.size;
   switch (item.type) {
-    case 'sphere': return new THREE.SphereGeometry(w / 2, 24, 16);
-    case 'cylinder': return new THREE.CylinderGeometry(w / 2, w / 2, h, 24);
-    case 'cone': return new THREE.ConeGeometry(w / 2, h, 24);
-    case 'torus': return new THREE.TorusGeometry(w / 2, Math.max(0.05, d / 5), 12, 32);
-    default: return new THREE.BoxGeometry(w, h, d);
+    case 'sphere':
+      return new THREE.SphereGeometry(w / 2, 24, 16);
+    case 'cylinder':
+      return new THREE.CylinderGeometry(w / 2, w / 2, h, 24);
+    case 'cone':
+      return new THREE.ConeGeometry(w / 2, h, 24);
+    case 'torus':
+      return new THREE.TorusGeometry(w / 2, Math.max(0.05, d / 5), 12, 32);
+    default:
+      return new THREE.BoxGeometry(w, h, d);
   }
 }
 
 function buildWorld(canvas, config, width, height) {
   const scene = new THREE.Scene();
-  addEnvironment(scene, config);
+  addEnvironment3D(THREE, scene, config);
 
-  const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 180);
-  camera.position.set(0, 5.2, 12);
+  const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 200);
+  camera.position.set(0, 3.8, 8.8);
 
   const renderer = new THREE.WebGLRenderer({
     canvas,
     antialias: false,
     alpha: false,
-    powerPreference: 'low-power',
+    powerPreference: 'high-performance',
     preserveDrawingBuffer: true
   });
   renderer.setPixelRatio(1);
@@ -97,21 +61,67 @@ function buildWorld(canvas, config, width, height) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.15;
 
-  scene.add(new THREE.HemisphereLight('#ffffff', '#64748b', 2.0));
-  const key = new THREE.DirectionalLight('#fff4df', 3.2);
-  key.position.set(-5, 10, 7);
-  key.castShadow = true;
-  key.shadow.mapSize.set(1024, 1024);
-  key.shadow.camera.left = -18;
-  key.shadow.camera.right = 18;
-  key.shadow.camera.top = 18;
-  key.shadow.camera.bottom = -18;
-  scene.add(key);
+  // Scene Lighting
+  const hemi = new THREE.HemisphereLight('#ffffff', '#334155', 2.2);
+  scene.add(hemi);
 
-  const fill = new THREE.DirectionalLight('#a9c9ff', 1.0);
-  fill.position.set(7, 5, -4);
-  scene.add(fill);
+  const keyLight = new THREE.DirectionalLight('#fff7ed', 3.0);
+  keyLight.position.set(-4, 9, 6);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.set(1024, 1024);
+  keyLight.shadow.camera.near = 0.5;
+  keyLight.shadow.camera.far = 40;
+  keyLight.shadow.camera.left = -15;
+  keyLight.shadow.camera.right = 15;
+  keyLight.shadow.camera.top = 15;
+  keyLight.shadow.camera.bottom = -15;
+  keyLight.shadow.bias = -0.0005;
+  scene.add(keyLight);
 
+  const fillLight = new THREE.DirectionalLight('#93c5fd', 1.2);
+  fillLight.position.set(6, 4, -3);
+  scene.add(fillLight);
+
+  const rimLight = new THREE.DirectionalLight('#38bdf8', 0.8);
+  rimLight.position.set(0, 6, -8);
+  scene.add(rimLight);
+
+  // 3D Stickman Character
+  let stickmanRig = null;
+  if (config.character?.enabled !== false && config.character?.mode === '3d') {
+    stickmanRig = buildStickman3D(THREE, {
+      shirtColor: config.character.shirtColor,
+      scale: config.character.scale
+    });
+    stickmanRig.root.position.set(...config.character.position);
+    stickmanRig.root.rotation.set(...config.character.rotation);
+    scene.add(stickmanRig.root);
+  }
+
+  // Reusable 3D Prop
+  let mainPropGroup = null;
+  if (config.prop) {
+    mainPropGroup = buildProp3D(THREE, config.prop.type, {
+      accent: config.character?.shirtColor
+    });
+    mainPropGroup.position.set(...config.prop.position);
+    mainPropGroup.rotation.set(...config.prop.rotation);
+    mainPropGroup.scale.setScalar(config.prop.scale);
+    mainPropGroup.userData = {
+      baseY: config.prop.position[1],
+      motion: config.prop.motion
+    };
+
+    if (config.character?.pose === 'holding_object' && stickmanRig?.propSocket) {
+      // Attach to character's hand
+      mainPropGroup.position.set(0, 0, 0);
+      stickmanRig.propSocket.add(mainPropGroup);
+    } else {
+      scene.add(mainPropGroup);
+    }
+  }
+
+  // Custom 3D Objects
   const objectGroup = new THREE.Group();
   for (const item of config.objects) {
     const material = new THREE.MeshStandardMaterial({
@@ -119,79 +129,155 @@ function buildWorld(canvas, config, width, height) {
       roughness: item.roughness,
       metalness: item.metalness
     });
-    const mesh = new THREE.Mesh(geometryFor(item), material);
+    const mesh = new THREE.Mesh(geometryForPrimitive(item), material);
     mesh.position.set(...item.position);
     mesh.rotation.set(...item.rotation);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    mesh.userData.motion = item.motion;
-    mesh.userData.baseY = item.position[1];
-    mesh.userData.baseRotation = [...item.rotation];
-    mesh.userData.amplitude = item.motionAmplitude;
+    mesh.userData = {
+      motion: item.motion,
+      baseY: item.position[1],
+      baseRotation: [...item.rotation],
+      amplitude: item.motionAmplitude
+    };
     objectGroup.add(mesh);
   }
   scene.add(objectGroup);
 
-  return {scene, camera, renderer, objectGroup};
+  return {
+    scene,
+    camera,
+    renderer,
+    stickmanRig,
+    mainPropGroup,
+    objectGroup
+  };
 }
 
 export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
   const canvasRef = useRef(null);
   const worldRef = useRef(null);
-  const [webglError, setWebglError] = useState(false);
+  const [hasWebgl, setHasWebgl] = useState(() => isWebGLAvailable());
   const frame = useCurrentFrame();
   const {width, height, fps, durationInFrames} = useVideoConfig();
+
+  // Normalize full 3D configuration
   const config = useMemo(
     () => normalizeThreeDScene({...scene, three_d: scene.three_d || {background}}),
-    [scene, background]
+    [
+      scene.environment,
+      scene.art_direction,
+      scene.character_pose,
+      scene.character_mode,
+      scene.prop_type,
+      scene.props,
+      scene.camera_motion,
+      scene.accent_color,
+      scene.accent,
+      background,
+      scene.three_d
+    ]
   );
 
+  // Initialize and tear down Three.js
   useLayoutEffect(() => {
-    if (!canvasRef.current) return undefined;
+    if (!hasWebgl || !canvasRef.current) return undefined;
+
     let world;
-    setWebglError(false);
     try {
       world = buildWorld(canvasRef.current, config, width, height);
       worldRef.current = world;
     } catch (error) {
-      // The DOM fallback remains visible if the render host cannot create WebGL.
-      canvasRef.current.dataset.webglError = String(error?.message || error);
-      setWebglError(true);
+      if (canvasRef.current) {
+        canvasRef.current.dataset.webglError = String(error?.message || error);
+      }
+      setHasWebgl(false);
       return undefined;
     }
+
     return () => {
-      world.objectGroup.traverse((node) => {
+      if (!world) return;
+      // Thorough disposal of all geometries, materials, and textures
+      world.scene.traverse((node) => {
         if (node.geometry) node.geometry.dispose();
         if (node.material) {
-          if (Array.isArray(node.material)) node.material.forEach((material) => material.dispose());
-          else node.material.dispose();
+          if (Array.isArray(node.material)) {
+            node.material.forEach((mat) => mat?.dispose?.());
+          } else {
+            node.material?.dispose?.();
+          }
         }
       });
       world.renderer.dispose();
+      world.renderer.forceContextLoss?.();
       worldRef.current = null;
     };
-  }, [config, width, height]);
+  }, [hasWebgl, config, width, height]);
 
+  // Frame update
   useLayoutEffect(() => {
     const world = worldRef.current;
     if (!world) return;
+
+    const time = frame / Math.max(1, fps);
+
+    // 1. Camera Pose
     const pose = cameraPoseAtFrame(config.camera, frame, fps, durationInFrames);
     world.camera.position.set(pose.x, pose.y, pose.z);
     world.camera.lookAt(pose.targetX, pose.targetY, pose.targetZ);
+    if (pose.roll) {
+      world.camera.rotation.z = pose.roll;
+    }
+
+    // 2. 3D Stickman Character Pose
+    if (world.stickmanRig) {
+      applyStickmanPose(world.stickmanRig, config.character.pose, frame, fps, durationInFrames);
+    }
+
+    // 3. Main Prop Animation
+    if (world.mainPropGroup && config.prop?.motion) {
+      const motion = config.prop.motion;
+      if (motion === 'float') {
+        world.mainPropGroup.position.y = world.mainPropGroup.userData.baseY + Math.sin(time * 2.2) * 0.12;
+      } else if (motion === 'rotate') {
+        world.mainPropGroup.rotation.y = time * 0.9;
+      } else if (motion === 'pulse') {
+        const s = 1 + Math.sin(time * 3.0) * 0.08;
+        world.mainPropGroup.scale.setScalar(config.prop.scale * s);
+      }
+
+      // Bar chart height animation
+      if (world.mainPropGroup.userData?.bars) {
+        const growth = Math.min(1, time * 1.5);
+        world.mainPropGroup.userData.bars.forEach((bar) => {
+          const h = bar.userData.targetHeight * growth;
+          bar.scale.y = Math.max(0.01, h);
+          bar.position.y = 0.08 + h / 2;
+        });
+      }
+    }
+
+    // 4. Custom 3D Objects Animation
     world.objectGroup.children.forEach((mesh, index) => {
-      const phase = frame / Math.max(1, fps) + index * 0.7;
+      const phase = time + index * 0.7;
       const motion = mesh.userData.motion;
-      mesh.position.y = mesh.userData.baseY + (motion === 'float' ? Math.sin(phase * 1.8) * mesh.userData.amplitude : 0);
-      mesh.rotation.y = mesh.userData.baseRotation[1] + (motion === 'rotate' ? phase * 0.8 : 0);
-      if (motion === 'pulse') {
+      if (motion === 'float') {
+        mesh.position.y = mesh.userData.baseY + Math.sin(phase * 1.8) * mesh.userData.amplitude;
+      } else if (motion === 'rotate') {
+        mesh.rotation.y = mesh.userData.baseRotation[1] + phase * 0.8;
+      } else if (motion === 'pulse') {
         const scale = 1 + Math.sin(phase * 2) * 0.08;
         mesh.scale.setScalar(scale);
-      } else {
-        mesh.scale.setScalar(1);
       }
     });
+
     world.renderer.render(world.scene, world.camera);
   }, [frame, config, fps, durationInFrames]);
+
+  // If WebGL is unavailable or failed, render the graceful isometric fallback
+  if (!hasWebgl) {
+    return <ThreeDFallbackView config={config} width={width} height={height} />;
+  }
 
   return (
     <AbsoluteFill style={{backgroundColor: config.background, overflow: 'hidden', zIndex: 0}}>
@@ -200,17 +286,6 @@ export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
         aria-label="Procedurally rendered 3D story environment"
         style={{display: 'block', width: '100%', height: '100%'}}
       />
-      {webglError && (
-        <div
-          data-three-fallback="true"
-          style={{position: 'absolute', inset: 0, overflow: 'hidden', background: `linear-gradient(180deg, ${config.background} 0%, ${config.ground} 100%)`}}
-        >
-          <div style={{position: 'absolute', left: '8%', right: '8%', bottom: '14%', height: '28%', borderRadius: '18px', background: 'rgba(38, 49, 65, 0.16)', transform: 'perspective(700px) rotateX(12deg)'}} />
-          {config.objects.slice(0, 8).map((item, index) => (
-            <div key={item.id} style={{position: 'absolute', left: `${18 + (index % 4) * 18}%`, top: `${28 + Math.floor(index / 4) * 18}%`, width: `${Math.max(5, Math.min(14, item.size[0] * 5))}%`, height: `${Math.max(5, Math.min(18, item.size[1] * 7))}%`, borderRadius: item.type === 'sphere' ? '50%' : '8px', background: item.color, boxShadow: '0 16px 24px rgba(20,30,45,.18)', transform: `rotate(${item.rotation[2] * 30}deg)`}} />
-          ))}
-        </div>
-      )}
     </AbsoluteFill>
   );
 }
