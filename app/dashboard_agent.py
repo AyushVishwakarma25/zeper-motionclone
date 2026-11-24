@@ -129,8 +129,12 @@ class SceneItem(BaseModel):
         "lower_third",
         "transparent_callout",
         "science_scene",       # genre templates are produced by app/genre_pipeline.py; listed so stored plans validate
-        "icon_explainer"
+        "icon_explainer",
+        "three_d_story"        # V5 3D storytelling engine
     ] = "character_story"
+    render_mode: Literal["2d", "3d"] = "2d"
+    character_mode: Literal["2d", "3d"] = "3d"
+    three_d: dict[str, Any] | None = None
     start_seconds: float = 0.0
     duration_seconds: float = 3.0
     headline: str = "Headline"
@@ -568,6 +572,7 @@ def generate_scene_plan(
         "   - 'on_screen_text' is short, high-impact on-screen graphics (1 to 6 words maximum, e.g. 'Where Did The Cash Go?').\n"
         "   - NEVER put full spoken narration sentences into on_screen_text, headline, or subtitle.\n"
         "2. NARRATIVE CHARACTER STORIES & METAPHORS (Prefer over text slides):\n"
+        "   - 'three_d_story': Immersive 3D narrative scene with animated 3D stickman, 3D props (money_stack, invoice, laptop, phone, box, coin, chart_3d), rich 3D environments (office, room, street, forest, tech, studio), and camera choreography.\n"
         "   - 'character_story': Human narrative scene with animated vector character, props, and visual metaphor badge.\n"
         "   - 'finance_breakdown': Revenue splitting into COGS, salaries, rent, net cash.\n"
         "   - 'timeline_gap': Payment delay gap analysis (e.g. 60-day invoice lag).\n"

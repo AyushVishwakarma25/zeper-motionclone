@@ -427,6 +427,33 @@ function Root() {
           accent: '#00f2fe'
         }}
       />
+      <Composition
+        id="ThreeDStory"
+        component={CharacterStory}
+        width={defaultMeta.width}
+        height={defaultMeta.height}
+        fps={defaultMeta.fps}
+        durationInFrames={90}
+        calculateMetadata={async ({props}) => resolveDimensions(props)}
+        defaultProps={{
+          scene: {
+            template: 'three_d_story',
+            render_mode: '3d',
+            character_mode: '3d',
+            headline: '3D Autonomous Storytelling Engine',
+            on_screen_text: '3D Storytelling Engine',
+            visual_metaphor: 'Spatial Motion',
+            character_pose: 'walking',
+            prop_type: 'laptop',
+            accent: '#00f2fe',
+            bg: '#0a0a12',
+            three_d: {
+              environment: 'office',
+              camera: {move: 'push_in', intensity: 0.7}
+            }
+          }
+        }}
+      />
     </>
   );
 }

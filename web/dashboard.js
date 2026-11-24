@@ -490,12 +490,14 @@
 
     const voiceGroup = $('voice-control-group');
     if (voiceGroup) {
-      voiceGroup.style.display = (activeStyle === 'auto') ? 'flex' : 'none';
+      voiceGroup.style.display = (activeStyle === 'auto' || activeStyle === '3d') ? 'flex' : 'none';
     }
 
     const planBtn = $('btn-generate-plan-direct');
     if (planBtn) {
-      if (activeStyle === 'science') {
+      if (activeStyle === '3d') {
+        planBtn.innerHTML = '🧊 Generate 3D Story';
+      } else if (activeStyle === 'science') {
         planBtn.innerHTML = '🔬 Generate Science Explainer';
       } else if (activeStyle === 'icon') {
         planBtn.innerHTML = '✨ Generate Icon Explainer';
