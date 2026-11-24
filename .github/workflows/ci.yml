@@ -2,7 +2,7 @@ name: MotionClone CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, feat/v6-3d-character-story-engine ]
   pull_request:
     branches: [ main ]
 
