@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {normalizeCameraPlan,cameraPoseForFrame} from '../src/three/cinematicCamera.mjs';
-import {validatePhysicsBake,physicsTransformAtFrame} from '../src/three/physicsBake.mjs';
+import {validatePhysicsBake,physicsTransformAtFrame,bakePhysicsScene} from '../src/three/physicsBake.mjs';
 import {GLB_ASSET_MANIFEST} from '../src/three/gltfAssetLoader.mjs';
 
 test('cinematic camera plan normalizes shot ranges and produces finite poses',()=>{
@@ -24,3 +24,16 @@ test('GLB manifest uses only local public paths',()=>{
  assert.ok(Object.keys(GLB_ASSET_MANIFEST).length>=8);
  for(const item of Object.values(GLB_ASSET_MANIFEST)){assert.ok(item.url.startsWith('/models/'));assert.equal(/^https?:/i.test(item.url),false);}
 });
+
+test('bakePhysicsScene steps offline and bakes deterministic gravity transforms',async ()=>{
+ const scene={bodies:[{id:'falling_card',position:[0,5,0],half_extents:[0.4,0.05,0.25],type:'dynamic'}]};
+ const bake=await bakePhysicsScene(scene,{fps:30,durationInFrames:15});
+ assert.equal(bake.frames.length,15);
+ const initialY=physicsTransformAtFrame(bake,'falling_card',0).position[1];
+ const midY=physicsTransformAtFrame(bake,'falling_card',7).position[1];
+ const finalY=physicsTransformAtFrame(bake,'falling_card',14).position[1];
+ assert.ok(initialY>midY);
+ assert.ok(midY>finalY);
+ assert.ok(finalY>=0);
+});
+

@@ -26,7 +26,7 @@ export function normalizeCameraPlan(plan={},fps=30,durationInFrames=150){
  const cues=Array.isArray(plan.shots)?plan.shots:[];
  const normalized=cues.slice(0,80).map((shot,i)=>{
   const start=Math.max(0,Math.floor(clamp(shot.start_frame,0,durationInFrames-1)));
-  const end=Math.max(start+1,Math.min(durationInFrames,Math.floor(clamp(shot.end_frame,durationInFrames,1))));
+  const end=Math.max(start+1,Math.min(durationInFrames,Math.floor(clamp(shot.end_frame,1,durationInFrames))));
   const from=SHOTS.has(shot.from)?shot.from:(SHOTS.has(shot.type)?shot.type:'medium');
   const to=SHOTS.has(shot.to)?shot.to:from;
   return {id:String(shot.id||'shot-'+i),start_frame:start,end_frame:end,from,to,focus:Array.isArray(shot.focus)&&shot.focus.length===3?shot.focus.map(v=>clamp(v,-50,50)):[0,1,0],ease:['linear','smooth','out'].includes(shot.ease)?shot.ease:'smooth',fov:clamp(shot.fov,20,75),roll:clamp(shot.roll,-0.25,0.25)};

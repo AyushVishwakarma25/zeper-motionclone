@@ -1,9 +1,12 @@
-import React, {useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {AbsoluteFill, useCurrentFrame, useVideoConfig} from 'remotion';
+import React, {useLayoutEffect, useMemo, useRef, useState, useEffect} from 'react';
+import {AbsoluteFill, useCurrentFrame, useVideoConfig, delayRender, continueRender} from 'remotion';
 import * as THREE from 'three';
 import {cameraPoseAtFrame, normalizeThreeDScene} from './scene3d.mjs';
 import {createStickmanRig, applyStickmanPose, characterPoseAtFrame, normalizeCharacterConfig} from './characterRig.mjs';
 import {compileThreeDScene} from './sceneCompiler.mjs';
+import {normalizeCameraPlan, cameraPoseForFrame} from './cinematicCamera.mjs';
+import {physicsTransformAtFrame} from './physicsBake.mjs';
+import {preloadCatalogAssets, disposeHierarchy} from './gltfAssetLoader.mjs';
 
 function addEnvironment(scene, config) {
   scene.background = new THREE.Color(config.background);
@@ -77,7 +80,7 @@ function geometryFor(item) {
   }
 }
 
-function buildWorld(canvas, config, width, height) {
+function buildWorld(canvas, config, width, height, loadedModels = new Map()) {
   const scene = new THREE.Scene();
   addEnvironment(scene, config);
 
@@ -116,21 +119,45 @@ function buildWorld(canvas, config, width, height) {
 
   const objectGroup = new THREE.Group();
   for (const item of config.objects) {
-    const material = new THREE.MeshStandardMaterial({
-      color: item.color,
-      roughness: item.roughness,
-      metalness: item.metalness
-    });
-    const mesh = new THREE.Mesh(geometryFor(item), material);
-    mesh.position.set(...item.position);
-    mesh.rotation.set(...item.rotation);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    mesh.userData.motion = item.motion;
-    mesh.userData.baseY = item.position[1];
-    mesh.userData.baseRotation = [...item.rotation];
-    mesh.userData.amplitude = item.motionAmplitude;
-    objectGroup.add(mesh);
+    const assetKey = item.asset || item.glb;
+    let node = null;
+
+    if (assetKey && loadedModels.has(assetKey)) {
+      const assetData = loadedModels.get(assetKey);
+      node = assetData.scene.clone(true);
+      if (item.scale) {
+        node.scale.set(
+          node.scale.x * item.scale[0],
+          node.scale.y * item.scale[1],
+          node.scale.z * item.scale[2]
+        );
+      }
+    } else {
+      const material = new THREE.MeshStandardMaterial({
+        color: item.color,
+        roughness: item.roughness ?? 0.8,
+        metalness: item.metalness ?? 0.1
+      });
+      node = new THREE.Mesh(geometryFor(item), material);
+      if (item.scale) {
+        node.scale.set(...item.scale);
+      }
+    }
+
+    node.position.set(...item.position);
+    node.rotation.set(...item.rotation);
+    node.castShadow = true;
+    node.receiveShadow = true;
+    node.userData = {
+      id: item.id,
+      motion: item.motion,
+      baseY: item.position[1],
+      baseRotation: [...item.rotation],
+      amplitude: item.motionAmplitude ?? 0.15,
+      held_by: item.held_by,
+      attached_to: item.attached_to
+    };
+    objectGroup.add(node);
   }
   scene.add(objectGroup);
 
@@ -143,94 +170,196 @@ function buildWorld(canvas, config, width, height) {
 export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
   const canvasRef = useRef(null);
   const worldRef = useRef(null);
+  const modelsRef = useRef(new Map());
+  const [assetsReady, setAssetsReady] = useState(false);
   const [webglError, setWebglError] = useState(false);
   const frame = useCurrentFrame();
   const {width, height, fps, durationInFrames} = useVideoConfig();
-  const config = useMemo(
-    () => {
-      const actionText = String(scene.character_action || '').toLowerCase();
-      const action = ['walk','run','sit','stand','point','hold','think','celebrate','fall','explain']
-        .find((name) => actionText.includes(name)) || scene.character?.action || scene.three_d?.character?.action || 'idle';
-      const compiled = compileThreeDScene({
-        ...scene,
-        character: scene.character || scene.three_d?.character || {
-          action,
-          expression: scene.character_expression || 'neutral'
+
+  const config = useMemo(() => {
+    const actionText = String(scene.character_action || '').toLowerCase();
+    const action = ['walk', 'run', 'sit', 'stand', 'point', 'hold', 'think', 'celebrate', 'fall', 'explain']
+      .find((name) => actionText.includes(name)) || scene.character?.action || scene.three_d?.character?.action || 'idle';
+    const compiled = compileThreeDScene({
+      ...scene,
+      character: scene.character || scene.three_d?.character || {
+        action,
+        expression: scene.character_expression || 'neutral'
+      }
+    }, {fps});
+    const normalized = normalizeThreeDScene({
+      ...scene,
+      three_d: {
+        ...(scene.three_d || {}),
+        environment: compiled.environment,
+        background: compiled.background,
+        ground: compiled.ground,
+        camera: compiled.camera,
+        objects: compiled.objects
+      }
+    });
+    normalized.character = normalizeCharacterConfig(compiled.character);
+    normalized.camera_shots = compiled.camera_shots || compiled.camera?.shots || scene.camera_shots || null;
+    normalized.physics_bake = compiled.physics_bake || scene.physics_bake || null;
+    return normalized;
+  }, [scene, background, fps]);
+
+  const cameraPlan = useMemo(() => {
+    if (config.camera_shots && Array.isArray(config.camera_shots) && config.camera_shots.length > 0) {
+      return normalizeCameraPlan({shots: config.camera_shots}, fps, durationInFrames);
+    }
+    return null;
+  }, [config.camera_shots, fps, durationInFrames]);
+
+  // Preload local GLB models if any objects request them
+  useEffect(() => {
+    const needed = (config.objects || [])
+      .map((o) => o.asset || o.glb)
+      .filter(Boolean);
+
+    if (needed.length === 0) {
+      setAssetsReady(true);
+      return undefined;
+    }
+
+    let handle = null;
+    if (typeof delayRender === 'function') {
+      try {
+        handle = delayRender('Loading 3D GLB assets');
+      } catch (_) {}
+    }
+
+    let cancelled = false;
+    preloadCatalogAssets(needed)
+      .then(({assets, errors}) => {
+        if (!cancelled) {
+          modelsRef.current = assets;
+          setAssetsReady(true);
         }
-      }, {fps});
-      const normalized = normalizeThreeDScene({
-        ...scene,
-        three_d: {
-          ...(scene.three_d || {}),
-          environment: compiled.environment,
-          background: compiled.background,
-          ground: compiled.ground,
-          camera: compiled.camera,
-          objects: compiled.objects
+        if (handle !== null && typeof continueRender === 'function') {
+          continueRender(handle);
+        }
+      })
+      .catch((err) => {
+        console.warn('GLB asset preload issue, falling back to procedural:', err);
+        if (!cancelled) {
+          setAssetsReady(true);
+        }
+        if (handle !== null && typeof continueRender === 'function') {
+          continueRender(handle);
         }
       });
-      normalized.character = normalizeCharacterConfig(compiled.character);
-      return normalized;
-    },
-    [scene, background, fps]
-  );
 
+    return () => {
+      cancelled = true;
+      if (handle !== null && typeof continueRender === 'function') {
+        try {
+          continueRender(handle);
+        } catch (_) {}
+      }
+    };
+  }, [config.objects]);
+
+  // Build Three.js world once assets are loaded
   useLayoutEffect(() => {
-    if (!canvasRef.current) return undefined;
+    if (!canvasRef.current || !assetsReady) return undefined;
     let world;
     setWebglError(false);
     try {
-      world = buildWorld(canvasRef.current, config, width, height);
+      world = buildWorld(canvasRef.current, config, width, height, modelsRef.current);
       worldRef.current = world;
     } catch (error) {
-      // The DOM fallback remains visible if the render host cannot create WebGL.
       canvasRef.current.dataset.webglError = String(error?.message || error);
       setWebglError(true);
       return undefined;
     }
+
     return () => {
-      world.objectGroup.traverse((node) => {
-        if (node.geometry) node.geometry.dispose();
-        if (node.material) {
-          if (Array.isArray(node.material)) node.material.forEach((material) => material.dispose());
-          else node.material.dispose();
+      if (world) {
+        disposeHierarchy(world.objectGroup);
+        if (world.characterRig) {
+          world.characterRig.root.traverse((node) => {
+            if (node.geometry) node.geometry.dispose();
+          });
+          world.characterRig.root.userData.disposeMaterials?.forEach((material) => material.dispose());
         }
-      });
-      if (world.characterRig) {
-        world.characterRig.root.traverse((node) => {
-          if (node.geometry) node.geometry.dispose();
-        });
-        world.characterRig.root.userData.disposeMaterials?.forEach((material) => material.dispose());
+        world.renderer.dispose();
       }
-      world.renderer.dispose();
       worldRef.current = null;
     };
-  }, [config, width, height]);
+  }, [config, width, height, assetsReady]);
 
+  // Frame animation loop
   useLayoutEffect(() => {
     const world = worldRef.current;
     if (!world) return;
-    const pose = cameraPoseAtFrame(config.camera, frame, fps, durationInFrames);
-    world.camera.position.set(pose.x, pose.y, pose.z);
-    world.camera.lookAt(pose.targetX, pose.targetY, pose.targetZ);
+
+    // Camera pose update
+    if (cameraPlan) {
+      const pose = cameraPoseForFrame(cameraPlan, frame);
+      world.camera.position.set(pose.position[0], pose.position[1], pose.position[2]);
+      world.camera.lookAt(pose.target[0], pose.target[1], pose.target[2]);
+      if (pose.fov) {
+        world.camera.fov = pose.fov;
+        world.camera.updateProjectionMatrix();
+      }
+      if (pose.roll) {
+        world.camera.rotation.z = pose.roll;
+      }
+    } else {
+      const pose = cameraPoseAtFrame(config.camera, frame, fps, durationInFrames);
+      world.camera.position.set(pose.x, pose.y, pose.z);
+      world.camera.lookAt(pose.targetX, pose.targetY, pose.targetZ);
+    }
+
+    // Objects animation & physics transforms
     world.objectGroup.children.forEach((mesh, index) => {
-      const phase = frame / Math.max(1, fps) + index * 0.7;
-      const motion = mesh.userData.motion;
-      mesh.position.y = mesh.userData.baseY + (motion === 'float' ? Math.sin(phase * 1.8) * mesh.userData.amplitude : 0);
-      mesh.rotation.y = mesh.userData.baseRotation[1] + (motion === 'rotate' ? phase * 0.8 : 0);
-      if (motion === 'pulse') {
-        const scale = 1 + Math.sin(phase * 2) * 0.08;
-        mesh.scale.setScalar(scale);
+      const id = mesh.userData.id;
+      const physTransform = config.physics_bake
+        ? physicsTransformAtFrame(config.physics_bake, id, frame)
+        : null;
+
+      if (physTransform) {
+        mesh.position.set(...physTransform.position);
+        if (physTransform.rotation && physTransform.rotation.length === 4) {
+          mesh.quaternion.set(
+            physTransform.rotation[0],
+            physTransform.rotation[1],
+            physTransform.rotation[2],
+            physTransform.rotation[3]
+          );
+        }
+      } else if (mesh.userData.held_by === 'character' || mesh.userData.attached_to === 'hand') {
+        if (world.characterRig?.joints?.rightArm) {
+          const handPos = new THREE.Vector3();
+          world.characterRig.joints.rightArm.getWorldPosition(handPos);
+          mesh.position.set(handPos.x + 0.1, handPos.y - 0.2, handPos.z + 0.2);
+        }
       } else {
-        mesh.scale.setScalar(1);
+        const phase = frame / Math.max(1, fps) + index * 0.7;
+        const motion = mesh.userData.motion;
+        mesh.position.y = mesh.userData.baseY + (motion === 'float' ? Math.sin(phase * 1.8) * mesh.userData.amplitude : 0);
+        mesh.rotation.y = mesh.userData.baseRotation[1] + (motion === 'rotate' ? phase * 0.8 : 0);
+        if (motion === 'pulse') {
+          const scale = 1 + Math.sin(phase * 2) * 0.08;
+          mesh.scale.setScalar(scale);
+        } else if (motion === 'bounce') {
+          mesh.position.y = mesh.userData.baseY + Math.abs(Math.sin(phase * 3.5)) * mesh.userData.amplitude * 1.8;
+        } else {
+          mesh.scale.setScalar(1);
+        }
       }
     });
+
+    // Character animation update
     if (world.characterRig) {
       const action = config.character?.action || 'idle';
-      applyStickmanPose(world.characterRig, characterPoseAtFrame(action, frame, fps), config.character?.expression || 'neutral');
+      const expression = config.character?.expression || 'neutral';
+      applyStickmanPose(world.characterRig, characterPoseAtFrame(action, frame, fps), expression);
     }
+
     world.renderer.render(world.scene, world.camera);
-  }, [frame, config, fps, durationInFrames]);
+  }, [frame, config, cameraPlan, fps, durationInFrames]);
 
   return (
     <AbsoluteFill style={{backgroundColor: config.background, overflow: 'hidden', zIndex: 0}}>
@@ -242,11 +371,40 @@ export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
       {webglError && (
         <div
           data-three-fallback="true"
-          style={{position: 'absolute', inset: 0, overflow: 'hidden', background: `linear-gradient(180deg, ${config.background} 0%, ${config.ground} 100%)`}}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            overflow: 'hidden',
+            background: `linear-gradient(180deg, ${config.background} 0%, ${config.ground} 100%)`
+          }}
         >
-          <div style={{position: 'absolute', left: '8%', right: '8%', bottom: '14%', height: '28%', borderRadius: '18px', background: 'rgba(38, 49, 65, 0.16)', transform: 'perspective(700px) rotateX(12deg)'}} />
+          <div
+            style={{
+              position: 'absolute',
+              left: '8%',
+              right: '8%',
+              bottom: '14%',
+              height: '28%',
+              borderRadius: '18px',
+              background: 'rgba(38, 49, 65, 0.16)',
+              transform: 'perspective(700px) rotateX(12deg)'
+            }}
+          />
           {config.objects.slice(0, 8).map((item, index) => (
-            <div key={item.id} style={{position: 'absolute', left: `${18 + (index % 4) * 18}%`, top: `${28 + Math.floor(index / 4) * 18}%`, width: `${Math.max(5, Math.min(14, item.size[0] * 5))}%`, height: `${Math.max(5, Math.min(18, item.size[1] * 7))}%`, borderRadius: item.type === 'sphere' ? '50%' : '8px', background: item.color, boxShadow: '0 16px 24px rgba(20,30,45,.18)', transform: `rotate(${item.rotation[2] * 30}deg)`}} />
+            <div
+              key={item.id}
+              style={{
+                position: 'absolute',
+                left: `${18 + (index % 4) * 18}%`,
+                top: `${28 + Math.floor(index / 4) * 18}%`,
+                width: `${Math.max(5, Math.min(14, (item.size?.[0] || 1) * 5))}%`,
+                height: `${Math.max(5, Math.min(18, (item.size?.[1] || 1) * 7))}%`,
+                borderRadius: item.type === 'sphere' ? '50%' : '8px',
+                background: item.color || '#263c63',
+                boxShadow: '0 16px 24px rgba(20,30,45,.18)',
+                transform: `rotate(${((item.rotation?.[2] || 0) * 30)}deg)`
+              }}
+            />
           ))}
         </div>
       )}

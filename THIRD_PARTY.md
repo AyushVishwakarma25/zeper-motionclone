@@ -24,3 +24,36 @@ The following four background soundtrack files are royalty-free, commercial-use 
 - `electronic_drive.mp3`: 128 BPM, D-Minor, Cyber Dynamic Energy Synthwave.
 
 License: Creative Commons Zero (CC0 1.0 Universal) / Public Domain Dedication. Free for unrestricted commercial, broadcast, and promotional video generation with no attribution required.
+
+## 3D GLB Asset Library (`remotion/public/models/`)
+
+The 3D GLB models located under `remotion/public/models/` are self-contained binary glTF assets authored and packaged locally for MotionClone V6 3D Character Storytelling Engine:
+
+- **Finance:**
+  - `credit-card.glb`: Standard ISO/IEC 7810 credit card with EMV chip and magnetic stripe geometry.
+  - `cash-bundle.glb`: Packaged currency strap stack.
+  - `coin-stack.glb`: Tiered stack of metallic currency tokens.
+  - `banknote.glb`: Single currency sheet.
+  - `wallet.glb`: Bi-fold wallet model.
+  - `bank-counter.glb`: Heavy polished teller barrier.
+- **Technology:**
+  - `smartphone.glb`: Beveled smartphone device with camera module and glass display face.
+  - `laptop.glb`: Unibody open notebook computer with keyboard well and trackpad.
+  - `monitor.glb`: Desktop display with neck and weighted base.
+- **Office:**
+  - `desk.glb`: Executive timber workstation with steel base.
+  - `chair.glb`: Ergonomic swivel chair with caster base and backrest.
+  - `document.glb`: Standard billing/statement invoice with formatted typographic lines.
+- **Transport:**
+  - `car.glb`: Compact passenger automobile with cabin glass and rubber tires.
+- **Home:**
+  - `house.glb`: Gable-roof residential dwelling with chimney and entryway.
+  - `building.glb`: Multi-story commercial building structure with window bands.
+- **Retail:**
+  - `shopping-cart.glb`: Wireframe shopping trolley with handle and wheel assemblies.
+  - `package.glb`: Corrugated shipping carton with packing tape seam.
+
+- **License:** Creative Commons Zero (CC0 1.0 Universal) / Public Domain Dedication.
+- **Attribution:** Not required, but documented here for transparency.
+- **Modifications:** Authored procedurally with Three.js `GLTFExporter`, optimized for real-time rendering in Remotion and headless Chromium without external network requests or remote CDN dependencies.
+
