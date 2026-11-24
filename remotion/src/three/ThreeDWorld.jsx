@@ -2,6 +2,7 @@ import React, {useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {AbsoluteFill, useCurrentFrame, useVideoConfig} from 'remotion';
 import * as THREE from 'three';
 import {cameraPoseAtFrame, normalizeThreeDScene} from './scene3d.mjs';
+import {createStickmanRig, applyStickmanPose, characterPoseAtFrame, normalizeCharacterConfig} from './characterRig.mjs';
 
 function addEnvironment(scene, config) {
   scene.background = new THREE.Color(config.background);
@@ -132,7 +133,10 @@ function buildWorld(canvas, config, width, height) {
   }
   scene.add(objectGroup);
 
-  return {scene, camera, renderer, objectGroup};
+  const characterRig = config.character?.enabled === false ? null : createStickmanRig(THREE, config.character || {});
+  if (characterRig) scene.add(characterRig.root);
+
+  return {scene, camera, renderer, objectGroup, characterRig};
 }
 
 export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
@@ -142,7 +146,11 @@ export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
   const frame = useCurrentFrame();
   const {width, height, fps, durationInFrames} = useVideoConfig();
   const config = useMemo(
-    () => normalizeThreeDScene({...scene, three_d: scene.three_d || {background}}),
+    () => {
+      const normalized = normalizeThreeDScene({...scene, three_d: scene.three_d || {background}});
+      normalized.character = normalizeCharacterConfig(scene.character || scene.three_d?.character || {});
+      return normalized;
+    },
     [scene, background]
   );
 
@@ -167,6 +175,12 @@ export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
           else node.material.dispose();
         }
       });
+      if (world.characterRig) {
+        world.characterRig.root.traverse((node) => {
+          if (node.geometry) node.geometry.dispose();
+        });
+        world.characterRig.root.userData.disposeMaterials?.forEach((material) => material.dispose());
+      }
       world.renderer.dispose();
       worldRef.current = null;
     };
@@ -190,6 +204,10 @@ export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
         mesh.scale.setScalar(1);
       }
     });
+    if (world.characterRig) {
+      const action = config.character?.action || 'idle';
+      applyStickmanPose(world.characterRig, characterPoseAtFrame(action, frame, fps));
+    }
     world.renderer.render(world.scene, world.camera);
   }, [frame, config, fps, durationInFrames]);
 
