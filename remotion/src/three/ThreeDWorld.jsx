@@ -3,6 +3,7 @@ import {AbsoluteFill, useCurrentFrame, useVideoConfig} from 'remotion';
 import * as THREE from 'three';
 import {cameraPoseAtFrame, normalizeThreeDScene} from './scene3d.mjs';
 import {createStickmanRig, applyStickmanPose, characterPoseAtFrame, normalizeCharacterConfig} from './characterRig.mjs';
+import {compileThreeDScene} from './sceneCompiler.mjs';
 
 function addEnvironment(scene, config) {
   scene.background = new THREE.Color(config.background);
@@ -147,11 +148,31 @@ export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
   const {width, height, fps, durationInFrames} = useVideoConfig();
   const config = useMemo(
     () => {
-      const normalized = normalizeThreeDScene({...scene, three_d: scene.three_d || {background}});
-      normalized.character = normalizeCharacterConfig(scene.character || scene.three_d?.character || {});
+      const actionText = String(scene.character_action || '').toLowerCase();
+      const action = ['walk','run','sit','stand','point','hold','think','celebrate','fall','explain']
+        .find((name) => actionText.includes(name)) || scene.character?.action || scene.three_d?.character?.action || 'idle';
+      const compiled = compileThreeDScene({
+        ...scene,
+        character: scene.character || scene.three_d?.character || {
+          action,
+          expression: scene.character_expression || 'neutral'
+        }
+      }, {fps});
+      const normalized = normalizeThreeDScene({
+        ...scene,
+        three_d: {
+          ...(scene.three_d || {}),
+          environment: compiled.environment,
+          background: compiled.background,
+          ground: compiled.ground,
+          camera: compiled.camera,
+          objects: compiled.objects
+        }
+      });
+      normalized.character = normalizeCharacterConfig(compiled.character);
       return normalized;
     },
-    [scene, background]
+    [scene, background, fps]
   );
 
   useLayoutEffect(() => {
