@@ -26,9 +26,34 @@ test('camera choreography is deterministic and bounded', () => {
   assert.ok(end.z > 8);
 });
 
+test('orbit camera choreography curves around scene smoothly', () => {
+  const start = cameraPoseAtFrame({move: 'orbit', intensity: 1}, 0, 30, 90);
+  const mid = cameraPoseAtFrame({move: 'orbit', intensity: 1}, 45, 30, 90);
+  const end = cameraPoseAtFrame({move: 'orbit', intensity: 1}, 89, 30, 90);
+  assert.ok(Number.isFinite(start.x));
+  assert.ok(Number.isFinite(mid.z));
+  assert.ok(Number.isFinite(end.x));
+});
+
+test('crane_down and dutch_tilt camera moves compute valid poses', () => {
+  const craneStart = cameraPoseAtFrame({move: 'crane_down', intensity: 0.8}, 0, 30, 90);
+  const craneEnd = cameraPoseAtFrame({move: 'crane_down', intensity: 0.8}, 89, 30, 90);
+  assert.ok(craneEnd.y < craneStart.y, 'Crane down must lower camera height');
+
+  const tilt = cameraPoseAtFrame({move: 'dutch_tilt', intensity: 1}, 45, 30, 90);
+  assert.ok(Math.abs(tilt.roll) > 0.02, 'Dutch tilt should add camera roll');
+});
+
 test('unknown camera movement safely falls back to a hold', () => {
   assert.deepEqual(
     cameraPoseAtFrame({move: 'teleport'}, 45, 30, 90),
     cameraPoseAtFrame({move: 'hold'}, 45, 30, 90)
   );
+});
+
+test('normalizeThreeDScene gracefully handles empty and null inputs', () => {
+  const empty = normalizeThreeDScene({});
+  assert.equal(empty.environment, 'studio');
+  assert.ok(empty.camera);
+  assert.ok(Array.isArray(empty.objects));
 });

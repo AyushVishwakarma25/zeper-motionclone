@@ -1,25 +1,25 @@
-import React, {useLayoutEffect, useMemo, useRef, useState, useEffect} from 'react';
-import {AbsoluteFill, useCurrentFrame, useVideoConfig, delayRender, continueRender} from 'remotion';
+import React, { useLayoutEffect, useMemo, useRef, useState, useEffect } from 'react';
+import { AbsoluteFill, useCurrentFrame, useVideoConfig, delayRender, continueRender } from 'remotion';
 import * as THREE from 'three';
-import {cameraPoseAtFrame, normalizeThreeDScene} from './scene3d.mjs';
-import {createStickmanRig, applyStickmanPose, characterPoseAtFrame, normalizeCharacterConfig} from './characterRig.mjs';
-import {compileThreeDScene} from './sceneCompiler.mjs';
-import {normalizeCameraPlan, cameraPoseForFrame} from './cinematicCamera.mjs';
-import {physicsTransformAtFrame} from './physicsBake.mjs';
-import {preloadCatalogAssets, disposeHierarchy} from './gltfAssetLoader.mjs';
+import { cameraPoseAtFrame, normalizeThreeDScene } from './scene3d.mjs';
+import { createStickmanRig, applyStickmanPose, characterPoseAtFrame, normalizeCharacterConfig } from './characterRig.mjs';
+import { compileThreeDScene } from './sceneCompiler.mjs';
+import { normalizeCameraPlan, cameraPoseForFrame } from './cinematicCamera.mjs';
+import { physicsTransformAtFrame } from './physicsBake.mjs';
+import { preloadCatalogAssets, disposeHierarchy } from './gltfAssetLoader.mjs';
 
 function addEnvironment(scene, config) {
   scene.background = new THREE.Color(config.background);
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(80, 80),
-    new THREE.MeshStandardMaterial({color: config.ground, roughness: 0.95})
+    new THREE.MeshStandardMaterial({ color: config.ground, roughness: 0.95 })
   );
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -0.04;
   ground.receiveShadow = true;
   scene.add(ground);
 
-  const wallMaterial = new THREE.MeshStandardMaterial({color: '#e9edf2', roughness: 0.95});
+  const wallMaterial = new THREE.MeshStandardMaterial({ color: '#e9edf2', roughness: 0.95 });
   if (config.environment === 'room' || config.environment === 'office' || config.environment === 'studio') {
     const backWall = new THREE.Mesh(new THREE.PlaneGeometry(24, 12), wallMaterial);
     backWall.position.set(0, 6, -8);
@@ -36,7 +36,7 @@ function addEnvironment(scene, config) {
   if (config.environment === 'street') {
     const road = new THREE.Mesh(
       new THREE.PlaneGeometry(80, 9),
-      new THREE.MeshStandardMaterial({color: '#414b58', roughness: 1})
+      new THREE.MeshStandardMaterial({ color: '#414b58', roughness: 1 })
     );
     road.rotation.x = -Math.PI / 2;
     road.position.set(0, 0.005, 1.5);
@@ -44,7 +44,7 @@ function addEnvironment(scene, config) {
     for (let x = -35; x < 35; x += 5) {
       const marking = new THREE.Mesh(
         new THREE.BoxGeometry(2.4, 0.025, 0.12),
-        new THREE.MeshBasicMaterial({color: '#f5e8bd'})
+        new THREE.MeshBasicMaterial({ color: '#f5e8bd' })
       );
       marking.position.set(x, 0.03, 1.5);
       scene.add(marking);
@@ -52,8 +52,8 @@ function addEnvironment(scene, config) {
   }
 
   if (config.environment === 'forest') {
-    const trunkMaterial = new THREE.MeshStandardMaterial({color: '#75543c'});
-    const leafMaterial = new THREE.MeshStandardMaterial({color: '#4f805e', roughness: 1});
+    const trunkMaterial = new THREE.MeshStandardMaterial({ color: '#75543c' });
+    const leafMaterial = new THREE.MeshStandardMaterial({ color: '#4f805e', roughness: 1 });
     for (let i = 0; i < 14; i++) {
       const x = (i % 7 - 3) * 4.5;
       const z = -4 - Math.floor(i / 7) * 7;
@@ -164,17 +164,17 @@ function buildWorld(canvas, config, width, height, loadedModels = new Map()) {
   const characterRig = config.character?.enabled === false ? null : createStickmanRig(THREE, config.character || {});
   if (characterRig) scene.add(characterRig.root);
 
-  return {scene, camera, renderer, objectGroup, characterRig};
+  return { scene, camera, renderer, objectGroup, characterRig };
 }
 
-export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
+export function ThreeDWorld({ scene = {}, background = '#b9c7d8' }) {
   const canvasRef = useRef(null);
   const worldRef = useRef(null);
   const modelsRef = useRef(new Map());
   const [assetsReady, setAssetsReady] = useState(false);
   const [webglError, setWebglError] = useState(false);
   const frame = useCurrentFrame();
-  const {width, height, fps, durationInFrames} = useVideoConfig();
+  const { width, height, fps, durationInFrames } = useVideoConfig();
 
   const config = useMemo(() => {
     const actionText = String(scene.character_action || '').toLowerCase();
@@ -186,7 +186,7 @@ export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
         action,
         expression: scene.character_expression || 'neutral'
       }
-    }, {fps});
+    }, { fps });
     const normalized = normalizeThreeDScene({
       ...scene,
       three_d: {
@@ -206,7 +206,7 @@ export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
 
   const cameraPlan = useMemo(() => {
     if (config.camera_shots && Array.isArray(config.camera_shots) && config.camera_shots.length > 0) {
-      return normalizeCameraPlan({shots: config.camera_shots}, fps, durationInFrames);
+      return normalizeCameraPlan({ shots: config.camera_shots }, fps, durationInFrames);
     }
     return null;
   }, [config.camera_shots, fps, durationInFrames]);
@@ -226,12 +226,12 @@ export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
     if (typeof delayRender === 'function') {
       try {
         handle = delayRender('Loading 3D GLB assets');
-      } catch (_) {}
+      } catch (_) { }
     }
 
     let cancelled = false;
     preloadCatalogAssets(needed)
-      .then(({assets, errors}) => {
+      .then(({ assets, errors }) => {
         if (!cancelled) {
           modelsRef.current = assets;
           setAssetsReady(true);
@@ -255,7 +255,7 @@ export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
       if (handle !== null && typeof continueRender === 'function') {
         try {
           continueRender(handle);
-        } catch (_) {}
+        } catch (_) { }
       }
     };
   }, [config.objects]);
@@ -362,11 +362,11 @@ export function ThreeDWorld({scene = {}, background = '#b9c7d8'}) {
   }, [frame, config, cameraPlan, fps, durationInFrames]);
 
   return (
-    <AbsoluteFill style={{backgroundColor: config.background, overflow: 'hidden', zIndex: 0}}>
+    <AbsoluteFill style={{ backgroundColor: config.background, overflow: 'hidden', zIndex: 0 }}>
       <canvas
         ref={canvasRef}
         aria-label="Procedurally rendered 3D story environment"
-        style={{display: 'block', width: '100%', height: '100%'}}
+        style={{ display: 'block', width: '100%', height: '100%' }}
       />
       {webglError && (
         <div

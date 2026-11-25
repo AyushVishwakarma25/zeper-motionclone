@@ -1,5 +1,5 @@
 // Dashboard Pro: Reference-to-Video Explainer Studio Frontend Controller
-(function() {
+(function () {
   'use strict';
 
   let activeJobId = null;
@@ -88,7 +88,7 @@
         window.__APP_TOKEN__ = cachedToken;
         return cachedToken;
       }
-    } catch {}
+    } catch { }
     return '';
   }
 
@@ -136,14 +136,14 @@
           reqHeaders['X-Frameforge-Token'] = cachedToken;
           res = await fetch(path, { ...options, headers: reqHeaders });
         }
-      } catch {}
+      } catch { }
     }
     if (!res.ok) {
       let errDetail = res.statusText;
       try {
         const d = await res.json();
         errDetail = d.detail || d.message || errDetail;
-      } catch {}
+      } catch { }
       throw new Error(errDetail);
     }
     return res.json();
@@ -180,7 +180,7 @@
           dot.className = s.gemini ? 'status-dot connected' : 'status-dot';
           txt.textContent = s.gemini ? 'gemini-3.1-pro-preview Ready' : 'Gemini Key Needed';
         }
-      } catch {}
+      } catch { }
     }
   }
 
@@ -268,9 +268,9 @@
           signoutBtn.onclick = async () => {
             try {
               await fetch('/api/auth/logout', { method: 'POST' });
-            } catch {}
+            } catch { }
             if (window.firebase && firebase.auth) {
-              await firebase.auth().signOut().catch(() => {});
+              await firebase.auth().signOut().catch(() => { });
             }
             localStorage.removeItem('firebase_id_token');
             sessionStorage.removeItem('firebase_id_token');
@@ -304,7 +304,7 @@
         musicLibrary = data.tracks;
         const select = $('music-track-select');
         if (select) {
-          select.innerHTML = musicLibrary.map(t => 
+          select.innerHTML = musicLibrary.map(t =>
             `<option value="${t.id}">🎵 ${escapeHtml(t.name)} (${t.bpm} BPM · ${escapeHtml(t.genre)})</option>`
           ).join('');
         }
@@ -413,7 +413,7 @@
     document.querySelectorAll('.lang-pill').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.lang === lang);
     });
-    
+
     // Visually highlight active script textarea in inspector
     const voEn = $('scene-vo-en-input');
     const voHi = $('scene-vo-hi-input');
@@ -429,7 +429,7 @@
         voHi.classList.remove('script-textarea-highlight');
       }
     }
-    
+
     if (projectState && projectState.scene_plan) {
       renderSceneInspector();
     }
@@ -490,12 +490,14 @@
 
     const voiceGroup = $('voice-control-group');
     if (voiceGroup) {
-      voiceGroup.style.display = (activeStyle === 'auto') ? 'flex' : 'none';
+      voiceGroup.style.display = (activeStyle === 'auto' || activeStyle === '3d') ? 'flex' : 'none';
     }
 
     const planBtn = $('btn-generate-plan-direct');
     if (planBtn) {
-      if (activeStyle === 'science') {
+      if (activeStyle === '3d') {
+        planBtn.innerHTML = '🧊 Generate 3D Story';
+      } else if (activeStyle === 'science') {
         planBtn.innerHTML = '🔬 Generate Science Explainer';
       } else if (activeStyle === 'icon') {
         planBtn.innerHTML = '✨ Generate Icon Explainer';
@@ -1458,7 +1460,7 @@
     if (player) {
       player.scrollIntoView({ behavior: 'smooth', block: 'center' });
       player.currentTime = 0;
-      player.play().catch(() => {});
+      player.play().catch(() => { });
     }
   }
   window.viewGeneratedVideo = viewGeneratedVideo;
@@ -1509,7 +1511,7 @@
           window.focus();
           viewGeneratedVideo();
         };
-      } catch {}
+      } catch { }
     }
 
     appendChatBubble(
@@ -1575,7 +1577,7 @@
           body: `Failed at ${stageStr}: ${errorStr}. Click to retry.`,
           icon: '/favicon.ico'
         });
-      } catch {}
+      } catch { }
     }
 
     appendChatBubble(
@@ -1611,7 +1613,7 @@
     hideGenerationFailureBox();
 
     if ('Notification' in window && Notification.permission === 'default') {
-      try { Notification.requestPermission().catch(() => {}); } catch {}
+      try { Notification.requestPermission().catch(() => { }); } catch { }
     }
 
     setExecutionStatus({
@@ -1790,7 +1792,7 @@
     hideGenerationFailureBox();
 
     if ('Notification' in window && Notification.permission === 'default') {
-      try { Notification.requestPermission().catch(() => {}); } catch {}
+      try { Notification.requestPermission().catch(() => { }); } catch { }
     }
 
     showOverlay('Merging Code & Rendering 30 FPS MP4…', 'Transpiling Remotion JSX, generating voiceover audio, and compiling video', true);
@@ -1843,7 +1845,7 @@
             updatePipelineStep(5);
             videoCacheKey = Date.now();
             projectState.preview_url = `/media/${activeJobId}/output.mp4`;
-            
+
             viewGeneratedVideo();
             showGenerationSuccess({ timeFormatted, totalSeconds: totalSec });
           } else if (j.status === 'error') {
@@ -1857,7 +1859,7 @@
               onRetry: handlePasteAndRender
             });
           }
-        } catch {}
+        } catch { }
       }, 2500);
 
     } catch (e) {
@@ -2541,7 +2543,7 @@ export const ExplainerScene = () => {
       refFileInput.onchange = async () => {
         if (!refFileInput.files?.length) return;
         const file = refFileInput.files[0];
-        
+
         if (!activeJobId) {
           try {
             showOverlay('Uploading Reference Video…', 'Storing video and extracting visual frames');
@@ -2690,7 +2692,7 @@ export const ExplainerScene = () => {
         const created = await callApi('/api/dashboard/create-project', { method: 'POST', body: fd });
         await fetchJobs();
         await loadProject(created.job_id);
-      } catch {}
+      } catch { }
     }
     hideOverlay();
 

@@ -1,10 +1,12 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MotionClone Studio · Reference-to-Video AI Studio</title>
-  <meta name="description" content="Reference-to-Video AI Explainer Studio powered by Google Gemini, Vertex AI, and Remotion.">
+  <meta name="description"
+    content="Reference-to-Video AI Explainer Studio powered by Google Gemini, Vertex AI, and Remotion.">
   <link rel="icon" href="/static/assets/motionclone-icon-color.svg">
   <link rel="stylesheet" href="/static/dashboard.css?v=3">
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -24,11 +26,13 @@
       transition: all 0.15s ease;
       white-space: nowrap;
     }
+
     .style-pill.active {
       background: var(--surface, #ffffff);
       color: var(--primary, #3b82f6);
-      box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05));
+      box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.05));
     }
+
     .genre-voiceover-card {
       background: var(--surface, #ffffff);
       border: 1px solid var(--border, #e2e8f0);
@@ -37,17 +41,20 @@
       margin-top: 14px;
       margin-bottom: 14px;
     }
+
     .genre-card-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 10px;
     }
+
     .genre-header-title {
       display: flex;
       align-items: center;
       gap: 8px;
     }
+
     .genre-step-badge {
       font-size: 10px;
       font-weight: 700;
@@ -58,6 +65,7 @@
       padding: 2px 6px;
       border-radius: 4px;
     }
+
     .genre-status-badge {
       font-size: 11px;
       font-weight: 600;
@@ -66,12 +74,14 @@
       background: var(--surface-alt, #f8fafc);
       color: var(--muted, #64748b);
     }
+
     .genre-instructions {
       font-size: 12px;
       color: var(--muted, #64748b);
       line-height: 1.5;
       margin-bottom: 12px;
     }
+
     .genre-beats-container {
       max-height: 220px;
       overflow-y: auto;
@@ -81,26 +91,31 @@
       padding: 8px;
       background: var(--surface-alt, #f8fafc);
     }
+
     .genre-beat-row {
       display: flex;
       gap: 10px;
       padding: 6px 8px;
-      border-bottom: 1px solid rgba(0,0,0,0.04);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.04);
       font-size: 12px;
     }
+
     .genre-beat-row:last-child {
       border-bottom: none;
     }
+
     .genre-beat-tag {
       font-weight: 700;
       font-size: 11px;
       color: var(--primary, #3b82f6);
       white-space: nowrap;
     }
+
     .genre-beat-text {
       flex: 1;
       color: var(--text, #1e293b);
     }
+
     .genre-upload-dropzone {
       border: 2px dashed var(--border, #cbd5e1);
       border-radius: 8px;
@@ -110,29 +125,36 @@
       background: var(--surface, #ffffff);
       transition: all 0.2s ease;
     }
-    .genre-upload-dropzone:hover, .genre-upload-dropzone.dragover {
+
+    .genre-upload-dropzone:hover,
+    .genre-upload-dropzone.dragover {
       border-color: var(--primary, #3b82f6);
       background: rgba(59, 130, 246, 0.04);
     }
+
     .genre-dropzone-inner {
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 6px;
     }
+
     .genre-dropzone-icon {
       font-size: 24px;
     }
+
     .genre-dropzone-copy strong {
       font-size: 13px;
       color: var(--text, #1e293b);
       display: block;
     }
+
     .genre-dropzone-copy p {
       font-size: 11px;
       color: var(--muted, #64748b);
       margin: 2px 0 0;
     }
+
     .genre-feedback-banner {
       margin-top: 12px;
       padding: 10px 14px;
@@ -140,37 +162,44 @@
       border: 1px solid var(--border, #e2e8f0);
       background: var(--surface-alt, #f8fafc);
     }
+
     .genre-feedback-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 6px;
     }
+
     .genre-confidence-pill {
       font-size: 11px;
       font-weight: 700;
       padding: 2px 8px;
       border-radius: 4px;
     }
+
     .confidence-good {
       background: var(--success-bg, #dcfce7);
       color: var(--success, #15803d);
     }
+
     .confidence-low {
       background: var(--warning-bg, #fef3c7);
       color: var(--warning, #b45309);
     }
+
     .genre-warnings-list {
       font-size: 11px;
       color: var(--danger, #dc2626);
       line-height: 1.4;
     }
+
     .genre-actions-bar {
       margin-top: 12px;
       display: flex;
       gap: 10px;
       justify-content: flex-end;
     }
+
     .btn-genre-action {
       font-size: 12px;
       font-weight: 600;
@@ -180,20 +209,24 @@
       border: 1px solid transparent;
       transition: all 0.15s ease;
     }
+
     .btn-genre-action.btn-secondary {
       background: var(--surface-alt, #f8fafc);
       border-color: var(--border, #e2e8f0);
       color: var(--text, #1e293b);
     }
+
     .btn-genre-action.btn-primary {
       background: var(--primary, #3b82f6);
       color: #ffffff;
     }
+
     .btn-genre-action.btn-primary:hover {
       opacity: 0.9;
     }
   </style>
 </head>
+
 <body class="dashboard-body">
 
   <!-- =========================================================================
@@ -228,41 +261,59 @@
       <!-- Group 1: Format Controls (Aspect Ratio & Target Duration) -->
       <div class="header-control-group" title="Video Output Dimensions & Duration">
         <div class="segmented-control" role="group" aria-label="Video Aspect Ratio">
-          <button type="button" class="aspect-pill active" data-aspect="9:16" title="9:16 Vertical Reel (1080x1920)">9:16</button>
+          <button type="button" class="aspect-pill active" data-aspect="9:16"
+            title="9:16 Vertical Reel (1080x1920)">9:16</button>
           <button type="button" class="aspect-pill" data-aspect="16:9" title="16:9 Landscape (1920x1080)">16:9</button>
           <button type="button" class="aspect-pill" data-aspect="1:1" title="1:1 Square (1080x1080)">1:1</button>
         </div>
 
-        <div class="segmented-control duration-control-group" role="group" aria-label="Target Video Duration" id="duration-control-group">
-          <button type="button" class="duration-pill active" data-duration="30s" title="30 Seconds (~60-70 words)">30s</button>
+        <div class="segmented-control duration-control-group" role="group" aria-label="Target Video Duration"
+          id="duration-control-group">
+          <button type="button" class="duration-pill active" data-duration="30s"
+            title="30 Seconds (~60-70 words)">30s</button>
           <button type="button" class="duration-pill" data-duration="1m" title="1 Minute (~120-140 words)">1m</button>
           <button type="button" class="duration-pill" data-duration="2m" title="2 Minutes (~240-280 words)">2m</button>
           <button type="button" class="duration-pill" data-duration="4m" title="4 Minutes (~480-560 words)">4m</button>
           <button type="button" class="duration-pill" data-duration="6m" title="6 Minutes (~720-840 words)">6m</button>
-          <button type="button" class="duration-pill" data-duration="8m" title="8 Minutes (~960-1,120 words)">8m</button>
-          <button type="button" class="duration-pill" data-duration="10m" title="10 Minutes (~1,200-1,400 words)">10m</button>
+          <button type="button" class="duration-pill" data-duration="8m"
+            title="8 Minutes (~960-1,120 words)">8m</button>
+          <button type="button" class="duration-pill" data-duration="10m"
+            title="10 Minutes (~1,200-1,400 words)">10m</button>
         </div>
       </div>
 
       <!-- Group 2: Style, Language & Voice Narration -->
       <div class="header-control-group" title="Video Style, Language & Speaker">
-        <!-- Style Selector (Auto, Science explainer, Icon explainer) -->
-        <div class="segmented-control style-control-group" role="group" aria-label="Explainer Style" id="style-control-group">
-          <button type="button" class="style-pill active" data-style="auto" title="Standard Explainer (Auto)">Auto</button>
-          <button type="button" class="style-pill" data-style="science" title="Science Explainer (Visual Metaphors & Props)">Science explainer</button>
-          <button type="button" class="style-pill" data-style="icon" title="Icon Explainer (Clean Icons & Physics)">Icon explainer</button>
+        <!-- Style Selector (Auto, 3D Story, Science explainer, Icon explainer) -->
+        <div class="segmented-control style-control-group" role="group" aria-label="Explainer Style"
+          id="style-control-group">
+          <button type="button" class="style-pill active" data-style="auto"
+            title="Standard Explainer (Auto)">Auto</button>
+          <button type="button" class="style-pill" data-style="3d"
+            title="3D Storytelling (3D World, Character & Props)">3D Story</button>
+          <button type="button" class="style-pill" data-style="science"
+            title="Science Explainer (Visual Metaphors & Props)">Science explainer</button>
+          <button type="button" class="style-pill" data-style="icon" title="Icon Explainer (Clean Icons & Physics)">Icon
+            explainer</button>
         </div>
 
-        <div class="segmented-control" role="group" aria-label="Script & Voiceover Language" id="language-control-group">
-          <button type="button" class="lang-pill active" data-lang="en" title="English Voiceover & Headlines">EN</button>
-          <button type="button" class="lang-pill" data-lang="hi" title="हिन्दी (Hindi) Voiceover & Headlines">HI</button>
+        <div class="segmented-control" role="group" aria-label="Script & Voiceover Language"
+          id="language-control-group">
+          <button type="button" class="lang-pill active" data-lang="en"
+            title="English Voiceover & Headlines">EN</button>
+          <button type="button" class="lang-pill" data-lang="hi"
+            title="हिन्दी (Hindi) Voiceover & Headlines">HI</button>
           <button type="button" class="lang-pill" data-lang="en_hi" title="Bilingual English + Hindi">Dual</button>
         </div>
 
-        <div class="segmented-control voice-control-group" role="group" aria-label="Narration Voice" id="voice-control-group">
-          <button type="button" class="voice-pill active" data-voice="hm_omega" title="Omega (Male — Indian Hindi/English)">Omega</button>
-          <button type="button" class="voice-pill" data-voice="hf_beta" title="Beta (Female — Indian Hindi/English)">Beta</button>
-          <button type="button" class="voice-preview-btn" id="btn-preview-voice" title="Listen to Voice Audition Sample">▶</button>
+        <div class="segmented-control voice-control-group" role="group" aria-label="Narration Voice"
+          id="voice-control-group">
+          <button type="button" class="voice-pill active" data-voice="hm_omega"
+            title="Omega (Male — Indian Hindi/English)">Omega</button>
+          <button type="button" class="voice-pill" data-voice="hf_beta"
+            title="Beta (Female — Indian Hindi/English)">Beta</button>
+          <button type="button" class="voice-preview-btn" id="btn-preview-voice"
+            title="Listen to Voice Audition Sample">▶</button>
         </div>
       </div>
 
@@ -281,7 +332,8 @@
         </button>
         <div class="account-dropdown-menu" id="account-dropdown-menu" style="display:none;">
           <div class="account-menu-header">
-            <span class="user-email-badge" id="user-email-display" style="display:block;">reachtoayush25@gmail.com</span>
+            <span class="user-email-badge" id="user-email-display"
+              style="display:block;">reachtoayush25@gmail.com</span>
             <span class="user-tier-tag">Developer / Owner</span>
           </div>
           <div class="account-menu-divider"></div>
@@ -290,18 +342,21 @@
             <strong>🪙 <span id="user-credits-menu-val">100</span> credits</strong>
           </div>
           <div class="account-menu-divider"></div>
-          <a class="account-menu-link" id="btn-configure-key" href="/?workspace=1&settings=1" target="_blank" title="Settings & API Keys">
+          <a class="account-menu-link" id="btn-configure-key" href="/?workspace=1&settings=1" target="_blank"
+            title="Settings & API Keys">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
             <span>Settings & Keys</span>
           </a>
-          <button type="button" class="account-menu-link btn-signout-action" id="btn-signout" title="Sign Out of Session">
+          <button type="button" class="account-menu-link btn-signout-action" id="btn-signout"
+            title="Sign Out of Session">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-              <polyline points="16 17 21 12 16 7"/>
-              <line x1="21" y1="12" x2="9" y2="12"/>
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
             </svg>
             <span>Sign Out</span>
           </button>
@@ -324,13 +379,14 @@
         <div class="tab-toggle-group">
           <button type="button" class="sidebar-tab-btn active" id="tab-btn-chat">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              <polygon
+                points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
             </svg>
             <span>AI Director</span>
           </button>
           <button type="button" class="sidebar-tab-btn" id="tab-btn-assets">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
             </svg>
             <span>Assets</span>
             <span class="count-tag" id="asset-count-tag">0</span>
@@ -338,7 +394,7 @@
         </div>
         <button type="button" class="btn-collapse-panel" id="btn-collapse-left" title="Collapse Sidebar">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="15 18 9 12 15 6"/>
+            <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
       </div>
@@ -347,10 +403,12 @@
       <div class="tab-content-panel active" id="panel-ai-director">
         <!-- Compact 3-Action Quick Toolbar (Wrapping, No Clipping!) -->
         <div class="action-quick-bar">
-          <button type="button" class="btn-quick-pill" id="quick-pill-deconstruct" title="Deconstruct reference video pacing & structure">
+          <button type="button" class="btn-quick-pill" id="quick-pill-deconstruct"
+            title="Deconstruct reference video pacing & structure">
             ⚡ Deconstruct Reference
           </button>
-          <button type="button" class="btn-quick-pill" id="quick-pill-script" title="Generate bilingual script & Remotion scene plan">
+          <button type="button" class="btn-quick-pill" id="quick-pill-script"
+            title="Generate bilingual script & Remotion scene plan">
             📝 Generate Script
           </button>
           <button type="button" class="btn-quick-pill" id="quick-pill-pacing" title="Match reference cuts & pacing">
@@ -369,7 +427,8 @@
             <div class="monitor-meta-right">
               <span class="exec-timer" id="exec-duration-timer">0.0s</span>
               <span class="exec-credits" id="exec-credits-tag">🪙 0</span>
-              <button type="button" class="btn-icon-tiny" id="btn-toggle-exec-details" title="Toggle Execution Details">▾</button>
+              <button type="button" class="btn-icon-tiny" id="btn-toggle-exec-details"
+                title="Toggle Execution Details">▾</button>
             </div>
           </div>
           <div class="monitor-details-panel" id="execution-monitor-details" style="display:none;">
@@ -396,7 +455,8 @@
             </div>
             <div class="monitor-actions-row">
               <button type="button" class="btn-micro-action" id="btn-clear-exec-logs">Clear Logs</button>
-              <button type="button" class="btn-micro-action" id="btn-retry-exec-action" style="display:none;">🔄 Retry</button>
+              <button type="button" class="btn-micro-action" id="btn-retry-exec-action" style="display:none;">🔄
+                Retry</button>
             </div>
           </div>
         </div>
@@ -408,11 +468,12 @@
 
         <!-- Fixed Bottom Message Composer -->
         <form class="chat-composer-bar" id="chat-prompt-form">
-          <textarea id="chat-input" class="chat-textarea" placeholder="Prompt AI Director (e.g. 'Make scene 2 faster and bolder')…" rows="1"></textarea>
+          <textarea id="chat-input" class="chat-textarea"
+            placeholder="Prompt AI Director (e.g. 'Make scene 2 faster and bolder')…" rows="1"></textarea>
           <button type="submit" id="btn-send-chat" class="btn-composer-send" title="Send (Enter)">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-              <line x1="22" y1="2" x2="11" y2="13"/>
-              <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+              <line x1="22" y1="2" x2="11" y2="13" />
+              <polygon points="22 2 15 22 11 13 2 9 22 2" />
             </svg>
           </button>
         </form>
@@ -426,14 +487,17 @@
             <div class="category-header">
               <span class="category-title">📹 Reference Video</span>
             </div>
-            
+
             <div class="reference-input-row">
-              <input type="text" id="ref-url-input" class="text-input-compact" placeholder="Paste video URL (YouTube / Vimeo / X)">
+              <input type="text" id="ref-url-input" class="text-input-compact"
+                placeholder="Paste video URL (YouTube / Vimeo / X)">
               <div class="reference-buttons-group">
                 <button type="button" id="btn-browse-ref" class="btn-compact-secondary">Import Link</button>
-                <button type="button" id="btn-upload-mp4-direct" class="btn-compact-primary" title="Upload local MP4 file directly">Upload MP4</button>
+                <button type="button" id="btn-upload-mp4-direct" class="btn-compact-primary"
+                  title="Upload local MP4 file directly">Upload MP4</button>
               </div>
-              <input type="file" id="ref-file-input" accept="video/mp4,video/quicktime,video/webm" style="display:none;">
+              <input type="file" id="ref-file-input" accept="video/mp4,video/quicktime,video/webm"
+                style="display:none;">
             </div>
 
             <div class="active-reference-card" id="active-reference-card" style="display:none;">
@@ -452,11 +516,13 @@
             </div>
 
             <div class="compact-dropzone" id="user-asset-dropzone">
-              <input type="file" id="user-asset-input" multiple accept="image/png,image/jpeg,image/webp,image/svg+xml,video/mp4,video/quicktime,video/webm" style="display:none;">
+              <input type="file" id="user-asset-input" multiple
+                accept="image/png,image/jpeg,image/webp,image/svg+xml,video/mp4,video/quicktime,video/webm"
+                style="display:none;">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="17 8 12 3 7 8"/>
-                <line x1="12" y1="3" x2="12" y2="15"/>
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
               </svg>
               <div class="dropzone-text">
                 <strong>Click or Drop Files</strong>
@@ -485,7 +551,8 @@
 
             <div class="custom-audio-uploader">
               <button type="button" id="btn-upload-music" class="btn-compact-secondary">Upload Custom Audio</button>
-              <input type="file" id="custom-music-input" accept="audio/mp3,audio/wav,audio/m4a,audio/aac" style="display:none;">
+              <input type="file" id="custom-music-input" accept="audio/mp3,audio/wav,audio/m4a,audio/aac"
+                style="display:none;">
               <span id="custom-music-label" class="audio-track-label">Using: Upbeat Tech</span>
             </div>
           </div>
@@ -494,9 +561,10 @@
     </aside>
 
     <!-- Expand Button for Left Sidebar (When Collapsed) -->
-    <button type="button" class="btn-dock-expand left" id="btn-expand-left" title="Expand AI Director & Assets" style="display:none;">
+    <button type="button" class="btn-dock-expand left" id="btn-expand-left" title="Expand AI Director & Assets"
+      style="display:none;">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="9 18 15 12 9 6"/>
+        <polyline points="9 18 15 12 9 6" />
       </svg>
     </button>
 
@@ -508,27 +576,33 @@
       <!-- Center Top Toolbar: Clean Consolidated View Tabs & Actions -->
       <div class="workspace-header-bar">
         <div class="stage-tabs-pillgroup">
-          <button type="button" class="stage-tab-btn active" id="btn-view-source" title="View & play original reference video">
+          <button type="button" class="stage-tab-btn active" id="btn-view-source"
+            title="View & play original reference video">
             <span class="tab-step-badge">1</span> 📹 Reference
           </button>
-          <button type="button" class="stage-tab-btn" id="btn-view-blueprint" title="Inspect AI deconstruction blueprint & set story topic">
+          <button type="button" class="stage-tab-btn" id="btn-view-blueprint"
+            title="Inspect AI deconstruction blueprint & set story topic">
             <span class="tab-step-badge">2</span> 📐 Blueprint
           </button>
-          <button type="button" class="stage-tab-btn" id="btn-view-rebuilt" title="Watch rendered 30 FPS video & edit scenes">
+          <button type="button" class="stage-tab-btn" id="btn-view-rebuilt"
+            title="Watch rendered 30 FPS video & edit scenes">
             <span class="tab-step-badge">3</span> 🎬 30 FPS Preview
           </button>
-          <button type="button" class="stage-tab-btn" id="btn-view-merger" title="Paste Remotion JSX & script to render directly">
+          <button type="button" class="stage-tab-btn" id="btn-view-merger"
+            title="Paste Remotion JSX & script to render directly">
             <span class="tab-step-badge">4</span> ⚡ Paste & Render
           </button>
         </div>
 
         <div class="stage-header-actions">
-          <button type="button" class="btn-deconstruct-prominent" id="btn-deconstruct-persistent" style="display:none;" title="Deconstruct Reference Video into AI Blueprint">
+          <button type="button" class="btn-deconstruct-prominent" id="btn-deconstruct-persistent" style="display:none;"
+            title="Deconstruct Reference Video into AI Blueprint">
             <span class="context-dot-pulse"></span> ⚡ Deconstruct Video
           </button>
           <span class="meta-pill" id="badge-active-ratio">9:16 Reel</span>
           <span class="meta-pill" id="badge-active-duration">30.0s</span>
-          <span class="meta-pill" id="badge-render-time" style="display:none;background:rgba(16,185,129,0.2);color:#34d399;font-weight:600;">⏱️ 0s</span>
+          <span class="meta-pill" id="badge-render-time"
+            style="display:none;background:rgba(16,185,129,0.2);color:#34d399;font-weight:600;">⏱️ 0s</span>
         </div>
       </div>
 
@@ -540,11 +614,12 @@
             <div class="monitor-header-left">
               <span class="monitor-label" id="monitor-video-label">📹 Active Video</span>
               <span class="monitor-badge" id="monitor-badge-status">30 FPS</span>
-              <span class="monitor-badge" id="monitor-badge-time" style="display:none;background:#10b981;color:#fff;">⏱️ 0s</span>
+              <span class="monitor-badge" id="monitor-badge-time" style="display:none;background:#10b981;color:#fff;">⏱️
+                0s</span>
             </div>
             <button type="button" class="btn-icon-toggle" id="btn-toggle-monitor" title="Toggle Video Monitor View">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="15 18 9 12 15 6"/>
+                <polyline points="15 18 9 12 15 6" />
               </svg>
             </button>
           </div>
@@ -556,13 +631,14 @@
             <div class="stage-empty-state" id="stage-empty-state">
               <div class="empty-icon-circle">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                  <rect x="2" y="2" width="20" height="20" rx="4"/>
-                  <polygon points="10 8 16 12 10 16 10 8"/>
+                  <rect x="2" y="2" width="20" height="20" rx="4" />
+                  <polygon points="10 8 16 12 10 16 10 8" />
                 </svg>
               </div>
               <h4>No Video Loaded</h4>
               <p>Upload a reference video to begin.</p>
-              <button type="button" class="btn-primary-action" id="btn-quickstart-blueprint">⚡ Deconstruct Reference Video</button>
+              <button type="button" class="btn-primary-action" id="btn-quickstart-blueprint">⚡ Deconstruct Reference
+                Video</button>
             </div>
 
             <!-- Processing & Render Overlay -->
@@ -570,7 +646,9 @@
               <div class="neon-spinner"></div>
               <strong id="stage-overlay-title">Processing Video…</strong>
               <p id="stage-overlay-desc">Analyzing motion keyframes & structure</p>
-              <div class="stage-overlay-timer-badge" id="stage-overlay-timer" style="margin-top:8px;font-size:12px;color:#a5b4fc;font-weight:600;display:none;">⏱️ Time elapsed: 0s</div>
+              <div class="stage-overlay-timer-badge" id="stage-overlay-timer"
+                style="margin-top:8px;font-size:12px;color:#a5b4fc;font-weight:600;display:none;">⏱️ Time elapsed: 0s
+              </div>
             </div>
           </div>
         </div>
@@ -582,8 +660,10 @@
             <div class="generation-success-header">
               <span class="success-badge">🎬 Video is generated!</span>
               <span class="generation-time-badge" id="generation-time-badge">⏱️ in 0s</span>
-              <button type="button" class="btn-view-generated-video" id="btn-view-generated-video">▶ View here ↗</button>
-              <button type="button" class="btn-dismiss-banner" id="btn-dismiss-success-banner" title="Dismiss">✕</button>
+              <button type="button" class="btn-view-generated-video" id="btn-view-generated-video">▶ View here
+                ↗</button>
+              <button type="button" class="btn-dismiss-banner" id="btn-dismiss-success-banner"
+                title="Dismiss">✕</button>
             </div>
           </div>
 
@@ -592,10 +672,12 @@
             <div class="generation-failure-header">
               <span class="error-badge">❌ Video Generation Failed</span>
               <button type="button" class="btn-retry-generation" id="btn-retry-generation">🔄 Retry Generation</button>
-              <button type="button" class="btn-dismiss-banner" id="btn-dismiss-failure-banner" title="Dismiss">✕</button>
+              <button type="button" class="btn-dismiss-banner" id="btn-dismiss-failure-banner"
+                title="Dismiss">✕</button>
             </div>
             <div class="generation-failure-body">
-              <p class="generation-failure-reason" id="generation-failure-reason">Why: An error occurred during rendering.</p>
+              <p class="generation-failure-reason" id="generation-failure-reason">Why: An error occurred during
+                rendering.</p>
               <div class="generation-failure-issues" id="generation-failure-issues"></div>
             </div>
           </div>
@@ -604,7 +686,8 @@
           <div class="needs-attention-card" id="needs-attention-box" style="display:none;">
             <div class="needs-attention-header">
               <span class="warning-badge">⚠️ Needs Attention</span>
-              <button type="button" class="btn-retry-failed-scenes" id="btn-retry-failed-scenes">🔄 Retry failed scenes</button>
+              <button type="button" class="btn-retry-failed-scenes" id="btn-retry-failed-scenes">🔄 Retry failed
+                scenes</button>
             </div>
             <div class="needs-attention-issues" id="needs-attention-issues"></div>
           </div>
@@ -618,20 +701,25 @@
                   <span class="brief-badge">PROJECT SETUP</span>
                   <span class="brief-summary-text" id="topic-brief-summary">🎯 Creative Topic & Brand Settings</span>
                 </div>
-                <button type="button" class="btn-brief-toggle" id="topic-brief-toggle" title="Collapse / Expand Project Setup">▾</button>
+                <button type="button" class="btn-brief-toggle" id="topic-brief-toggle"
+                  title="Collapse / Expand Project Setup">▾</button>
               </div>
               <div class="brief-collapsible-content" id="topic-brief-body">
                 <div class="brief-row">
                   <div class="brief-col-topic">
-                    <label for="topic-brief-input" class="brief-label">🎯 What should your rebuilt video be about?</label>
-                    <input type="text" id="topic-brief-input" class="brief-input" placeholder="e.g. Symptoms & Prevention of Malaria in an energetic, clinical explainer style...">
+                    <label for="topic-brief-input" class="brief-label">🎯 What should your rebuilt video be
+                      about?</label>
+                    <input type="text" id="topic-brief-input" class="brief-input"
+                      placeholder="e.g. Symptoms & Prevention of Malaria in an energetic, clinical explainer style...">
                   </div>
                   <div class="brief-col-brand">
                     <label for="brand-name-input" class="brief-label">🏷️ Brand / Product Name</label>
                     <input type="text" id="brand-name-input" class="brief-input" placeholder="e.g. HealthPulse">
                   </div>
                   <div class="brief-col-action">
-                    <span class="credit-estimate-pill" id="credit-estimate-blueprint" title="Estimated credits for script generation">⚡ Est: <span id="estimate-credits-val">10</span> credits</span>
+                    <span class="credit-estimate-pill" id="credit-estimate-blueprint"
+                      title="Estimated credits for script generation">⚡ Est: <span id="estimate-credits-val">10</span>
+                      credits</span>
                     <button type="button" class="btn-generate-plan-direct" id="btn-generate-plan-direct">
                       📝 Generate Script & Plan
                     </button>
@@ -650,7 +738,8 @@
                 <span class="genre-status-badge" id="genre-status-badge">Step 2 Ready</span>
               </div>
               <div class="genre-instructions">
-                <p>Record one sentence per beat with a <strong>0.5s pause</strong> between beats. Drop your audio below to auto-align scene cuts.</p>
+                <p>Record one sentence per beat with a <strong>0.5s pause</strong> between beats. Drop your audio below
+                  to auto-align scene cuts.</p>
               </div>
               <!-- Beat Script Lines Display -->
               <div class="genre-beats-container" id="genre-beats-container">
@@ -658,7 +747,8 @@
               </div>
               <!-- Voiceover Upload Dropzone -->
               <div class="genre-upload-dropzone" id="genre-upload-dropzone">
-                <input type="file" id="genre-voiceover-file-input" accept="audio/*,.mp3,.wav,.m4a" style="display:none;">
+                <input type="file" id="genre-voiceover-file-input" accept="audio/*,.mp3,.wav,.m4a"
+                  style="display:none;">
                 <div class="genre-dropzone-inner">
                   <span class="genre-dropzone-icon">🎙️</span>
                   <div class="genre-dropzone-copy">
@@ -677,8 +767,10 @@
               </div>
               <!-- Re-upload & Render Actions -->
               <div class="genre-actions-bar" id="genre-actions-bar" style="display:none;">
-                <button type="button" class="btn-genre-action btn-secondary" id="btn-genre-reupload">🔄 Re-upload Audio</button>
-                <button type="button" class="btn-genre-action btn-primary" id="btn-genre-render">🎬 Render 30 FPS MP4</button>
+                <button type="button" class="btn-genre-action btn-secondary" id="btn-genre-reupload">🔄 Re-upload
+                  Audio</button>
+                <button type="button" class="btn-genre-action btn-primary" id="btn-genre-render">🎬 Render 30 FPS
+                  MP4</button>
               </div>
             </div>
 
@@ -698,10 +790,13 @@
             <div class="merger-deck-header">
               <div class="merger-title-wrap">
                 <h3>⚡ Paste & Render Merger</h3>
-                <p>Paste Remotion JSX Code or JSON Scene Plan + Voiceover Script to compile and render a 30 FPS MP4 in ~15–25 seconds</p>
+                <p>Paste Remotion JSX Code or JSON Scene Plan + Voiceover Script to compile and render a 30 FPS MP4 in
+                  ~15–25 seconds</p>
               </div>
               <div class="merger-actions-wrap" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                <span class="credit-estimate-pill" id="credit-estimate-merger" title="Estimated credits for final render">⚡ Est: <span id="estimate-credits-merger-val">20</span> credits</span>
+                <span class="credit-estimate-pill" id="credit-estimate-merger"
+                  title="Estimated credits for final render">⚡ Est: <span id="estimate-credits-merger-val">20</span>
+                  credits</span>
                 <button type="button" class="btn-merger-render-now" id="btn-merger-render">
                   🚀 Merge & Render Final MP4
                 </button>
@@ -713,14 +808,16 @@
                   <span>React Remotion JSX Code / JSON Scene Plan</span>
                   <span class="editor-lang-tag">JSX / JSON</span>
                 </div>
-                <textarea id="merger-jsx-input" class="code-textarea" placeholder="// Paste Remotion JSX Code or JSON Scene Plan here...&#10;import { AbsoluteFill, interpolate, spring } from 'remotion';&#10;export const MyScene = () => { ... };"></textarea>
+                <textarea id="merger-jsx-input" class="code-textarea"
+                  placeholder="// Paste Remotion JSX Code or JSON Scene Plan here...&#10;import { AbsoluteFill, interpolate, spring } from 'remotion';&#10;export const MyScene = () => { ... };"></textarea>
               </div>
               <div class="merger-editor-box">
                 <div class="editor-label-bar">
                   <span>Voiceover Narration Script (English or Hindi)</span>
                   <span class="editor-lang-tag">Audio Script</span>
                 </div>
-                <textarea id="merger-voiceover-input" class="code-textarea" placeholder="Paste voiceover script here...&#10;English: Malaria is a life-threatening disease spread by mosquitoes...&#10;Hindi: मलेरिया एक गंभीर बीमारी है जो मच्छरों के काटने से फैलती है..."></textarea>
+                <textarea id="merger-voiceover-input" class="code-textarea"
+                  placeholder="Paste voiceover script here...&#10;English: Malaria is a life-threatening disease spread by mosquitoes...&#10;Hindi: मलेरिया एक गंभीर बीमारी है जो मच्छरों के काटने से फैलती है..."></textarea>
               </div>
             </div>
           </div>
@@ -741,21 +838,24 @@
                 <span class="guide-badge">Step 1</span>
                 <div>
                   <strong>Deconstruct Reference</strong>
-                  <p id="guide-step-1-desc">Google Gemini deconstructs the pacing, cuts, kinetic motion, and typography rules.</p>
+                  <p id="guide-step-1-desc">Google Gemini deconstructs the pacing, cuts, kinetic motion, and typography
+                    rules.</p>
                 </div>
               </div>
               <div class="guide-step-row">
                 <span class="guide-badge">Step 2</span>
                 <div>
                   <strong>Enter Your Story & Creative Topic</strong>
-                  <p>In the Blueprint tab, specify what your video should explain (e.g. symptoms of malaria in this style).</p>
+                  <p>In the Blueprint tab, specify what your video should explain (e.g. symptoms of malaria in this
+                    style).</p>
                 </div>
               </div>
               <div class="guide-step-row">
                 <span class="guide-badge">Step 3</span>
                 <div>
                   <strong>Render Final 30 FPS Video</strong>
-                  <p>Synthesizes Remotion motion graphics, bilingual audio narration, sound effects, and renders in 30 FPS.</p>
+                  <p>Synthesizes Remotion motion graphics, bilingual audio narration, sound effects, and renders in 30
+                    FPS.</p>
                 </div>
               </div>
             </div>
@@ -786,9 +886,10 @@
     </main>
 
     <!-- Expand Button for Right Inspector (When Collapsed) -->
-    <button type="button" class="btn-dock-expand right" id="btn-expand-right" title="Expand Scene Inspector" style="display:none;">
+    <button type="button" class="btn-dock-expand right" id="btn-expand-right" title="Expand Scene Inspector"
+      style="display:none;">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="15 18 9 12 15 6"/>
+        <polyline points="15 18 9 12 15 6" />
       </svg>
     </button>
 
@@ -804,7 +905,7 @@
         </div>
         <button type="button" class="btn-collapse-panel" id="btn-collapse-right" title="Collapse Inspector">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="9 18 15 12 9 6"/>
+            <polyline points="9 18 15 12 9 6" />
           </svg>
         </button>
       </div>
@@ -814,7 +915,8 @@
 
         <!-- Informative Empty State (When no scene exists yet) -->
         <div class="inspector-empty-hint" id="inspector-empty-state" style="display:none;">
-          <p>No scene selected. Click <strong>⚡ Deconstruct Reference</strong> or select a scene in the timeline to inspect and edit properties.</p>
+          <p>No scene selected. Click <strong>⚡ Deconstruct Reference</strong> or select a scene in the timeline to
+            inspect and edit properties.</p>
         </div>
 
         <!-- Section A: Content -->
@@ -848,12 +950,14 @@
 
             <div class="form-field">
               <label class="field-label" for="scene-headline-input">Headline Copy</label>
-              <input type="text" id="scene-headline-input" class="form-input" placeholder="e.g. Next-Gen Product Analytics">
+              <input type="text" id="scene-headline-input" class="form-input"
+                placeholder="e.g. Next-Gen Product Analytics">
             </div>
 
             <div class="form-field">
               <label class="field-label" for="scene-subtitle-input">Subtitle / Eyebrow</label>
-              <input type="text" id="scene-subtitle-input" class="form-input" placeholder="e.g. Built for high-growth tech teams">
+              <input type="text" id="scene-subtitle-input" class="form-input"
+                placeholder="e.g. Built for high-growth tech teams">
             </div>
           </div>
         </details>
@@ -866,12 +970,14 @@
           <div class="accordion-body">
             <div class="form-field">
               <label class="field-label" for="scene-vo-en-input">English Narration</label>
-              <textarea id="scene-vo-en-input" class="form-textarea" rows="2" placeholder="English narration script…"></textarea>
+              <textarea id="scene-vo-en-input" class="form-textarea" rows="2"
+                placeholder="English narration script…"></textarea>
             </div>
 
             <div class="form-field">
               <label class="field-label" for="scene-vo-hi-input">हिन्दी (Hindi) Narration</label>
-              <textarea id="scene-vo-hi-input" class="form-textarea" rows="2" placeholder="हिन्दी में वॉयस-ओवर स्क्रिप्ट…"></textarea>
+              <textarea id="scene-vo-hi-input" class="form-textarea" rows="2"
+                placeholder="हिन्दी में वॉयस-ओवर स्क्रिप्ट…"></textarea>
             </div>
           </div>
         </details>
@@ -885,7 +991,8 @@
             <div class="form-row-2col">
               <div class="form-field">
                 <label class="field-label" for="scene-duration-input">Duration (sec)</label>
-                <input type="number" id="scene-duration-input" class="form-input" min="1.0" max="15.0" step="0.5" value="3.0">
+                <input type="number" id="scene-duration-input" class="form-input" min="1.0" max="15.0" step="0.5"
+                  value="3.0">
               </div>
               <div class="form-field">
                 <label class="field-label" for="scene-transition-select">Transition</label>
@@ -993,10 +1100,12 @@
             🎬 Render 30 FPS MP4
           </button>
           <div class="export-links-group">
-            <a class="export-link-btn" id="btn-download-mp4" href="#" download="explainer-video.mp4" title="Download Rendered MP4">
+            <a class="export-link-btn" id="btn-download-mp4" href="#" download="explainer-video.mp4"
+              title="Download Rendered MP4">
               ⬇ MP4
             </a>
-            <a class="export-link-btn" id="btn-export-remotion-zip" href="#" download title="Download Remotion Source Project">
+            <a class="export-link-btn" id="btn-export-remotion-zip" href="#" download
+              title="Download Remotion Source Project">
               📦 ZIP
             </a>
           </div>
@@ -1010,4 +1119,5 @@
   <div class="toast-container" id="toast-container" aria-live="polite"></div>
 
 </body>
+
 </html>
