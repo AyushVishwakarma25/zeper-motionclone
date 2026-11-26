@@ -41,3 +41,18 @@ def test_genre_scenes_validate_in_the_dashboard_plan_model(tmp_path):
     gp.plan_genre('science', 't', 'english', 20, lambda p, s: plan.model_dump_json(), tmp_path)
     sc = json.loads((tmp_path / 'scene_plan.json').read_text())['scenes'][0]
     assert SceneItem.model_validate({**sc, 'id': 0}).template == 'science_scene'
+
+
+def test_icon_genre_resolves_fallbacks_and_generates_successfully(tmp_path):
+    from app.icon_director import IconBeat, IconPlan
+    plan = IconPlan(beats=[
+        IconBeat(id='b1', text='10 minute delivery ka sach', hook=True, title_lines=['10 minute', 'delivery ka sach']),
+        IconBeat(id='b2', text='City warehouses are everywhere', need_icon='A city map with multiple small warehouse icons popping up'),
+        IconBeat(id='b3', text='Scooters zoom fast on street', need_icon='A delivery rider on a scooter zooming fast on a street')
+    ])
+    res = gp.plan_genre('icon', 'quick commerce', 'hinglish', 15, lambda p, s: plan.model_dump_json(), tmp_path)
+    assert res['ok'] is True
+    assert len(res['need']) == 0
+    sp = json.loads((tmp_path / 'scene_plan.json').read_text())
+    assert sp['scenes'][1]['icon']['id'] == 'city_map'
+    assert sp['scenes'][2]['icon']['id'] == 'delivery_scooter'

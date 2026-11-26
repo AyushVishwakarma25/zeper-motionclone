@@ -55,3 +55,23 @@ def test_estimate_timing_feeds_compile():
     out = compile_scenes(plan(), t)
     assert len(out['scenes']) == 3 and all(s['duration_seconds'] > 1 for s in out['scenes'])
     assert out['scenes'][1]['words'][0]['start'] >= 0.19
+
+
+def test_resolve_fallback_icon_for_quick_commerce():
+    from app.icon_director import resolve_fallback_icon
+    # Test user reported cases
+    icon1, p1 = resolve_fallback_icon('A city map with multiple small warehouse icons popping up')
+    assert icon1 == 'city_map'
+    assert p1.get('pulse') == 'true'
+
+    icon2, p2 = resolve_fallback_icon('A stopwatch ticking down while groceries are dropped into a brown bag')
+    assert icon2 == 'stopwatch_timer'
+    assert p2.get('bag') == 'true'
+
+    icon3, p3 = resolve_fallback_icon('A delivery rider on a scooter zooming fast on a street')
+    assert icon3 == 'delivery_scooter'
+    assert p3.get('fast') == 'true'
+
+    icon4, p4 = resolve_fallback_icon('A glowing box combining a location pin and a microchip')
+    assert icon4 == 'package_box'
+    assert p4.get('glow') == 'true'

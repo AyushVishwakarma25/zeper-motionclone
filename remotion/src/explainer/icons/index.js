@@ -1,6 +1,7 @@
 import {ShieldCrack, Flask, Gauge, Radar, LockHack} from './concepts.jsx';
 import {CalendarFill, CarHouseX, InvestorsCash, ExpectLine, WhyMark} from './everyday.jsx';
 import {GoldBars, SilverCoin, Candles, AiBars, Bond} from './finance.jsx';
+import {CityMap, StopwatchTimer, DeliveryScooter, PackageBox, ShoppingCart, SmartphoneApp, RocketGrowth, StoreWarehouse} from './logistics.jsx';
 
 // The catalog the Director chooses from. `use` tells it WHEN each icon fits; `params` are the only knobs it may set.
 export const ICONS = {
@@ -19,5 +20,13 @@ export const ICONS = {
   investors_cash: {C: InvestorsCash, use: 'big investors pulling money out of a falling market into cash', params: {}},
   expect_line: {C: ExpectLine, use: 'a chart versus what people expected; hype versus reality', params: {label: 'short text'}},
   why_mark: {C: WhyMark, use: 'a pause on the question; the audience wonders why', params: {text: 'short text'}},
+  city_map: {C: CityMap, use: 'city map, warehouses, dark stores, location network', params: {pulse: 'bool'}},
+  stopwatch_timer: {C: StopwatchTimer, use: 'stopwatch, timer ticking down, groceries, quick 10-minute delivery', params: {bag: 'bool'}},
+  delivery_scooter: {C: DeliveryScooter, use: 'delivery rider, fast scooter on street, courier, speeding transport', params: {fast: 'bool'}},
+  package_box: {C: PackageBox, use: 'glowing smart box, microchip and location pin, parcel delivery', params: {glow: 'bool'}},
+  shopping_cart: {C: ShoppingCart, use: 'shopping cart, grocery items, retail checkout, e-commerce', params: {items: 'number'}},
+  smartphone_app: {C: SmartphoneApp, use: 'smartphone app, tracking order on map, mobile notification, ETA', params: {status: 'short text'}},
+  store_warehouse: {C: StoreWarehouse, use: 'warehouse, fulfillment center, dark store, inventory dispatch', params: {dispatch: 'bool'}},
+  rocket_growth: {C: RocketGrowth, use: 'rocket launch, hyper growth, high speed, rapid expansion', params: {launch: 'bool'}},
 };
 export const catalog = () => Object.fromEntries(Object.entries(ICONS).map(([k, v]) => [k, {use: v.use, params: v.params}]));

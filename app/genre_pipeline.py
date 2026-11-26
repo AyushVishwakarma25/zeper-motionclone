@@ -36,7 +36,7 @@ def spread_words(text: str, clip_dur: float, lead: float = LEAD_S) -> list[dict]
     return out
 
 
-def plan_genre(genre: str, topic: str, language: str, seconds: int, llm: Callable, out_dir: Path) -> dict:
+def plan_genre(genre: str, topic: str, language: str, seconds: int, llm: Callable, out_dir: Path, resolve_fallbacks: bool = True) -> dict:
     """Writes out_dir/scene_plan.json. Returns {ok, scenes, need, problems}. A missing prop/icon is reported, never faked."""
     out_dir.mkdir(parents=True, exist_ok=True)
     if genre == 'science':
@@ -46,9 +46,19 @@ def plan_genre(genre: str, topic: str, language: str, seconds: int, llm: Callabl
         need, problems = built['need_prop'], built['problems']
     elif genre == 'icon':
         from . import icon_director as d
+        from . import icon_coder as coder
         from .icon_pipeline import estimate_timing
         raw = llm(d.icon_prompt(topic, language, seconds), d.IconPlan)
         plan = d.IconPlan.model_validate_json(raw if isinstance(raw, str) else json.dumps(raw))
+        dynamic_svg_by_beat = {}
+        if resolve_fallbacks:
+            for b in plan.beats:
+                if not b.hook and (b.icon is None or not getattr(b.icon, 'id', None)) and b.need_icon:
+                    best_id, params, dyn_svg = coder.ensure_icon_for_beat(b.need_icon, topic=topic, llm=llm)
+                    b.icon = d.IconChoice(id=best_id, params=params)
+                    if dyn_svg:
+                        dynamic_svg_by_beat[b.id] = dyn_svg
+                    b.need_icon = ''
         built = d.compile_scenes(plan, estimate_timing(plan))
         need, problems = built['need_icon'], d.lint_icon_plan(plan)
     else:
@@ -58,6 +68,8 @@ def plan_genre(genre: str, topic: str, language: str, seconds: int, llm: Callabl
     for sc in scenes:
         sc['voiceover_script_en'] = texts[sc['beat']]
         sc['narration_marked'] = ' '.join(w['w'] for w in sc.get('words', []))   # keeps *keyword* stars for the caption
+        if genre == 'icon' and sc.get('beat') in dynamic_svg_by_beat and 'icon' in sc:
+            sc['icon']['dynamic_svg'] = dynamic_svg_by_beat[sc['beat']]
     ok = not need and not problems
     (out_dir / 'scene_plan.json').write_text(json.dumps({'aspect': '9:16', 'genre': genre, 'scenes': scenes}, indent=2), encoding='utf-8')
     return {'ok': ok, 'scenes': scenes, 'need': need, 'problems': problems}

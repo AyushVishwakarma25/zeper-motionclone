@@ -1272,7 +1272,7 @@
       // If step 2 returns need.length, toast the missing props and do not continue.
       if (res.need && res.need.length > 0) {
         hideOverlay();
-        const missing = res.need.map(n => typeof n === 'string' ? n : (n.kind || n.name || JSON.stringify(n))).join(', ');
+        const missing = res.need.map(n => typeof n === 'string' ? n : (n.need_icon || n.need_prop || n.concept || n.kind || n.name || JSON.stringify(n))).join(', ');
         showToast(`Missing required props: ${missing}`, 'error');
         appendChatBubble('agent', `⚠️ Missing required props: ${missing}. Stopped without continuing.`);
         setExecutionStatus({

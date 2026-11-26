@@ -1,0 +1,130 @@
+{
+  "superconducting_magnetic_levitat": {
+    "use": "Vector graphic for superconducting magnetic levitation train",
+    "params": [
+      "pulse"
+    ],
+    "dynamic_svg": {
+      "id": "superconducting_magnetic_levitat",
+      "title": "superconducting magnetic levitation trai",
+      "description": "Vector graphic for superconducting magnetic levitation train",
+      "params": [
+        "pulse"
+      ],
+      "viewBox": "0 0 400 400",
+      "layers": [
+        {
+          "tag": "rect",
+          "props": {
+            "x": 40,
+            "y": 50,
+            "width": 320,
+            "height": 300,
+            "rx": 24,
+            "fill": "#f8fafc",
+            "stroke": "#cbd5e1",
+            "strokeWidth": 4
+          },
+          "anim": {
+            "enter": {
+              "delay": 0.05,
+              "duration": 0.4
+            }
+          }
+        },
+        {
+          "tag": "circle",
+          "props": {
+            "cx": 200,
+            "cy": 180,
+            "r": 70,
+            "fill": "#3b82f6",
+            "opacity": 0.15
+          },
+          "anim": {
+            "pulse": {
+              "freq": 3,
+              "amp": 0.08
+            }
+          }
+        },
+        {
+          "tag": "circle",
+          "props": {
+            "cx": 200,
+            "cy": 180,
+            "r": 48,
+            "fill": "#3b82f6",
+            "stroke": "#ffffff",
+            "strokeWidth": 4
+          },
+          "anim": {
+            "bob": {
+              "freq": 2.5,
+              "amp": 6
+            }
+          }
+        },
+        {
+          "tag": "polygon",
+          "props": {
+            "points": "200,145 220,195 180,195",
+            "fill": "#ffffff"
+          },
+          "anim": {
+            "rotate": {
+              "speed": 90,
+              "origin": [
+                200,
+                180
+              ]
+            }
+          }
+        },
+        {
+          "tag": "circle",
+          "props": {
+            "cx": 255,
+            "cy": 140,
+            "r": 8,
+            "fill": "#f59e0b",
+            "stroke": "#ffffff",
+            "strokeWidth": 2
+          },
+          "anim": {
+            "pulse": {
+              "freq": 5,
+              "amp": 0.2
+            }
+          }
+        },
+        {
+          "tag": "rect",
+          "props": {
+            "x": 90,
+            "y": 280,
+            "width": 220,
+            "height": 36,
+            "rx": 10,
+            "fill": "#1e293b"
+          }
+        },
+        {
+          "tag": "text",
+          "props": {
+            "x": 200,
+            "y": 303,
+            "textAnchor": "middle",
+            "fontSize": 14,
+            "fontWeight": "800",
+            "fill": "#ffffff",
+            "fontFamily": "Arial"
+          },
+          "text": "SUPERCONDUCTING MAGNET"
+        }
+      ],
+      "svg_markup": null,
+      "jsx_code": null
+    }
+  }
+}

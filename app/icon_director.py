@@ -83,6 +83,79 @@ def lint_icon_plan(plan: IconPlan) -> list[str]:
     return bad
 
 
+ICON_KEYWORDS: dict[str, list[str]] = {
+    'city_map': ['map', 'city', 'warehouse', 'warehouses', 'hub', 'location', 'locations', 'pin', 'pins', 'network', 'area', 'route', 'routes', 'dark store', 'dark stores', 'streets'],
+    'stopwatch_timer': ['stopwatch', 'timer', 'ticking', 'countdown', 'time', 'clock', 'grocery', 'groceries', 'bag', 'speed', 'fast', '10-minute', 'minute', 'seconds', 'quick'],
+    'delivery_scooter': ['scooter', 'rider', 'delivery', 'courier', 'bike', 'motorcycle', 'driver', 'street', 'road', 'zooming', 'speeding', 'transport', 'shipping'],
+    'package_box': ['box', 'package', 'parcel', 'chip', 'microchip', 'glowing', 'location pin', 'smart', 'tech', 'hardware', 'cube', 'iot'],
+    'shopping_cart': ['cart', 'shopping', 'supermarket', 'items', 'store', 'retail', 'buy', 'checkout', 'basket'],
+    'smartphone_app': ['phone', 'smartphone', 'app', 'mobile', 'screen', 'tracking', 'notification', 'order', 'status', 'eta'],
+    'store_warehouse': ['warehouse', 'dark store', 'fulfillment', 'storage', 'depot', 'inventory', 'center', 'dispatch', 'shelves'],
+    'rocket_growth': ['rocket', 'launch', 'growth', 'hyper', 'rapid', 'scale', 'scaling', 'skyrocket', 'speed', 'fast', 'expansion'],
+    'gold_bars': ['gold', 'wealth', 'safe haven', 'bullion', 'bars', 'treasure', 'reserve', 'reserves'],
+    'silver_coin': ['silver', 'coin', 'sliding', 'metal', 'commodity', 'drop', 'slide'],
+    'candles': ['candles', 'stock', 'market', 'chart', 'trading', 'crash', 'rise', 'candlestick', 'crypto'],
+    'ai_bars': ['ai', 'artificial intelligence', 'tech', 'chip', 'semiconductor', 'model', 'software', 'growth'],
+    'bond': ['bond', 'bonds', 'treasury', 'debt', 'yield', 'government', 'certificate'],
+    'shield_crack': ['shield', 'protection', 'safe', 'crack', 'cracking', 'fails', 'broken', 'breach', 'vulnerability'],
+    'flask': ['flask', 'lab', 'science', 'synthetic', 'chemistry', 'formula', 'research', 'experiment'],
+    'gauge': ['gauge', 'meter', 'trust', 'confidence', 'risk', 'level', 'measure', 'indicator'],
+    'radar': ['radar', 'military', 'target', 'targeting', 'surveillance', 'attack', 'defense', 'scan'],
+    'lock_hack': ['lock', 'hack', 'hacked', 'security', 'theft', 'stolen', 'bank', 'breach', 'cyber'],
+    'calendar_fill': ['calendar', 'month', 'months', 'year', 'saving', 'savings', 'emergency', 'timeline'],
+    'car_house_x': ['car', 'house', 'purchase', 'buy', 'expensive', 'postpone', 'avoid', 'spending'],
+    'investors_cash': ['investors', 'cash', 'market', 'capital', 'funds', 'pulling money', 'liquidity'],
+    'expect_line': ['expect', 'expected', 'expectation', 'hype', 'reality', 'versus', 'trend', 'curve'],
+    'why_mark': ['why', 'question', 'curiosity', 'wonder', 'mystery', 'reason', 'doubt']
+}
+
+
+def resolve_fallback_icon(need_icon_desc: str) -> tuple[str, dict[str, str]]:
+    """Resolves an arbitrary need_icon text description to the best-matching catalog icon."""
+    desc = (need_icon_desc or '').lower()
+    best_id = 'why_mark'
+    best_score = 0
+
+    for icon_id, kws in ICON_KEYWORDS.items():
+        if icon_id not in CATALOG:
+            continue
+        score = sum(
+            2 if (' ' in kw and kw in desc) else (1 if re.search(r'\b' + re.escape(kw) + r'\b', desc) else 0)
+            for kw in kws
+        )
+        if score > best_score:
+            best_score = score
+            best_id = icon_id
+
+    if best_score == 0:
+        for icon_id, meta in CATALOG.items():
+            use_words = set(re.findall(r'\b\w+\b', meta.get('use', '').lower()))
+            desc_words = set(re.findall(r'\b\w+\b', desc))
+            overlap = len(desc_words & use_words)
+            if overlap > best_score:
+                best_score = overlap
+                best_id = icon_id
+
+    allowed_params = CATALOG[best_id].get('params', [])
+    params: dict[str, str] = {}
+    if 'pulse' in allowed_params:
+        params['pulse'] = 'true'
+    elif 'fast' in allowed_params:
+        params['fast'] = 'true'
+    elif 'bag' in allowed_params:
+        params['bag'] = 'true'
+    elif 'glow' in allowed_params:
+        params['glow'] = 'true'
+    elif 'dispatch' in allowed_params:
+        params['dispatch'] = 'true'
+    elif 'launch' in allowed_params:
+        params['launch'] = 'true'
+    elif 'fall' in allowed_params:
+        params['fall'] = 'true'
+
+    return best_id, params
+
+
 def _coerce(v: str):
     if v.lower() in ('true', 'false'):
         return v.lower() == 'true'
